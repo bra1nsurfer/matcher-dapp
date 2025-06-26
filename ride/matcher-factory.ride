@@ -1,0 +1,52 @@
+{-# STDLIB_VERSION 7 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let SEP = "__"
+let CONTRACT_NAME = "matcher-factory.ride"
+
+func wrapErr(s: String) = {
+  CONTRACT_NAME + ": " + s
+}
+
+func throwErr(s: String) = {
+  throw(wrapErr(s))
+}
+
+let kForceStop        = ["%s", "forceStop"].makeString(SEP)
+let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
+let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
+let kSpotContract     = ["%s", "spotContract"].makeString(SEP)
+
+@Callable(i)
+func init(matcherValidator: String, matcherPublicKey: String, spotContract: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  let validator = if (matcherValidator == "") then [] else [StringEntry(kMatcherValidator, matcherValidator)]
+  let pubKey    = if (matcherPublicKey == "") then [] else [StringEntry(kMatcherPublicKey, matcherPublicKey)]
+  let spot      = if (spotContract == "")     then [] else [StringEntry(kSpotContract, spotContract)]
+
+  validator ++ pubKey ++ spot
+}
+
+@Callable(i)
+func forceStop(value: Boolean) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+    
+  [ BooleanEntry(kForceStop, value) ]
+}
+
+@Callable(i)
+func getOrderTypeContract(orderType: Int) = {
+  let contractsList = [
+    this.getString(kSpotContract).valueOrElse(""), # spot
+    "",                                            # leverage
+    ""                                             # margin
+  ]
+
+  ([], contractsList[orderType])
+}

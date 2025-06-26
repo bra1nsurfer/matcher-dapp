@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <h1>dApp matcher test page</h1>
+    <style>
+        .main-block {
+            display: flex;
+        }
+
+        .order-block {
+            max-width: 450px;
+            margin: 5px;
+            margin-right: 10px;
+        }
+
+        .mono-text {
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .output {
+            line-break: anywhere;
+        }
+
+        .out-data {
+            border-style: solid;
+            padding: 5px;
+        }
+
+        .important-data {
+            color: darkgreen;
+            border-width: 10px;
+        }
+
+        input {
+            padding-right: 10px;
+        }
+
+        input#text {
+            margin-left: 5px;
+        }
+
+        button {
+            padding: 10px;
+        }
+
+        .bordered {
+            margin-left: 5px;
+            border-style: solid;
+            border-width: 1px;
+        }
+
+        .small-text {
+            font-size: small;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-left: 5px;
+            font-size: small;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="contracts-block">
+        <h2>Contracts Data</h2>
+        <div>
+            Factory address:
+            <span class="mono-text bordered" id="factoryAddress"></span>
+        </div>
+        <div>
+            Matcher public key:
+            <span class="mono-text bordered" id="factoryMatcherPubKey"></span>
+        </div>
+        <div>
+            Validator address:
+            <span class="mono-text bordered" id="validatorAddress"></span>
+        </div>
+        <div>
+            Spot address:
+            <span class="mono-text bordered" id="spotAddress"></span>
+        </div>
+    </div>
+    <div class="main-block">
+        <div class="order-block">
+            <h2>Order 1 (Maker)</h2>
+            <form>
+                <span>
+                    <input id="maker-version" value="1">
+                    <label>version</label>
+                </span>
+                <span>
+                    <input id="maker-network" value="T">
+                    <label>network byte</label>
+                </span>
+                <span>
+                    <input id="maker-senderPublicKey" value="" disabled>
+                    <label>sender (address if METAMASK)</label>
+                </span>
+                <span>
+                    <input id="maker-matcherPublicKey" value="FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc">
+                    <label>matcher public key</label>
+                </span>
+                <span>
+                    <input id="maker-amount" value="100000000">
+                    <label>amount</label>
+                </span>
+                <span>
+                    <input id="maker-amountAssetId" value="WAVES">
+                    <label>amount asset id</label>
+                </span>
+                <span>
+                    <input id="maker-price" value="2000000">
+                    <label>price</label>
+                </span>
+                <span>
+                    <input id="maker-priceAssetId" value="25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT">
+                    <label>price asset id</label>
+                </span>
+                <span>
+                    <input id="maker-orderType" value="0">
+                    <label>order type (0 -> spot, 1 -> leverage, 2 -> margin)</label>
+                </span>
+                <span>
+                    <input id="maker-buying" type="checkbox" checked>
+                    <label>buying</label>
+                </span>
+                <span>
+                    <input id="maker-timestamp" value="0">
+                    <label>timestamp (nonce)</label>
+                </span>
+                <span>
+                    <input id="maker-expiration" value="0">
+                    <label>expiration (0 -> indefinite)</label>
+                </span>
+            </form>
+            <div>
+                <button id="maker-loginKeeperButton">Login KEEPER</button>
+                <button id="maker-loginMetamaskButton">Login METAMASK</button>
+            </div>
+            <div>
+                <div>
+                    <div>Spot balance</h3>
+                        <div class="mono-text out-data small-text" id="maker-spotBalance"></div>
+                    </div>
+                </div>
+                <div class="output">
+                    <div>Address (base58):</div>
+                    <div id="maker-address" class="out-data mono-text small-text"></div>
+                    <div>Public Key (base58):</div>
+                    <div id="maker-publicKey" class="out-data mono-text small-text"></div>
+                </div>
+
+                <div class="output">
+                    <div>Order ID (base58):</div>
+                    <div id="maker-orderId-b58" class="out-data mono-text small-text"></div>
+                    <div>Keeper sign window text(base64):</div>
+                    <div id="maker-orderId-b64" class="out-data mono-text small-text"></div>
+                    <div>Order bytes (base64):</div>
+                    <div id="maker-orderBytes" class="out-data mono-text important-data small-text"></div>
+                    <div>Proof (base64):</div>
+                    <div id="maker-proof" class="out-data mono-text important-data small-text"></div>
+                </div>
+                <div>
+                    <button id="maker-signWithKeeper">Sign Order 1</button>
+                </div>
+            </div>
+        </div>
+        <div class="order-block">
+            <h2>Order 2 (Taker)</h2>
+            <form>
+                <span>
+                    <input id="taker-version" value="1">
+                    <label>version</label>
+                </span>
+                <span>
+                    <input id="taker-network" value="T">
+                    <label>network byte</label>
+                </span>
+                <span>
+                    <input id="taker-senderPublicKey" value="" disabled>
+                    <label>sender (address if METAMASK)</label>
+                </span>
+                <span>
+                    <input id="taker-matcherPublicKey" value="FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc">
+                    <label>matcher public key</label>
+                </span>
+                <span>
+                    <input id="taker-amount" value="100000000">
+                    <label>amount</label>
+                </span>
+                <span>
+                    <input id="taker-amountAssetId" value="WAVES">
+                    <label>amount asset id</label>
+                </span>
+                <span>
+                    <input id="taker-price" value="2000000">
+                    <label>price</label>
+                </span>
+                <span>
+                    <input id="taker-priceAssetId" value="25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT">
+                    <label>price asset id</label>
+                </span>
+                <span>
+                    <input id="taker-orderType" value="0">
+                    <label>order type (0 -> spot, 1 -> leverage, 2 -> margin)</label>
+                </span>
+                <span>
+                    <input id="taker-buying" type="checkbox">
+                    <label>buying</label>
+                </span>
+                <span>
+                    <input id="taker-timestamp" value="0">
+                    <label>timestamp (nonce)</label>
+                </span>
+                <span>
+                    <input id="taker-expiration" value="0">
+                    <label>expiration (0 -> indefinite)</label>
+                </span>
+            </form>
+            <div>
+                <button id="taker-loginKeeperButton">Login KEEPER</button>
+                <button id="taker-loginMetamaskButton">Login METAMASK</button>
+            </div>
+            <div>
+                <div>
+                    <div>Spot balance</h3>
+                        <div class="mono-text out-data small-text" id="taker-spotBalance"></div>
+                    </div>
+                </div>
+                <div class="output">
+                    <div>Address (base58):</div>
+                    <div id="taker-address" class="out-data mono-text small-text"></div>
+                    <div>Public Key (base58):</div>
+                    <div id="taker-publicKey" class="out-data mono-text small-text"></div>
+                </div>
+
+                <div class="output">
+                    <div>Order ID (base58):</div>
+                    <div id="taker-orderId-b58" class="out-data mono-text small-text"></div>
+                    <div>Keeper sign window text(base64):</div>
+                    <div id="taker-orderId-b64" class="out-data mono-text small-text"></div>
+                    <div>Order bytes (base64):</div>
+                    <div id="taker-orderBytes" class="out-data mono-text important-data small-text"></div>
+                    <div>Proof (base64):</div>
+                    <div id="taker-proof" class="out-data mono-text important-data small-text"></div>
+                </div>
+                <div>
+                    <button id="taker-signWithKeeper">Sign Order 2</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div>
+        <form>
+            <span>
+                <input id="matchingAmount" value="100000000">
+                <label>matching amount</label>
+            </span>
+            <span>
+                <input id="matchingPrice" value="2000000">
+                <label>matching price</label>
+            </span>
+        </form>
+        <div id="exchangeOutput"></div>
+        <button id="signExchangeButton">Sign Exchange + Broadcast </button>
+    </div>
+    <script src="./main.js" type="module"></script>
+</body>
+
+</html>

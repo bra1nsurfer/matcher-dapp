@@ -1,0 +1,27 @@
+{
+  "dependencies": {
+    "@dotenvx/dotenvx": "^1.45.1",
+    "@waves/provider-keeper": "^2.0.9",
+    "@waves/provider-metamask": "^1.1.7",
+    "@waves/signer": "^1.1.0",
+    "@waves/waves-transactions": "^4.3.11",
+    "base58-js": "^3.0.2",
+    "base64-js": "^1.5.1",
+    "dotenv": "^16.5.0",
+    "tslib": "^2.8.1",
+    "typescript": "^5.8.3",
+    "util": "^0.12.5",
+    "webpack": "^5.99.9",
+    "webpack-cli": "^6.0.1"
+  },
+  "name": "matching-dapp",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc & webpack",
+    "deploy": "tsc & node ./deploy.js",
+    "deploy-testnet": "tsc & dotenvx run -f ./.env.testnet -- node ./deploy.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
