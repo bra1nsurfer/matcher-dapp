@@ -105,6 +105,7 @@ const factoryAddressElement = document.getElementById("factoryAddress") as HTMLS
 const factoryMatcherPubKeyElement = document.getElementById("factoryMatcherPubKey") as HTMLSpanElement;
 const validatorAddressElement = document.getElementById("validatorAddress") as HTMLSpanElement;
 const spotAddressElement = document.getElementById("spotAddress") as HTMLSpanElement;
+const depositBlockElement = document.getElementById("depositBlock") as HTMLDivElement;
 
 const matchingAmountElement = document.getElementById("matchingAmount") as HTMLInputElement;
 const matchingPriceElement = document.getElementById("matchingPrice") as HTMLInputElement;
@@ -240,6 +241,14 @@ function getContracts() {
             factoryMatcherPubKeyElement.innerText = getFromState(state, kMatcherPubKey).toString();
             validatorAddressElement.innerText = getFromState(state, kValidator).toString();
             spotAddressElement.innerText = getFromState(state, kSpot).toString();
+
+            const depositLinkElement = document.createElement("a");
+            const depositUrl = `https://waves-dapp.com/${getFromState(state, kSpot).toString()}#deposit`;
+            depositLinkElement.href = depositUrl;
+            depositLinkElement.innerText = depositUrl;
+            depositLinkElement.target = "_blank";
+            depositLinkElement.rel = "noopener noreferrer";
+            depositBlockElement.appendChild(depositLinkElement);
         })
 }
 
