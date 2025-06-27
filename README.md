@@ -1,5 +1,9 @@
 # Matching Dapp
 
+## Demo
+
+<https://localhost>
+
 ## Order Structure V1
 
 | #  | Bytes Length | Value Description                                                               |
@@ -65,7 +69,3 @@ ProviderMetamask uses EIP-712 and signTypedData version 4 function of MetaMask A
    }
 ]
 ```
-
-## Demo
-
-<https://localhost>
