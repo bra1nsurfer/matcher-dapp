@@ -65,6 +65,11 @@ const spot: Account = {
     address: e.SPOT_ADDRESS ? e.SPOT_ADDRESS : "",
 }
 
+const treasury: Account = {
+    seed: e.TREASURY_SEED ? e.TREASURY_SEED : "",
+    address: e.TREASURY_ADDRESS ? e.TREASURY_ADDRESS : "",
+}
+
 broadcastNewScript('./ride/matcher-validator.ride', validator)
     .then(res => console.log(res))
     .catch(e => console.error(e));
@@ -74,5 +79,9 @@ broadcastNewScript('./ride/matcher-factory.ride', factory)
     .catch(e => console.error(e));
 
 broadcastNewScript('./ride/matcher-spot.ride', spot)
+    .then(res => console.log(res))
+    .catch(e => console.error(e));
+
+broadcastNewScript('./ride/matcher-treasury.ride', treasury)
     .then(res => console.log(res))
     .catch(e => console.error(e));

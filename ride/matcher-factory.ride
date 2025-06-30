@@ -17,9 +17,16 @@ let kForceStop        = ["%s", "forceStop"].makeString(SEP)
 let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
 let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
 let kSpotContract     = ["%s", "spotContract"].makeString(SEP)
+let kTreasuryAddress  = ["%s", "treasuryContract"].makeString(SEP)
+
+let contractsList = [
+    this.getString(kSpotContract).valueOrElse(""), # spot
+    "",                                            # leverage
+    ""                                             # margin
+  ]
 
 @Callable(i)
-func init(matcherValidator: String, matcherPublicKey: String, spotContract: String) = {
+func init(matcherValidator: String, matcherPublicKey: String, spotContract: String, treasuryContract: String) = {
   strict check = [
     i.caller == this || throwErr("permission denied")
   ]
@@ -27,8 +34,9 @@ func init(matcherValidator: String, matcherPublicKey: String, spotContract: Stri
   let validator = if (matcherValidator == "") then [] else [StringEntry(kMatcherValidator, matcherValidator)]
   let pubKey    = if (matcherPublicKey == "") then [] else [StringEntry(kMatcherPublicKey, matcherPublicKey)]
   let spot      = if (spotContract == "")     then [] else [StringEntry(kSpotContract, spotContract)]
+  let treasury  = if (treasuryContract == "") then [] else [StringEntry(kTreasuryAddress, treasuryContract)]
 
-  validator ++ pubKey ++ spot
+  validator ++ pubKey ++ spot ++ treasury
 }
 
 @Callable(i)
@@ -42,11 +50,10 @@ func forceStop(value: Boolean) = {
 
 @Callable(i)
 func getOrderTypeContract(orderType: Int) = {
-  let contractsList = [
-    this.getString(kSpotContract).valueOrElse(""), # spot
-    "",                                            # leverage
-    ""                                             # margin
-  ]
-
   ([], contractsList[orderType])
+}
+
+@Callable(i)
+func getAllOrderTypeContracts() = {
+  ([], contractsList)
 }

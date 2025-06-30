@@ -29,19 +29,13 @@ let kFactoryAddress      = ["%s", "factoryAddress"].makeString(SEP)
 let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
 let factoryAddress       = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
 
-let kForceStop        = ["%s", "forceStop"].makeString(SEP)
+let kForceStop = ["%s", "forceStop"].makeString(SEP)
+let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
 let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
 let matcherValidator  = factoryAddress.getString(kMatcherValidator).valueOrElse("")
-
-func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
-
-func getUserBalances(user: String, asset1: String, asset2: String) = {
-  let asset1Bal = this.getInteger(kUserBalance(user, asset1)).valueOrElse(0)
-  let asset2Bal = this.getInteger(kUserBalance(user, asset2)).valueOrElse(0)
-
-  (asset1Bal, asset2Bal)
-}
+let kTreasuryAddress  = ["%s", "treasuryContract"].makeString(SEP)
+let treasury          = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
 
 @Callable(i)
 func init(matcherFactory: String) = {
@@ -50,39 +44,6 @@ func init(matcherFactory: String) = {
   ]
 
   [StringEntry(kFactoryAddress, matcherFactory)]
-}
-
-@Callable(i)
-func deposit() = {
-  let userAddress = i.caller.toString()
-
-  func a(actionsList: List[IntegerEntry], nextPayment: AttachedPayment) = {
-    let kCurAsset = kUserBalance(userAddress, nextPayment.assetId.assetIdToString())
-    let curBalance = this.getInteger(kCurAsset).valueOrElse(0)
-
-    actionsList ++ [IntegerEntry(kCurAsset, curBalance + nextPayment.amount)]
-  }
-
-  let allActions = FOLD<10>(i.payments, [], a)
-
-  allActions
-}
-
-@Callable(i) 
-func withdraw(assetId: String, amount: Int) = {
-  let kBalance = kUserBalance(i.caller.toString(), assetId)
-  let balance = this.getInteger(kBalance).valueOrElse(0)
-  let newBalance = balance - amount
-
-  strict check = [
-    amount > 0 || throwErr("amount must be greater than 0"),
-    newBalance >= 0 || throwErr("not enough balance")
-  ]
-
-  [
-    ScriptTransfer(i.caller, amount, assetId.stringToAssetId()),
-    IntegerEntry(kBalance, newBalance)
-  ]
 }
 
 @Callable(i)
@@ -96,27 +57,22 @@ func exchange(
   asset2Amount : Int,
   asset2Id     : String
   ) = {
-  
-  let (buyerAsset1Bal, buyerAsset2Bal)   = getUserBalances(buyerAddress, asset1Id, asset2Id)
-  let (sellerAsset1Bal, sellerAsset2Bal) = getUserBalances(sellerAddress, asset1Id, asset2Id)
-
-  let newBuyerAsset1Bal = buyerAsset1Bal + asset1Amount
-  let newBuyerAsset2Bal = buyerAsset2Bal - asset2Amount
-
-  let newSellerAsset1Bal = sellerAsset1Bal - asset1Amount
-  let newSellerAsset2Bal = sellerAsset2Bal + asset2Amount
-
   strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
     i.caller.toString() == matcherValidator || throwErr("permission denied"),
-    buyerAddress != sellerAddress || throwErr("buyer and seller is the same"),
-    newBuyerAsset2Bal >= 0 || throwErr(["buyer negative balance", buyerAddress, asset2Id, buyerAsset2Bal.toString(), newBuyerAsset2Bal.toString()].makeString(" ")),
-    newSellerAsset1Bal >= 0 || throwErr(["seller negative balance", sellerAddress, asset1Id, sellerAsset1Bal.toString(), newSellerAsset1Bal.toString()].makeString(" "))
+    buyerAddress != sellerAddress || throwErr("buyer and seller is the same")
   ]
 
-  [
-    IntegerEntry(kUserBalance(buyerAddress, asset1Id), newBuyerAsset1Bal),
-    IntegerEntry(kUserBalance(buyerAddress, asset2Id), newBuyerAsset2Bal),
-    IntegerEntry(kUserBalance(sellerAddress, asset1Id), newSellerAsset1Bal),
-    IntegerEntry(kUserBalance(sellerAddress, asset2Id), newSellerAsset2Bal)
-  ]
+  (
+    [],
+    [
+      # Swap amountAsset (seller -> buyer)
+      treasury.addressFromStringValue().invoke("subBalance", [sellerAddress, asset1Id, asset1Amount], []),
+      treasury.addressFromStringValue().invoke("addBalance", [buyerAddress, asset1Id, asset1Amount], []),
+
+      # Swap priceAsset (buyer -> seller)
+      treasury.addressFromStringValue().invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
+      treasury.addressFromStringValue().invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], [])
+    ]
+  )
 }

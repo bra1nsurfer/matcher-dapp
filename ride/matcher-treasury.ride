@@ -1,0 +1,122 @@
+{-# STDLIB_VERSION 7 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let SEP = "__"
+let CONTRACT_NAME = "matcher-treasury.ride"
+let WAVES = "WAVES"
+
+func wrapErr(s: String) = {
+  CONTRACT_NAME + ": " + s
+}
+
+func throwErr(s: String) = {
+  throw(wrapErr(s))
+}
+
+func assetIdToString(assetId: ByteVector|Unit) = {
+  match assetId {
+    case b: ByteVector => b.toBase58String()
+    case _: Unit => WAVES
+  }
+}
+
+func stringToAssetId(s: String) = {
+  if (s == WAVES) then unit else s.fromBase58String()
+}
+
+let kFactoryAddress      = ["%s", "factoryAddress"].makeString(SEP)
+let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress       = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
+
+let kForceStop = ["%s", "forceStop"].makeString(SEP)
+let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
+
+let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
+let matcherValidator  = factoryAddress.getString(kMatcherValidator).valueOrElse("")
+
+func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
+func getUserBalances(user: String, asset1: String) = this.getInteger(kUserBalance(user, asset1)).valueOrElse(0)
+
+let orderContractList = {
+  let addressStringList = factoryAddress.invoke("getAllOrderTypeContracts", [], [])
+  
+  match (addressStringList) {
+      case s:List[Any] => s
+      case _ => []
+    }
+}
+
+func changeBalanceHelper(user: String, assetId: String, amount: Int, caller: String, add: Boolean) = {
+  let oldBalance = getUserBalances(user, assetId)
+  let newBalance = if add then oldBalance + amount else oldBalance - amount
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    orderContractList.containsElement(caller) || throwErr("permission denied"),
+    amount > 0 || throwErr("amount must be greater than 0"),
+    newBalance >= 0 || throwErr(["not enough balance", user].makeString(" "))
+  ]
+
+  [
+    IntegerEntry(kUserBalance(user, assetId), newBalance)
+  ]
+}
+
+@Callable(i)
+func init(matcherFactory: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [StringEntry(kFactoryAddress, matcherFactory)]
+}
+
+@Callable(i)
+func deposit() = {
+  let userAddress = i.caller.toString()
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped")
+  ]
+
+  func a(actionsList: List[IntegerEntry], nextPayment: AttachedPayment) = {
+    let kCurAsset = kUserBalance(userAddress, nextPayment.assetId.assetIdToString())
+    let curBalance = this.getInteger(kCurAsset).valueOrElse(0)
+
+    actionsList ++ [IntegerEntry(kCurAsset, curBalance + nextPayment.amount)]
+  }
+
+  let allActions = FOLD<10>(i.payments, [], a)
+
+  allActions
+}
+
+@Callable(i) 
+func withdraw(assetId: String, amount: Int) = {
+  let user = i.caller.toString()
+  let kBalance = kUserBalance(user, assetId)
+  let balance = this.getInteger(kBalance).valueOrElse(0)
+  let newBalance = balance - amount
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    amount > 0 || throwErr("amount must be greater than 0"),
+    newBalance >= 0 || throwErr(["not enough balance to withdraw", user].makeString(" "))
+  ]
+
+  [
+    ScriptTransfer(i.caller, amount, assetId.stringToAssetId()),
+    IntegerEntry(kBalance, newBalance)
+  ]
+}
+
+@Callable(i)
+func subBalance(user: String, assetId: String, amount: Int) = {
+    changeBalanceHelper(user, assetId, amount, i.caller.toString(), false)
+}
+
+@Callable(i)
+func addBalance(user: String, assetId: String, amount: Int) = {
+  changeBalanceHelper(user, assetId, amount, i.caller.toString(), true)
+}
