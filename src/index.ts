@@ -62,7 +62,7 @@ const maker = {
     buyingElement: document.getElementById("maker-buying") as HTMLInputElement,
     timestampElement: document.getElementById("maker-timestamp") as HTMLInputElement,
     expirationElement: document.getElementById("maker-expiration") as HTMLInputElement,
-    balanceBlock: document.getElementById("maker-spotBalance") as HTMLDivElement,
+    balanceBlock: document.getElementById("maker-balance") as HTMLDivElement,
     orderBytesElement: document.getElementById("maker-orderBytes") as HTMLDivElement,
     orderIdb58Element: document.getElementById("maker-orderId-b58") as HTMLDivElement,
     orderIdb64Element: document.getElementById("maker-orderId-b64") as HTMLDivElement,
@@ -89,7 +89,7 @@ const taker = {
     buyingElement: document.getElementById("taker-buying") as HTMLInputElement,
     timestampElement: document.getElementById("taker-timestamp") as HTMLInputElement,
     expirationElement: document.getElementById("taker-expiration") as HTMLInputElement,
-    balanceBlock: document.getElementById("taker-spotBalance") as HTMLDivElement,
+    balanceBlock: document.getElementById("taker-balance") as HTMLDivElement,
     orderBytesElement: document.getElementById("taker-orderBytes") as HTMLDivElement,
     orderIdb58Element: document.getElementById("taker-orderId-b58") as HTMLDivElement,
     orderIdb64Element: document.getElementById("taker-orderId-b64") as HTMLDivElement,
@@ -105,6 +105,7 @@ const factoryAddressElement = document.getElementById("factoryAddress") as HTMLS
 const factoryMatcherPubKeyElement = document.getElementById("factoryMatcherPubKey") as HTMLSpanElement;
 const validatorAddressElement = document.getElementById("validatorAddress") as HTMLSpanElement;
 const spotAddressElement = document.getElementById("spotAddress") as HTMLSpanElement;
+const treasuryAddressElement = document.getElementById("treasuryAddress") as HTMLSpanElement;
 const depositBlockElement = document.getElementById("depositBlock") as HTMLDivElement;
 
 const matchingAmountElement = document.getElementById("matchingAmount") as HTMLInputElement;
@@ -230,10 +231,12 @@ function getContracts() {
     const kValidator = "%s__matcherValidator";
     const kSpot = "%s__spotContract";
     const kMatcherPubKey = "%s__matcherPublicKey";
+    const kTreasuryAddress = "%s__treasuryContract";
 
     factoryMatcherPubKeyElement.innerText = "LOADING...";
     validatorAddressElement.innerText = "LOADING...";
     spotAddressElement.innerText = "LOADING...";
+    treasuryAddressElement.innerText = "LOADING...";
 
     fetch(NODE_URL + ADDRESS_DATA_END + FACTORY_ADDRESS)
         .then(res => res.json() as Promise<ContractState>)
@@ -241,9 +244,10 @@ function getContracts() {
             factoryMatcherPubKeyElement.innerText = getFromState(state, kMatcherPubKey).toString();
             validatorAddressElement.innerText = getFromState(state, kValidator).toString();
             spotAddressElement.innerText = getFromState(state, kSpot).toString();
+            treasuryAddressElement.innerText = getFromState(state, kTreasuryAddress).toString();
 
             const depositLinkElement = document.createElement("a");
-            const depositUrl = `https://waves-dapp.com/${getFromState(state, kSpot).toString()}#deposit`;
+            const depositUrl = `https://waves-dapp.com/${getFromState(state, kTreasuryAddress).toString()}#deposit`;
             depositLinkElement.href = depositUrl;
             depositLinkElement.innerText = depositUrl;
             depositLinkElement.target = "_blank";
@@ -253,11 +257,11 @@ function getContracts() {
 }
 
 function getSpotBalance(userAddress: string, balanceBlock: HTMLDivElement) {
-    const spotAddress = spotAddressElement.innerText;
+    const treasuryAddress = treasuryAddressElement.innerText;
 
-    if (spotAddress != "") {
+    if (treasuryAddress != "") {
         const filter = `?matches=%25s%25s%25s__balance__${userAddress}.%2A`;
-        fetch(NODE_URL + ADDRESS_DATA_END + spotAddress + filter)
+        fetch(NODE_URL + ADDRESS_DATA_END + treasuryAddress + filter)
             .then(res => res.json() as Promise<ContractState>)
             .then(state => {
                 const newChildren: HTMLElement[] = [];
