@@ -64,6 +64,10 @@
             margin-left: 5px;
             font-size: small;
         }
+
+        .clickable {
+            cursor: pointer;
+        }
     </style>
 </head>
 
@@ -91,7 +95,7 @@
             <span class="mono-text bordered" id="treasuryAddress"></span>
         </div>
         <div id="depositBlock">
-            To deposit assets use: 
+            To deposit assets use:
         </div>
     </div>
     <div class="main-block">
@@ -150,11 +154,12 @@
             <div>
                 <button id="maker-loginKeeperButton">Login KEEPER</button>
                 <button id="maker-loginMetamaskButton">Login METAMASK</button>
+                <button id="maker-loginWebButton">Login WEB</button>
             </div>
             <div>
                 <div>
                     <div>Treasury balance</h3>
-                        <div class="mono-text out-data small-text" id="maker-balance"></div>
+                        <div class="mono-text out-data small-text clickable" id="maker-balance"></div>
                     </div>
                 </div>
                 <div class="output">
@@ -234,11 +239,12 @@
             <div>
                 <button id="taker-loginKeeperButton">Login KEEPER</button>
                 <button id="taker-loginMetamaskButton">Login METAMASK</button>
+                <button id="taker-loginWebButton">Login WEB</button>
             </div>
             <div>
                 <div>
                     <div>Treasury balance</h3>
-                        <div class="mono-text out-data small-text" id="taker-balance"></div>
+                        <div class="mono-text out-data small-text clickable" id="taker-balance"></div>
                     </div>
                 </div>
                 <div class="output">

@@ -3,6 +3,7 @@ import { fromByteArray, toByteArray } from "base64-js";
 import { Signer } from "@waves/signer";
 import { ProviderKeeper } from "@waves/provider-keeper";
 import { ProviderMetamask } from "@waves/provider-metamask";
+import { ProviderWeb } from "@waves.exchange/provider-web";
 
 type StateValue = {
     key: string,
@@ -12,7 +13,7 @@ type StateValue = {
 
 type ContractState = StateValue[];
 
-type SignerType = "keeper" | "metamask" | (string & {})
+type SignerType = "keeper" | "metamask" | "web" | (string & {})
 
 type Order = {
     signer: Signer,
@@ -41,11 +42,13 @@ type Order = {
     signButton: HTMLButtonElement,
     loginKeeperButton: HTMLButtonElement,
     loginMetamaskButton: HTMLButtonElement,
+    loginWebButton: HTMLButtonElement,
 }
 
 const FACTORY_ADDRESS = "3My9nqNjUMmVzeybGf1nmVW2ZAGTUihShWm";
 const NODE_URL = "https://nodes-testnet.wavesnodes.com";
-const ADDRESS_DATA_END = "/addresses/data/"
+const WX_PROVIDER_URL = "https://testnet.wx.network/signer";
+const ADDRESS_DATA_END = "/addresses/data/";
 
 const maker = {
     signer: new Signer({ NODE_URL }),
@@ -72,6 +75,7 @@ const maker = {
     publicKeyElement: document.getElementById("maker-publicKey") as HTMLDivElement,
     loginKeeperButton: document.getElementById("maker-loginKeeperButton") as HTMLButtonElement,
     loginMetamaskButton: document.getElementById("maker-loginMetamaskButton") as HTMLButtonElement,
+    loginWebButton: document.getElementById("maker-loginWebButton") as HTMLButtonElement,
 } as Order;
 
 const taker = {
@@ -99,6 +103,7 @@ const taker = {
     publicKeyElement: document.getElementById("taker-publicKey") as HTMLDivElement,
     loginKeeperButton: document.getElementById("taker-loginKeeperButton") as HTMLButtonElement,
     loginMetamaskButton: document.getElementById("taker-loginMetamaskButton") as HTMLButtonElement,
+    loginWebButton: document.getElementById("taker-loginWebButton") as HTMLButtonElement,
 } as Order;
 
 const factoryAddressElement = document.getElementById("factoryAddress") as HTMLSpanElement;
@@ -259,7 +264,9 @@ function getContracts() {
 function getSpotBalance(userAddress: string, balanceBlock: HTMLDivElement) {
     const treasuryAddress = treasuryAddressElement.innerText;
 
-    if (treasuryAddress != "") {
+    if (treasuryAddress != "" && userAddress != "") {
+        balanceBlock.replaceChildren();
+
         const filter = `?matches=%25s%25s%25s__balance__${userAddress}.%2A`;
         fetch(NODE_URL + ADDRESS_DATA_END + treasuryAddress + filter)
             .then(res => res.json() as Promise<ContractState>)
@@ -325,6 +332,22 @@ function setupEvents(order: Order) {
             getSpotBalance(user.address, order.balanceBlock);
         });
     })
+
+    order.loginWebButton.addEventListener("click", () => {
+        const provider = new ProviderWeb(WX_PROVIDER_URL);
+        order.signer.setProvider(provider);
+        order.signerType = "web";
+        order.signer.login().then(user => {
+            order.addressElement.innerText = user.address;
+            order.publicKeyElement.innerText = user.publicKey;
+
+            order.senderElement.value = user.publicKey;
+            updateOrder(order);
+            getSpotBalance(user.address, order.balanceBlock);
+        });
+    })
+
+    order.balanceBlock.addEventListener("click", () => getSpotBalance(order.addressElement.innerText, order.balanceBlock));
 
     order.signButton.addEventListener("click", () => {
         order.signer.signMessage(order.orderIdb58Element.innerText.trim()).then(proof => {
