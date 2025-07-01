@@ -192,6 +192,10 @@ function updateOrder(order: Order) {
         order.timestampElement.value = `${Math.floor(new Date().getTime() / 1000)}`;
     }
 
+    if (!order.matcherElement.value && factoryMatcherPubKeyElement.innerText) {
+        order.matcherElement.value = factoryMatcherPubKeyElement.innerText;
+    }
+
     encodeOrder(
         order.signerType,
         Number(order.versionElement.value),
