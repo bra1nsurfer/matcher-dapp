@@ -47,6 +47,12 @@ let (NETWORK, CUR_TIMESTAMP) = match (blockInfoByHeight(height)) {
   case _ => throwErr("network byte error: block 1 is not found")
 }
 
+let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
+let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
+    case s:String => s.split_4C(SEP)
+    case _ => []
+  }
+
 let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
 
@@ -282,7 +288,9 @@ func matchOrders(
     (buyOrderStatus == O_OPEN) || throwErr("buy order is closed"),
     (sellOrderStatus == O_OPEN) || throwErr("sell order is closed"),
     (buyOrderId != sellOrderId) || throwErr("buy order and sell order are the same"),
-    (buyOrderAmountAsset != buyOrderPriceAsset) || throwErr("amount asset and price asset are the same")
+    (buyOrderAmountAsset != buyOrderPriceAsset) || throwErr("amount asset and price asset are the same"),
+    (allowedAssets.containsElement(buyOrderAmountAsset.assetIdToString())) || throwErr("amount asset not in the allowed list"),
+    (allowedAssets.containsElement(buyOrderPriceAsset.assetIdToString())) || throwErr("price asset not in the allowed list")
   ]
 
   let buyOrderAddress = if(buyOrderPubKeyType == ecdsaSignType) then Address(buyOrderSenderBytes) else addressFromPublicKey(buyOrderSenderBytes)

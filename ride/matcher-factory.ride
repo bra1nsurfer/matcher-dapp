@@ -19,6 +19,12 @@ let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
 let kSpotContract     = ["%s", "spotContract"].makeString(SEP)
 let kTreasuryAddress  = ["%s", "treasuryContract"].makeString(SEP)
 
+let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
+let allowedAssets  = match (this.getString(kAllowedAssets)) {
+    case s:String => s.split_4C(SEP)
+    case _ => []
+  }
+
 let contractsList = [
     this.getString(kSpotContract).valueOrElse(""), # spot
     "",                                            # leverage
@@ -56,4 +62,34 @@ func getOrderTypeContract(orderType: Int) = {
 @Callable(i)
 func getAllOrderTypeContracts() = {
   ([], contractsList)
+}
+
+@Callable(i)
+func addAllowedAsset(assetId: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  let newAllowedList = allowedAssets :+ assetId
+
+  [
+    StringEntry(kAllowedAssets, newAllowedList.makeString(SEP))
+  ]
+}
+
+@Callable(i)
+func removeAllowedAsset(assetId: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  match (allowedAssets.indexOf(assetId)) {
+      case index:Int => {
+        let newAllowedList = allowedAssets.removeByIndex(index)
+        if (newAllowedList.size() > 0) 
+          then [StringEntry(kAllowedAssets, newAllowedList.makeString(SEP))]
+          else [DeleteEntry(kAllowedAssets)]
+      }
+      case _ => throw("asset is not found")
+    }
 }

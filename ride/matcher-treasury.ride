@@ -38,6 +38,12 @@ let matcherValidator  = factoryAddress.getString(kMatcherValidator).valueOrElse(
 func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
 func getUserBalances(user: String, asset1: String) = this.getInteger(kUserBalance(user, asset1)).valueOrElse(0)
 
+let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
+let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
+    case s:String => s.split_4C(SEP)
+    case _ => []
+}
+
 let orderContractList = {
   let addressStringList = factoryAddress.invoke("getAllOrderTypeContracts", [], [])
   
@@ -81,10 +87,13 @@ func deposit() = {
   ]
 
   func a(actionsList: List[IntegerEntry], nextPayment: AttachedPayment) = {
-    let kCurAsset = kUserBalance(userAddress, nextPayment.assetId.assetIdToString())
+    let assetId = nextPayment.assetId.assetIdToString()
+    let kCurAsset = kUserBalance(userAddress, assetId)
     let curBalance = this.getInteger(kCurAsset).valueOrElse(0)
 
-    actionsList ++ [IntegerEntry(kCurAsset, curBalance + nextPayment.amount)]
+    if (allowedAssets.containsElement(assetId)) 
+      then actionsList ++ [IntegerEntry(kCurAsset, curBalance + nextPayment.amount)]
+      else throwErr("asset not in the allowed list")
   }
 
   let allActions = FOLD<10>(i.payments, [], a)
