@@ -111,6 +111,7 @@ const factoryMatcherPubKeyElement = document.getElementById("factoryMatcherPubKe
 const validatorAddressElement = document.getElementById("validatorAddress") as HTMLSpanElement;
 const spotAddressElement = document.getElementById("spotAddress") as HTMLSpanElement;
 const treasuryAddressElement = document.getElementById("treasuryAddress") as HTMLSpanElement;
+const poolAddressElement = document.getElementById("poolAddress") as HTMLSpanElement;
 const depositBlockElement = document.getElementById("depositBlock") as HTMLDivElement;
 
 const matchingAmountElement = document.getElementById("matchingAmount") as HTMLInputElement;
@@ -237,23 +238,26 @@ function getFromState(state: ContractState, key: string) {
 function getContracts() {
     factoryAddressElement.innerText = FACTORY_ADDRESS;
 
-    const kValidator = "%s__matcherValidator";
-    const kSpot = "%s__spotContract";
     const kMatcherPubKey = "%s__matcherPublicKey";
-    const kTreasuryAddress = "%s__treasuryContract";
+    const kValidatorAddress = "%s__validatorAddress";
+    const kSpotAddress = "%s__spotAddress";
+    const kTreasuryAddress = "%s__treasuryAddress";
+    const kPoolAddress = "%s__poolAddress";
 
     factoryMatcherPubKeyElement.innerText = "LOADING...";
     validatorAddressElement.innerText = "LOADING...";
     spotAddressElement.innerText = "LOADING...";
     treasuryAddressElement.innerText = "LOADING...";
+    poolAddressElement.innerText = "LOADING...";
 
     fetch(NODE_URL + ADDRESS_DATA_END + FACTORY_ADDRESS)
         .then(res => res.json() as Promise<ContractState>)
         .then(state => {
             factoryMatcherPubKeyElement.innerText = getFromState(state, kMatcherPubKey).toString();
-            validatorAddressElement.innerText = getFromState(state, kValidator).toString();
-            spotAddressElement.innerText = getFromState(state, kSpot).toString();
+            validatorAddressElement.innerText = getFromState(state, kValidatorAddress).toString();
+            spotAddressElement.innerText = getFromState(state, kSpotAddress).toString();
             treasuryAddressElement.innerText = getFromState(state, kTreasuryAddress).toString();
+            poolAddressElement.innerText = getFromState(state, kPoolAddress).toString();
 
             const depositLinkElement = document.createElement("a");
             const depositUrl = `https://waves-dapp.com/${getFromState(state, kTreasuryAddress).toString()}#deposit`;
@@ -408,7 +412,7 @@ signExchangeElement.addEventListener("click", () => {
         .broadcast()
         .then(r => {
             const res = r as any;
-            
+
             let statusText = "";
             if (Array.isArray(res)) {
                 for (const tx of res) {
