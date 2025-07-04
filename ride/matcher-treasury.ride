@@ -32,8 +32,8 @@ let factoryAddress       = factoryAddressString.addressFromString().valueOrError
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
-let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
-let matcherValidator  = factoryAddress.getString(kMatcherValidator).valueOrElse("")
+let kValidatorAddress = ["%s", "validatorAddress"].makeString(SEP)
+let validatorAddress  = factoryAddress.getString(kValidatorAddress).valueOrElse("")
 
 let kPoolAddress = ["%s", "poolAddress"].makeString(SEP)
 let poolAddress  = factoryAddress.getString(kPoolAddress).valueOrElse("")

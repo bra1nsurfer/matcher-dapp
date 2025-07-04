@@ -32,10 +32,10 @@ let factoryAddress       = factoryAddressString.addressFromString().valueOrError
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
-let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
-let matcherValidator  = factoryAddress.getString(kMatcherValidator).valueOrElse("")
-let kTreasuryAddress  = ["%s", "treasuryContract"].makeString(SEP)
-let treasury          = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+let kValidatorAddress = ["%s", "validatorAddress"].makeString(SEP)
+let validatorAddress  = factoryAddress.getString(kValidatorAddress).valueOrElse("")
+let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
+let treasuryAddress   = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
 
 @Callable(i)
 func init(matcherFactory: String) = {
@@ -59,7 +59,7 @@ func exchange(
   ) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    i.caller.toString() == matcherValidator || throwErr("permission denied"),
+    i.caller.toString() == validatorAddress || throwErr("permission denied"),
     buyerAddress != sellerAddress || throwErr("buyer and seller is the same")
   ]
 
@@ -67,12 +67,12 @@ func exchange(
     [],
     [
       # Swap amountAsset (seller -> buyer)
-      treasury.addressFromStringValue().invoke("subBalance", [sellerAddress, asset1Id, asset1Amount], []),
-      treasury.addressFromStringValue().invoke("addBalance", [buyerAddress, asset1Id, asset1Amount], []),
+      treasuryAddress.addressFromStringValue().invoke("subBalance", [sellerAddress, asset1Id, asset1Amount], []),
+      treasuryAddress.addressFromStringValue().invoke("addBalance", [buyerAddress, asset1Id, asset1Amount], []),
 
       # Swap priceAsset (buyer -> seller)
-      treasury.addressFromStringValue().invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
-      treasury.addressFromStringValue().invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], [])
+      treasuryAddress.addressFromStringValue().invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
+      treasuryAddress.addressFromStringValue().invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], [])
     ]
   )
 }

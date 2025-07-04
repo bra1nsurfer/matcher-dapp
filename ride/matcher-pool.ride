@@ -40,8 +40,8 @@ let factoryAddress       = factoryAddressString.addressFromString().valueOrError
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
-let kTreasuryAddress  = ["%s", "treasuryContract"].makeString(SEP)
-let treasury          = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+let kTreasuryAddress = ["%s", "treasuryContract"].makeString(SEP)
+let treasuryAddress  = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
@@ -168,7 +168,7 @@ func loanBorrow(user: String, assetId: String, amount: Int) = {
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    i.caller.toString() == treasury || throwErr("permission denied"),
+    i.caller.toString() == treasuryAddress || throwErr("permission denied"),
     user.isAddressValid() || throwErr("address is not valid"),
     allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
     amount <= available || throwErr("not enough available balance to borrow")
@@ -190,7 +190,7 @@ func loanPayment(user: String) = {
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    i.caller.toString() == treasury || throwErr("permission denied"),
+    i.caller.toString() == treasuryAddress || throwErr("permission denied"),
     user.isAddressValid() || throwErr("address is not valid"),
     allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
     i.payments.size() == 1 || throwErr("must be only 1 payment")
