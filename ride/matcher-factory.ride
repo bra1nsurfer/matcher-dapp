@@ -18,6 +18,7 @@ let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
 let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
 let kSpotContract     = ["%s", "spotContract"].makeString(SEP)
 let kTreasuryAddress  = ["%s", "treasuryContract"].makeString(SEP)
+let kPoolAddress      = ["%s", "poolAddress"].makeString(SEP)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (this.getString(kAllowedAssets)) {
@@ -32,17 +33,24 @@ let contractsList = [
   ]
 
 @Callable(i)
-func init(matcherValidator: String, matcherPublicKey: String, spotContract: String, treasuryContract: String) = {
+func init(
+    matcherValidator: String,
+    matcherPublicKey: String,
+    spotContract    : String,
+    treasuryContract: String,
+    poolContract    : String
+  ) = {
   strict check = [
     i.caller == this || throwErr("permission denied")
   ]
 
   let validator = if (matcherValidator == "") then [] else [StringEntry(kMatcherValidator, matcherValidator)]
   let pubKey    = if (matcherPublicKey == "") then [] else [StringEntry(kMatcherPublicKey, matcherPublicKey)]
-  let spot      = if (spotContract == "")     then [] else [StringEntry(kSpotContract, spotContract)]
+  let spot      = if (spotContract     == "") then [] else [StringEntry(kSpotContract, spotContract)]
   let treasury  = if (treasuryContract == "") then [] else [StringEntry(kTreasuryAddress, treasuryContract)]
+  let pool      = if (poolContract     == "") then [] else [StringEntry(kPoolAddress, poolContract)]
 
-  validator ++ pubKey ++ spot ++ treasury
+  validator ++ pubKey ++ spot ++ treasury ++ pool
 }
 
 @Callable(i)

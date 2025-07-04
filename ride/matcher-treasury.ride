@@ -35,8 +35,14 @@ let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 let kMatcherValidator = ["%s", "matcherValidator"].makeString(SEP)
 let matcherValidator  = factoryAddress.getString(kMatcherValidator).valueOrElse("")
 
+let kPoolAddress = ["%s", "poolAddress"].makeString(SEP)
+let poolAddress  = factoryAddress.getString(kPoolAddress).valueOrElse("")
+
 func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
-func getUserBalances(user: String, asset1: String) = this.getInteger(kUserBalance(user, asset1)).valueOrElse(0)
+func getUserBalance(user: String, assetId: String) = this.getInteger(kUserBalance(user, assetId)).valueOrElse(0)
+
+func kUserLoan(user: String, assetId: String) = ["%s%s%s", "loan", user, assetId].makeString(SEP)
+func getUserLoad(user: String, assetId: String) = this.getInteger(kUserLoan(user, assetId)).valueOrElse(0)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
@@ -54,7 +60,7 @@ let orderContractList = {
 }
 
 func changeBalanceHelper(user: String, assetId: String, amount: Int, caller: String, add: Boolean) = {
-  let oldBalance = getUserBalances(user, assetId)
+  let oldBalance = getUserBalance(user, assetId)
   let newBalance = if add then oldBalance + amount else oldBalance - amount
 
   strict check = [

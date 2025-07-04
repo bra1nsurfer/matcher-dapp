@@ -33,6 +33,9 @@ function getScript(address: string) {
 };
 
 function broadcastNewScript(newScriptFilename: string, account: Account) {
+    if (account.seed == "") return Promise.reject(new Error(`${newScriptFilename}: empty seed`))
+    if (account.address == "") return Promise.reject(new Error(`${newScriptFilename}: empty seed`))
+
     return getScript(account.address).then(oldScript => {
         return compile(newScriptFilename).then(newScript => {
             if (newScript === oldScript) {
@@ -70,6 +73,11 @@ const treasury: Account = {
     address: e.TREASURY_ADDRESS ? e.TREASURY_ADDRESS : "",
 }
 
+const pool: Account = {
+    seed: e.POOL_SEED ? e.POOL_SEED : "",
+    address: e.POOL_ADDRESS ? e.POOL_ADDRESS : "",
+}
+
 broadcastNewScript('./ride/matcher-validator.ride', validator)
     .then(res => console.log(res))
     .catch(e => console.error(e));
@@ -83,5 +91,9 @@ broadcastNewScript('./ride/matcher-spot.ride', spot)
     .catch(e => console.error(e));
 
 broadcastNewScript('./ride/matcher-treasury.ride', treasury)
+    .then(res => console.log(res))
+    .catch(e => console.error(e));
+
+broadcastNewScript('./ride/matcher-pool.ride', pool)
     .then(res => console.log(res))
     .catch(e => console.error(e));

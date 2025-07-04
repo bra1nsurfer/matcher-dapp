@@ -1,0 +1,240 @@
+{-# STDLIB_VERSION 7 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let SEP = "__"
+let CONTRACT_NAME = "matcher-pool.ride"
+let WAVES = "WAVES"
+let DEC8 = 1_0000_0000
+
+func wrapErr(s: String) = {
+  CONTRACT_NAME + ": " + s
+}
+
+func throwErr(s: String) = {
+  throw(wrapErr(s))
+}
+
+func assetIdToString(assetId: ByteVector|Unit) = {
+  match assetId {
+    case b: ByteVector => b.toBase58String()
+    case _: Unit => WAVES
+  }
+}
+
+func stringToAssetId(s: String) = {
+  if (s == WAVES) then unit else s.fromBase58String()
+}
+
+func contractBalance(assetId: String) = {
+  match (assetId.stringToAssetId()) {
+      case b:ByteVector => this.assetBalance(b)
+      case _ => this.wavesBalance().available - DEC8
+    }
+}
+
+let kFactoryAddress      = ["%s", "factoryAddress"].makeString(SEP)
+let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress       = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
+
+let kForceStop = ["%s", "forceStop"].makeString(SEP)
+let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
+
+let kTreasuryAddress  = ["%s", "treasuryContract"].makeString(SEP)
+let treasury          = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+
+let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
+let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
+  case s:String => s.split_4C(SEP)
+  case _ => []
+}
+
+func kTotalAmount(assetId: String) = ["%s%s", "totalAmount", assetId].makeString(SEP)
+func getTotalAmount(assetId: String) = this.getInteger(kTotalAmount(assetId)).valueOrElse(0)
+
+func kTotalLpAmount(assetId: String) = ["%s%s", "totalLpAmount", assetId].makeString(SEP)
+func getTotalLpAmount(assetId: String) = this.getInteger(kTotalLpAmount(assetId)).valueOrElse(0)
+
+func getLpPrice(assetId: String) = {
+  let lpAmount = getTotalLpAmount(assetId)
+  let totalAmount = getTotalAmount(assetId)
+
+  if (lpAmount == 0) 
+    then DEC8
+    else fraction(totalAmount, DEC8, lpAmount)
+}
+
+func kUserLpAmount(user: String, assetId: String) = ["%s%s%s", "userLpAmount", user, assetId].makeString(SEP)
+func getUserLpAmount(user: String, assetId: String) = this.getInteger(kUserLpAmount(user, assetId)).valueOrElse(0)
+
+func kUserLoanAmount(user: String, assetId: String) = ["%s%s%s", "userLoanAmount", user, assetId].makeString(SEP)
+func getUserLoanAmount(user: String, assetId: String) = this.getInteger(kUserLoanAmount(user, assetId)).valueOrElse(0)
+
+
+func isAddressValid(addressString: String) = {
+  match (addressFromString(addressString)) {
+    case t:Address => true
+    case _ => false
+  }
+}
+
+func getUserInfo(user: String, assetId: String) = {
+  let lpAmount = getUserLpAmount(user, assetId)
+  let price = getLpPrice(assetId)
+  let balance = fraction(lpAmount, price, DEC8)
+  let available = min([balance, contractBalance(assetId)])
+
+  (assetId, balance, available, lpAmount, price)
+}
+
+func getAllUserInfo(user: String) = {
+  func helper(acc: List[(String, Int, Int, Int, Int)], nextValue: String) = {
+    let assetData = getUserInfo(user, nextValue)
+
+    acc :+ assetData
+  }
+
+  let all = FOLD<10>(allowedAssets, [], helper)
+
+  all
+}
+
+func depositHelper(user: String, i: Invocation) = {
+  let assetId = i.payments[0].assetId.assetIdToString()
+  let amount = i.payments[0].amount
+
+  strict checks = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    user.isAddressValid() || throwErr("address is not valid"),
+    i.payments.size() == 1 || throwErr("must be only 1 payment"),
+    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed")
+  ]
+
+  let lpAmount = fraction(amount, DEC8, getLpPrice(assetId))
+  let newUserLpAmount = getUserLpAmount(user, assetId) + lpAmount
+
+  let totalLpAmount = getTotalLpAmount(assetId)
+  let newTotalLpAmount = totalLpAmount + lpAmount
+
+  let totalAmount = getTotalAmount(assetId)
+  let newTotalAmount = totalAmount + amount
+
+  [
+    IntegerEntry(kTotalAmount(assetId), newTotalAmount),
+    IntegerEntry(kTotalLpAmount(assetId), newTotalLpAmount),
+    IntegerEntry(kUserLpAmount(user, assetId), newUserLpAmount)
+  ]
+}
+
+func withdrawHelper(user: String, assetId: String, amount: Int, i: Invocation) = {
+  let totalUserLpAmount = getUserLpAmount(user, assetId)
+  let price = getLpPrice(assetId)
+  let available = fraction(totalUserLpAmount, price, DEC8)
+  
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
+    user.isAddressValid() || throwErr("address is not valid"),
+    amount > 0 || throwErr("amount should be greater than 0"),
+    amount <= available || throwErr("not enough available balance")
+  ]
+
+  let rawLpAmount = fraction(amount, DEC8, price)
+  let rawSendAmount = fraction(rawLpAmount, price, DEC8)
+  let minLpAmount = if(rawSendAmount < amount) then rawLpAmount + 1 else rawLpAmount
+
+  let lpAmount    = min([minLpAmount, totalUserLpAmount])
+  let sendAmount  = fraction(lpAmount, price, DEC8)
+
+  let newUserLpAmount = totalUserLpAmount - lpAmount
+
+  let totalLpAmount = getTotalLpAmount(assetId)
+  let newTotalLpAmount = totalLpAmount - lpAmount
+
+  let totalAmount = getTotalAmount(assetId)
+  let newTotalAmount = totalAmount - sendAmount
+
+  [
+    ScriptTransfer(i.caller, sendAmount, assetId.stringToAssetId()),
+    IntegerEntry(kTotalAmount(assetId), newTotalAmount),
+    IntegerEntry(kTotalLpAmount(assetId), newTotalLpAmount),
+    IntegerEntry(kUserLpAmount(user, assetId), newUserLpAmount)
+  ]
+}
+
+@Callable(i)
+func loanBorrow(user: String, assetId: String, amount: Int) = {
+  let available = contractBalance(assetId)
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    i.caller.toString() == treasury || throwErr("permission denied"),
+    user.isAddressValid() || throwErr("address is not valid"),
+    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
+    amount <= available || throwErr("not enough available balance to borrow")
+  ]
+
+  let loanAmount = getUserLoanAmount(user, assetId)
+  let newLoanAmount = loanAmount + amount
+
+  [
+    ScriptTransfer(i.caller, amount, assetId.stringToAssetId()),
+    IntegerEntry(kUserLoanAmount(user, assetId), newLoanAmount)
+  ]
+}
+
+@Callable(i)
+func loanPayment(user: String) = {
+  let amount = i.payments[0].amount
+  let assetId = i.payments[0].assetId.assetIdToString()
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    i.caller.toString() == treasury || throwErr("permission denied"),
+    user.isAddressValid() || throwErr("address is not valid"),
+    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
+    i.payments.size() == 1 || throwErr("must be only 1 payment")
+  ]
+
+  let totalAmount = getTotalAmount(assetId)
+  let loanAmount = getUserLoanAmount(user, assetId)
+  let loanRemaining = loanAmount - amount
+
+  let totalChangeActions = if (loanRemaining < 0) 
+    then [IntegerEntry(kTotalAmount(assetId), totalAmount + (-loanRemaining))]
+    else []
+
+  let newLoanAmount = max([0, loanRemaining])
+  [
+    IntegerEntry(kUserLoanAmount(user, assetId), newLoanAmount)
+  ] ++ totalChangeActions
+}
+
+@Callable(i)
+func init(matcherFactory: String) = {
+  strict check = [
+    matcherFactory.isAddressValid() || throwErr("address is not valid"),
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [StringEntry(kFactoryAddress, matcherFactory)]
+}
+
+@Callable(i)
+func deposit() = {
+  let user = i.caller.toString()
+
+  depositHelper(user, i)
+}
+
+@Callable(i)
+func depositFor(user: String) = {
+  depositHelper(user, i)
+}
+
+@Callable(i)
+func withdraw(assetId: String, amount: Int) = {
+  let user = i.caller.toString()
+  
+  withdrawHelper(user, assetId, amount, i)
+}
