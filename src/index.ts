@@ -13,6 +13,12 @@ type StateValue = {
 
 type ContractState = StateValue[];
 
+type EvalResult = {
+    result: {
+        value: [any]
+    }
+}
+
 type SignerType = "keeper" | "metamask" | "web" | (string & {})
 
 type Order = {
@@ -49,6 +55,7 @@ const FACTORY_ADDRESS = "3My9nqNjUMmVzeybGf1nmVW2ZAGTUihShWm";
 const NODE_URL = "https://nodes-testnet.wavesnodes.com";
 const WX_PROVIDER_URL = "https://testnet.wx.network/signer";
 const ADDRESS_DATA_END = "/addresses/data/";
+const EVAL_END = "/utils/script/evaluate/";
 
 const maker = {
     signer: new Signer({ NODE_URL }),
@@ -118,6 +125,11 @@ const matchingAmountElement = document.getElementById("matchingAmount") as HTMLI
 const matchingPriceElement = document.getElementById("matchingPrice") as HTMLInputElement;
 const signExchangeElement = document.getElementById("signExchangeButton") as HTMLDivElement;
 const exchangeOutputElement = document.getElementById("exchangeOutput") as HTMLDivElement;
+
+const poolUserElement = document.getElementById("poolUserAddress") as HTMLDivElement;
+const poolLoginButton = document.getElementById("poolLogin") as HTMLButtonElement;
+const poolBalanceElement = document.getElementById("poolBalance") as HTMLDivElement;
+const poolSigner = new Signer({ NODE_URL });
 
 function numberToBytes(x: number): Uint8Array {
     const buffer = new ArrayBuffer(8);
@@ -269,22 +281,59 @@ function getContracts() {
         })
 }
 
-function getSpotBalance(userAddress: string, balanceBlock: HTMLDivElement) {
+function getTreasuryBalance(userAddress: string, balanceBlock: HTMLDivElement) {
     const treasuryAddress = treasuryAddressElement.innerText;
 
     if (treasuryAddress != "" && userAddress != "") {
         balanceBlock.replaceChildren();
 
-        const filter = `?matches=%25s%25s%25s__balance__${userAddress}.%2A`;
-        fetch(NODE_URL + ADDRESS_DATA_END + treasuryAddress + filter)
-            .then(res => res.json() as Promise<ContractState>)
+        const getInfoEval = { "expr": `getAllUserInfo("${userAddress}")` };
+        const headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+        fetch(NODE_URL + EVAL_END + treasuryAddress, { method: "POST", body: JSON.stringify(getInfoEval), headers })
+            .then(res => res.json() as Promise<EvalResult>)
             .then(state => {
                 const newChildren: HTMLElement[] = [];
-                for (const el of state) {
-                    const splitVals = el.key.split("__");
-                    const assetId = splitVals[splitVals.length - 1];
+                for (const el of state.result.value) {
+                    const assetId = el.value._1.value;
+                    const balance = el.value._2.value
+                    const loan = el.value._3.value
                     const assetBalanceElement = document.createElement("div");
-                    assetBalanceElement.innerText = `${assetId} -> ${el.value}`;
+
+                    assetBalanceElement.innerText = `${assetId} -> ${balance} (${loan})`;
+                    newChildren.push(assetBalanceElement);
+                }
+
+                balanceBlock.replaceChildren(...newChildren);
+            })
+    }
+}
+
+function getPoolBalance(userAddress: string, balanceBlock: HTMLDivElement) {
+    const poolAddress = poolAddressElement.innerText;
+
+    if (poolAddress != "" && userAddress != "") {
+        balanceBlock.replaceChildren();
+
+        const getInfoEval = { "expr": `getAllUserInfo("${userAddress}")` };
+        const headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+        fetch(NODE_URL + EVAL_END + poolAddress, { method: "POST", body: JSON.stringify(getInfoEval), headers })
+            .then(res => res.json() as Promise<EvalResult>)
+            .then(state => {
+                const newChildren: HTMLElement[] = [];
+                for (const el of state.result.value) {
+                    const assetId = el.value._1.value;
+                    const amount = el.value._2.value;
+                    const assetBalanceElement = document.createElement("div");
+
+                    assetBalanceElement.innerText = `${assetId} -> ${amount}`;
                     newChildren.push(assetBalanceElement);
                 }
 
@@ -323,7 +372,7 @@ function setupEvents(order: Order) {
 
             order.senderElement.value = user.publicKey;
             updateOrder(order);
-            getSpotBalance(user.address, order.balanceBlock);
+            getTreasuryBalance(user.address, order.balanceBlock);
         });
     })
 
@@ -337,7 +386,7 @@ function setupEvents(order: Order) {
 
             order.senderElement.value = user.address;
             updateOrder(order);
-            getSpotBalance(user.address, order.balanceBlock);
+            getTreasuryBalance(user.address, order.balanceBlock);
         });
     })
 
@@ -351,11 +400,11 @@ function setupEvents(order: Order) {
 
             order.senderElement.value = user.publicKey;
             updateOrder(order);
-            getSpotBalance(user.address, order.balanceBlock);
+            getTreasuryBalance(user.address, order.balanceBlock);
         });
     })
 
-    order.balanceBlock.addEventListener("click", () => getSpotBalance(order.addressElement.innerText, order.balanceBlock));
+    order.balanceBlock.addEventListener("click", () => getTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
 
     order.signButton.addEventListener("click", () => {
         order.signer.signMessage(order.orderIdb58Element.innerText.trim()).then(proof => {
@@ -429,6 +478,20 @@ signExchangeElement.addEventListener("click", () => {
             console.log(err);
         });
 })
+
+poolLoginButton.addEventListener("click", () => {
+    const keeper = new ProviderKeeper();
+    poolSigner.setProvider(keeper);
+
+    poolSigner.login()
+        .then(userData => {
+            poolUserElement.innerText = userData.address;
+            return userData.address
+        })
+        .then(address => getPoolBalance(address, poolBalanceElement))
+});
+
+poolBalanceElement.addEventListener("click", () => getPoolBalance(poolUserElement.innerText, poolBalanceElement));
 
 window.addEventListener("DOMContentLoaded", () => {
     getContracts();

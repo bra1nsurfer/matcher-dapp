@@ -5,6 +5,7 @@
 let SEP = "__"
 let CONTRACT_NAME = "matcher-treasury.ride"
 let WAVES = "WAVES"
+let DEC8 = 1_0000_0000
 
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
@@ -42,7 +43,7 @@ func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, a
 func getUserBalance(user: String, assetId: String) = this.getInteger(kUserBalance(user, assetId)).valueOrElse(0)
 
 func kUserLoan(user: String, assetId: String) = ["%s%s%s", "loan", user, assetId].makeString(SEP)
-func getUserLoad(user: String, assetId: String) = this.getInteger(kUserLoan(user, assetId)).valueOrElse(0)
+func getUserLoan(user: String, assetId: String) = this.getInteger(kUserLoan(user, assetId)).valueOrElse(0)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
@@ -59,13 +60,20 @@ let orderContractList = {
     }
 }
 
-func changeBalanceHelper(user: String, assetId: String, amount: Int, caller: String, add: Boolean) = {
+func isUserWithDebt(user: String) = {
+  func sumDebt(acc: Int, nextAsset: String) = (acc + getUserLoan(user, nextAsset))
+  let debt = FOLD<10>(allowedAssets, 0, sumDebt)
+
+  (debt > 0)
+}
+
+func changeBalanceHelper(user: String, assetId: String, amount: Int, add: Boolean) = {
   let oldBalance = getUserBalance(user, assetId)
   let newBalance = if add then oldBalance + amount else oldBalance - amount
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    orderContractList.containsElement(caller) || throwErr("permission denied"),
+    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
     amount > 0 || throwErr("amount must be greater than 0"),
     newBalance >= 0 || throwErr(["not enough balance", user].makeString(" "))
   ]
@@ -73,6 +81,35 @@ func changeBalanceHelper(user: String, assetId: String, amount: Int, caller: Str
   [
     IntegerEntry(kUserBalance(user, assetId), newBalance)
   ]
+}
+
+func changeLoanHelper(user: String, assetId: String, amount: Int, add: Boolean) = {
+  let oldLoan = getUserLoan(user, assetId)
+  let newRawLoan = if add then oldLoan + amount else oldLoan - amount
+  let newLoan = max([0, newRawLoan])
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
+    amount > 0 || throwErr("amount must be greater than 0")
+  ]
+
+  [
+    IntegerEntry(kUserLoan(user, assetId), newLoan)
+  ]
+}
+
+func getAllUserInfo(user: String) = {
+  func helper(acc: List[(String, Int, Int)], nextAsset: String) = {
+    let balance = getUserBalance(user, nextAsset)
+    let loan = getUserLoan(user, nextAsset)
+
+    acc :+ (nextAsset, balance, loan)
+  }
+
+  let info = FOLD<10>(allowedAssets, [], helper)
+
+  info
 }
 
 @Callable(i)
@@ -117,7 +154,8 @@ func withdraw(assetId: String, amount: Int) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
     amount > 0 || throwErr("amount must be greater than 0"),
-    newBalance >= 0 || throwErr(["not enough balance to withdraw", user].makeString(" "))
+    newBalance >= 0 || throwErr(["not enough balance to withdraw", user].makeString(" ")),
+    !isUserWithDebt(user) || throwErr("cannot withdraw with debt")
   ]
 
   [
@@ -128,10 +166,53 @@ func withdraw(assetId: String, amount: Int) = {
 
 @Callable(i)
 func subBalance(user: String, assetId: String, amount: Int) = {
-    changeBalanceHelper(user, assetId, amount, i.caller.toString(), false)
+  strict check = [
+      orderContractList.containsElement(i.caller.toString()) || throwErr("permission denied")
+  ]
+  changeBalanceHelper(user, assetId, amount, false)
 }
 
 @Callable(i)
 func addBalance(user: String, assetId: String, amount: Int) = {
-  changeBalanceHelper(user, assetId, amount, i.caller.toString(), true)
+  strict check = [
+      orderContractList.containsElement(i.caller.toString()) || throwErr("permission denied")
+  ]
+  changeBalanceHelper(user, assetId, amount, true)
+}
+
+@Callable(i)
+func loanBorrow(assetId: String, amount: Int) = {
+  let pool = poolAddress.addressFromStringValue()
+  let user = i.caller.toString()
+  strict inv = [
+    pool.invoke("loanBorrow", [user, assetId, amount], [])
+  ]
+
+  # 0.05 from amount (5%)
+  let interest = fraction(amount, 500_0000, DEC8)
+
+  let balanceActions = changeBalanceHelper(user, assetId, amount, true)
+  let loanActions = changeLoanHelper(user, assetId, amount+interest, true)
+
+  balanceActions ++ loanActions
+}
+
+@Callable(i)
+func loanPayment(assetId: String, amount: Int) = {
+  let pool = poolAddress.addressFromStringValue()
+  let user = i.caller.toString()
+  let userBalance = getUserBalance(user, assetId)
+
+  strict checks = [
+    amount <= userBalance || throwErr("not enough balance")
+  ]
+
+  strict inv = [
+    pool.invoke("loanPayment", [user], [AttachedPayment(assetId.stringToAssetId(), amount)])
+  ]
+
+  let balanceActions = changeBalanceHelper(user, assetId, amount, false)
+  let loanActions = changeLoanHelper(user, assetId, amount, false)
+
+  balanceActions ++ loanActions
 }

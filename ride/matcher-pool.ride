@@ -40,7 +40,7 @@ let factoryAddress       = factoryAddressString.addressFromString().valueOrError
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
-let kTreasuryAddress = ["%s", "treasuryContract"].makeString(SEP)
+let kTreasuryAddress = ["%s", "treasuryAddress"].makeString(SEP)
 let treasuryAddress  = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
@@ -126,7 +126,7 @@ func depositHelper(user: String, i: Invocation) = {
   ]
 }
 
-func withdrawHelper(user: String, assetId: String, amount: Int, i: Invocation) = {
+func withdrawHelper(user: String, assetId: String, amount: Int) = {
   let totalUserLpAmount = getUserLpAmount(user, assetId)
   let price = getLpPrice(assetId)
   let available = fraction(totalUserLpAmount, price, DEC8)
@@ -155,7 +155,7 @@ func withdrawHelper(user: String, assetId: String, amount: Int, i: Invocation) =
   let newTotalAmount = totalAmount - sendAmount
 
   [
-    ScriptTransfer(i.caller, sendAmount, assetId.stringToAssetId()),
+    ScriptTransfer(user.addressFromStringValue(), sendAmount, assetId.stringToAssetId()),
     IntegerEntry(kTotalAmount(assetId), newTotalAmount),
     IntegerEntry(kTotalLpAmount(assetId), newTotalLpAmount),
     IntegerEntry(kUserLpAmount(user, assetId), newUserLpAmount)
@@ -236,5 +236,5 @@ func depositFor(user: String) = {
 func withdraw(assetId: String, amount: Int) = {
   let user = i.caller.toString()
   
-  withdrawHelper(user, assetId, amount, i)
+  withdrawHelper(user, assetId, amount)
 }

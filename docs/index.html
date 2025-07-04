@@ -68,38 +68,57 @@
         .clickable {
             cursor: pointer;
         }
+
+        .info-block {
+            display: flex;
+        }
     </style>
 </head>
 
 <body>
-    <div id="contracts-block">
-        <h2>Contracts Data</h2>
-        <div>
-            Factory address:
-            <span class="mono-text bordered" id="factoryAddress"></span>
+    <div class="info-block">
+        <div id="contracts-block">
+            <h2>Contracts Data</h2>
+            <div>
+                Factory address:
+                <span class="mono-text bordered" id="factoryAddress"></span>
+            </div>
+            <div>
+                Matcher public key:
+                <span class="mono-text bordered" id="factoryMatcherPubKey"></span>
+            </div>
+            <div>
+                Validator address:
+                <span class="mono-text bordered" id="validatorAddress"></span>
+            </div>
+            <div>
+                Spot address:
+                <span class="mono-text bordered" id="spotAddress"></span>
+            </div>
+            <div>
+                Treasury address:
+                <span class="mono-text bordered" id="treasuryAddress"></span>
+            </div>
+            <div>
+                Pool address:
+                <span class="mono-text bordered" id="poolAddress"></span>
+            </div>
+            <div id="depositBlock">
+                To deposit assets use:
+            </div>
         </div>
-        <div>
-            Matcher public key:
-            <span class="mono-text bordered" id="factoryMatcherPubKey"></span>
-        </div>
-        <div>
-            Validator address:
-            <span class="mono-text bordered" id="validatorAddress"></span>
-        </div>
-        <div>
-            Spot address:
-            <span class="mono-text bordered" id="spotAddress"></span>
-        </div>
-        <div>
-            Treasury address:
-            <span class="mono-text bordered" id="treasuryAddress"></span>
-        </div>
-        <div>
-            Pool address:
-            <span class="mono-text bordered" id="poolAddress"></span>
-        </div>
-        <div id="depositBlock">
-            To deposit assets use:
+        <div class="blances-block">
+            <h2>Pool</h2>
+            <div>
+                <button id="poolLogin">Login</button>
+                <div>
+                    User:
+                    <span class="mono-text bordered" id="poolUserAddress"></span>
+                </div>
+            </div>
+            <div>Balance:
+                <div class="mono-text out-data small-text clickable" id="poolBalance"></div>
+            </div>
         </div>
     </div>
     <div class="main-block">
