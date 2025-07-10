@@ -36,6 +36,7 @@ type Order = {
     buyingElement: HTMLInputElement,
     timestampElement: HTMLInputElement,
     expirationElement: HTMLInputElement,
+    flagsElement: HTMLInputElement,
 
     balanceBlock: HTMLDivElement,
     orderBytesElement: HTMLDivElement,
@@ -72,6 +73,7 @@ const maker = {
     buyingElement: document.getElementById("maker-buying") as HTMLInputElement,
     timestampElement: document.getElementById("maker-timestamp") as HTMLInputElement,
     expirationElement: document.getElementById("maker-expiration") as HTMLInputElement,
+    flagsElement: document.getElementById("maker-flags") as HTMLInputElement,
     balanceBlock: document.getElementById("maker-balance") as HTMLDivElement,
     orderBytesElement: document.getElementById("maker-orderBytes") as HTMLDivElement,
     orderIdb58Element: document.getElementById("maker-orderId-b58") as HTMLDivElement,
@@ -100,6 +102,7 @@ const taker = {
     buyingElement: document.getElementById("taker-buying") as HTMLInputElement,
     timestampElement: document.getElementById("taker-timestamp") as HTMLInputElement,
     expirationElement: document.getElementById("taker-expiration") as HTMLInputElement,
+    flagsElement: document.getElementById("taker-flags") as HTMLInputElement,
     balanceBlock: document.getElementById("taker-balance") as HTMLDivElement,
     orderBytesElement: document.getElementById("taker-orderBytes") as HTMLDivElement,
     orderIdb58Element: document.getElementById("taker-orderId-b58") as HTMLDivElement,
@@ -117,6 +120,7 @@ const factoryAddressElement = document.getElementById("factoryAddress") as HTMLS
 const factoryMatcherPubKeyElement = document.getElementById("factoryMatcherPubKey") as HTMLSpanElement;
 const validatorAddressElement = document.getElementById("validatorAddress") as HTMLSpanElement;
 const spotAddressElement = document.getElementById("spotAddress") as HTMLSpanElement;
+const leverageAddressElement = document.getElementById("leverageAddress") as HTMLSpanElement;
 const treasuryAddressElement = document.getElementById("treasuryAddress") as HTMLSpanElement;
 const poolAddressElement = document.getElementById("poolAddress") as HTMLSpanElement;
 const depositBlockElement = document.getElementById("depositBlock") as HTMLDivElement;
@@ -162,6 +166,7 @@ function encodeOrder(
     buying: boolean,
     timestamp: number,
     expiration: number,
+    flags: number,
 ) {
     const oBlobParts: Uint8Array[] = [];
 
@@ -183,7 +188,7 @@ function encodeOrder(
     convertAssetAndPush(oBlobParts, amountAsset);
     convertAssetAndPush(oBlobParts, priceAsset);
 
-    const orderTypeByte = new Uint8Array(1).fill(orderType)
+    const orderTypeByte = new Uint8Array(1).fill(orderType);
     oBlobParts.push(orderTypeByte);
 
     if (buying) {
@@ -196,6 +201,9 @@ function encodeOrder(
     oBlobParts.push(numberToBytes(price));
     oBlobParts.push(numberToBytes(timestamp));
     oBlobParts.push(numberToBytes(expiration));
+
+    const orderFlags = new Uint8Array(1).fill(flags);
+    oBlobParts.push(orderFlags);
 
     return new Blob(oBlobParts).arrayBuffer();
 }
@@ -222,7 +230,8 @@ function updateOrder(order: Order) {
         Number(order.orderTypeElement.value),
         order.buyingElement.checked,
         Number(order.timestampElement.value),
-        Number(order.expirationElement.value)
+        Number(order.expirationElement.value),
+        Number(order.flagsElement.value),
     ).then(buffer => {
         const bytesString = fromByteArray(new Uint8Array(buffer));
 
@@ -252,24 +261,27 @@ function getContracts() {
 
     const kMatcherPubKey = "%s__matcherPublicKey";
     const kValidatorAddress = "%s__validatorAddress";
-    const kSpotAddress = "%s__spotAddress";
     const kTreasuryAddress = "%s__treasuryAddress";
     const kPoolAddress = "%s__poolAddress";
+    const kSpotAddress = "%s__spotAddress";
+    const kLeverageAddress = "%s__leverageAddress";
 
     factoryMatcherPubKeyElement.innerText = "LOADING...";
     validatorAddressElement.innerText = "LOADING...";
-    spotAddressElement.innerText = "LOADING...";
     treasuryAddressElement.innerText = "LOADING...";
     poolAddressElement.innerText = "LOADING...";
+    spotAddressElement.innerText = "LOADING...";
+    leverageAddressElement.innerText = "LOADING...";
 
     fetch(NODE_URL + ADDRESS_DATA_END + FACTORY_ADDRESS)
         .then(res => res.json() as Promise<ContractState>)
         .then(state => {
             factoryMatcherPubKeyElement.innerText = getFromState(state, kMatcherPubKey).toString();
             validatorAddressElement.innerText = getFromState(state, kValidatorAddress).toString();
-            spotAddressElement.innerText = getFromState(state, kSpotAddress).toString();
             treasuryAddressElement.innerText = getFromState(state, kTreasuryAddress).toString();
             poolAddressElement.innerText = getFromState(state, kPoolAddress).toString();
+            spotAddressElement.innerText = getFromState(state, kSpotAddress).toString();
+            leverageAddressElement.innerText = getFromState(state, kLeverageAddress).toString();
 
             const depositLinkElement = document.createElement("a");
             const depositUrl = `https://waves-dapp.com/${getFromState(state, kTreasuryAddress).toString()}#deposit`;

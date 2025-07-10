@@ -96,6 +96,10 @@
                 <span class="mono-text bordered" id="spotAddress"></span>
             </div>
             <div>
+                Leverage address:
+                <span class="mono-text bordered" id="leverageAddress"></span>
+            </div>
+            <div>
                 Treasury address:
                 <span class="mono-text bordered" id="treasuryAddress"></span>
             </div>
@@ -172,6 +176,10 @@
                 <span>
                     <input id="maker-expiration" value="0">
                     <label>expiration (0 -> indefinite)</label>
+                </span>
+                <span>
+                    <input id="maker-flags" value="0">
+                    <label>flags (1 -> pay debt if type is leverage)</label>
                 </span>
             </form>
             <div>
@@ -257,6 +265,10 @@
                 <span>
                     <input id="taker-expiration" value="0">
                     <label>expiration (0 -> indefinite)</label>
+                </span>
+                <span>
+                    <input id="taker-flags" value="0">
+                    <label>flags (1 -> pay debt if type is leverage)</label>
                 </span>
             </form>
             <div>
