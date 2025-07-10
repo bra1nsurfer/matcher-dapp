@@ -78,6 +78,12 @@ const pool: Account = {
     address: e.POOL_ADDRESS ? e.POOL_ADDRESS : "",
 }
 
+const leverage: Account = {
+    seed: e.LEVERAGE_SEED ? e.LEVERAGE_SEED : "",
+    address: e.LEVERAGE_ADDRESS ? e.LEVERAGE_ADDRESS : "",
+}
+
+
 broadcastNewScript('./ride/matcher-validator.ride', validator)
     .then(res => console.log(res))
     .catch(e => console.error(e));
@@ -95,5 +101,9 @@ broadcastNewScript('./ride/matcher-treasury.ride', treasury)
     .catch(e => console.error(e));
 
 broadcastNewScript('./ride/matcher-pool.ride', pool)
+    .then(res => console.log(res))
+    .catch(e => console.error(e));
+
+broadcastNewScript('./ride/matcher-leverage.ride', leverage)
     .then(res => console.log(res))
     .catch(e => console.error(e));

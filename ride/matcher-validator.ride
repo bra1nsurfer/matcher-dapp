@@ -176,6 +176,9 @@ func parseOrderV1(orderBytes: ByteVector) = {
   let data13 = data12.drop(8)
   
   let expiration = data13.take(8).bytesToInt()
+  let data14 = data13.drop(8)
+
+  let flags = data14.take(1).bytesToInt()
   
   (
     networkByte,
@@ -189,7 +192,8 @@ func parseOrderV1(orderBytes: ByteVector) = {
     amount,
     price,
     timestamp,
-    expiration
+    expiration,
+    flags
   )
 }
 
@@ -237,6 +241,7 @@ func matchOrders(
   #   ._10 price,
   #   ._11 timestamp (nonce)
   #   ._12 expiration | 0
+  #   ._13 flags
   
   let o1 = parseOrder(o1Bytes, o1proof)
   let o2 = parseOrder(o2Bytes, o2proof)
@@ -257,6 +262,7 @@ func matchOrders(
   let buyOrderPrice        = buyOrder._10
   let buyOrderNonce        = buyOrder._11
   let buyOrderExpiration   = buyOrder._12
+  let buyOrderFlags        = buyOrder._13
   
   let sellOrderNetwork      = sellOrder._1
   let sellOrderPubKeyType   = sellOrder._2
@@ -270,6 +276,7 @@ func matchOrders(
   let sellOrderPrice        = sellOrder._10
   let sellOrderNonce        = sellOrder._11
   let sellOrderExpiration   = sellOrder._12
+  let sellOrderFlags        = sellOrder._13
 
   # TODO: Add matcher public key validation
   strict validation = [
@@ -315,8 +322,8 @@ func matchOrders(
   let sellPriceAssetRem = calcSendAmount(newSellRemaining, sellOrderFullAmount)
 
   (
-    (buyOrderAddress, matchedAmount, buyOrderAmountAsset, buyOrderType, bFeeType),
-    (sellOrderAddress, sendPriceAssetAmount, sellOrderPriceAsset, sellOrderType, sFeeType),
+    (buyOrderAddress, matchedAmount, buyOrderAmountAsset, buyOrderType, bFeeType, buyOrderFlags),
+    (sellOrderAddress, sendPriceAssetAmount, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags),
     (buyOrderId, newBuyFilled, buyPriceAssetRem), 
     (sellOrderId, newSellFilled, sellPriceAssetRem)
   )
@@ -360,12 +367,14 @@ func validateAndExchange(
   let buyTrAsset   = buyTransfer._3
   let buyTrType    = buyTransfer._4
   let buyTrFeeType = buyTransfer._5
+  let buyTrFlags   = buyTransfer._6
 
   let sellTrAddress = sellTransfer._1
   let sellTrAmount  = sellTransfer._2
   let sellTrAsset   = sellTransfer._3
   let sellTrType    = sellTransfer._4
   let sellTrFeeType = sellTransfer._5
+  let sellTrFlags   = sellTransfer._6
 
   strict checks = [
     # TODO: Enable after testing
@@ -403,7 +412,9 @@ func validateAndExchange(
         buyTrAmount,
         buyTrAsset.assetIdToString(),
         sellTrAmount,
-        sellTrAsset.assetIdToString()
+        sellTrAsset.assetIdToString(),
+        buyTrFlags,
+        sellTrFlags
       ],
       []
     )

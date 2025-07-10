@@ -16,9 +16,10 @@ func throwErr(s: String) = {
 let kForceStop        = ["%s", "forceStop"].makeString(SEP)
 let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
 let kValidatorAddress = ["%s", "validatorAddress"].makeString(SEP)
-let kSpotAddress      = ["%s", "spotAddress"].makeString(SEP)
 let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
 let kPoolAddress      = ["%s", "poolAddress"].makeString(SEP)
+let kSpotAddress      = ["%s", "spotAddress"].makeString(SEP)
+let kLeverageAddress  = ["%s", "leverageAddress"].makeString(SEP)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (this.getString(kAllowedAssets)) {
@@ -27,18 +28,19 @@ let allowedAssets  = match (this.getString(kAllowedAssets)) {
   }
 
 let contractsList = [
-    this.getString(kSpotAddress).valueOrElse(""), # spot
-    "",                                           # leverage
-    ""                                            # margin
+    this.getString(kSpotAddress).valueOrElse(""),     # spot
+    this.getString(kLeverageAddress).valueOrElse(""), # leverage
+    ""                                                # margin
   ]
 
 @Callable(i)
 func init(
     matcherPublicKey : String,
     validatorContract: String,
-    spotContract     : String,
     treasuryContract : String,
-    poolContract     : String
+    poolContract     : String,
+    spotContract     : String,
+    leverageContract : String
   ) = {
   strict check = [
     i.caller == this || throwErr("permission denied")
@@ -46,11 +48,12 @@ func init(
 
   let pubKey    = if (matcherPublicKey  == "") then [] else [StringEntry(kMatcherPublicKey, matcherPublicKey)]
   let validator = if (validatorContract == "") then [] else [StringEntry(kValidatorAddress, validatorContract)]
-  let spot      = if (spotContract      == "") then [] else [StringEntry(kSpotAddress, spotContract)]
   let treasury  = if (treasuryContract  == "") then [] else [StringEntry(kTreasuryAddress, treasuryContract)]
   let pool      = if (poolContract      == "") then [] else [StringEntry(kPoolAddress, poolContract)]
+  let spot      = if (spotContract      == "") then [] else [StringEntry(kSpotAddress, spotContract)]
+  let leverage  = if (leverageContract  == "") then [] else [StringEntry(kLeverageAddress, leverageContract)]
 
-  validator ++ pubKey ++ spot ++ treasury ++ pool
+  validator ++ pubKey ++ spot ++ treasury ++ pool ++ leverage
 }
 
 @Callable(i)

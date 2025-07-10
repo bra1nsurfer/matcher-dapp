@@ -3,7 +3,7 @@
 {-# SCRIPT_TYPE ACCOUNT #-}
 
 let SEP = "__"
-let CONTRACT_NAME = "matcher-spot.ride"
+let CONTRACT_NAME = "matcher-leverage.ride"
 let WAVES = "WAVES"
 
 func wrapErr(s: String) = {
