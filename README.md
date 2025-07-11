@@ -23,6 +23,7 @@
 | 13 |            8 | price (fixed decimals 10^8)                                                     |
 | 14 |            8 | nonce (timestamp)                                                               |
 | 15 |            8 | expiration (0 -> indefinite)                                                    |
+| 16 |            8 | custom flags                                                                    |
 
 ## Proof
 

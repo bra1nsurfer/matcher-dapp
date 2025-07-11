@@ -178,7 +178,7 @@ func parseOrderV1(orderBytes: ByteVector) = {
   let expiration = data13.take(8).bytesToInt()
   let data14 = data13.drop(8)
 
-  let flags = data14.take(1).bytesToInt()
+  let flags = data14.take(8)
   
   (
     networkByte,

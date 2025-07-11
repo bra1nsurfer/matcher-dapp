@@ -56,8 +56,8 @@ func exchange(
   asset1Id     : String,
   asset2Amount : Int,
   asset2Id     : String,
-  buyerFlag    : Int,
-  sellerFlag   : Int
+  buyerFlag    : ByteVector,
+  sellerFlag   : ByteVector
   ) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),

@@ -201,9 +201,7 @@ function encodeOrder(
     oBlobParts.push(numberToBytes(price));
     oBlobParts.push(numberToBytes(timestamp));
     oBlobParts.push(numberToBytes(expiration));
-
-    const orderFlags = new Uint8Array(1).fill(flags);
-    oBlobParts.push(orderFlags);
+    oBlobParts.push(numberToBytes(flags));
 
     return new Blob(oBlobParts).arrayBuffer();
 }
