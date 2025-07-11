@@ -51,6 +51,16 @@ let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
     case _ => []
 }
 
+# TODO: decide which way is better
+# let kSpotAddress     = ["%s", "spotAddress"].makeString(SEP)
+# let kLeverageAddress = ["%s", "leverageAddress"].makeString(SEP)
+
+# let orderContractList = [
+#     factoryAddress.getString(kSpotAddress).valueOrElse(""),     # spot
+#     factoryAddress.getString(kLeverageAddress).valueOrElse(""), # leverage
+#     ""                                                          # margin
+# ]
+
 let orderContractList = {
   let addressStringList = factoryAddress.invoke("getAllOrderTypeContracts", [], [])
   
@@ -110,6 +120,24 @@ func getAllUserInfo(user: String) = {
   let info = FOLD<10>(allowedAssets, [], helper)
 
   info
+}
+
+func loanPaymentHelper(user: String, assetId: String, amount: Int) = {
+  let pool = poolAddress.addressFromStringValue()
+  let userBalance = getUserBalance(user, assetId)
+
+  strict checks = [
+    amount <= userBalance || throwErr("not enough balance")
+  ]
+
+  strict inv = [
+    pool.invoke("loanPayment", [user], [AttachedPayment(assetId.stringToAssetId(), amount)])
+  ]
+
+  let balanceActions = changeBalanceHelper(user, assetId, amount, false)
+  let loanActions = changeLoanHelper(user, assetId, amount, false)
+
+  balanceActions ++ loanActions
 }
 
 @Callable(i)
@@ -199,20 +227,16 @@ func loanBorrow(assetId: String, amount: Int) = {
 
 @Callable(i)
 func loanPayment(assetId: String, amount: Int) = {
-  let pool = poolAddress.addressFromStringValue()
   let user = i.caller.toString()
-  let userBalance = getUserBalance(user, assetId)
 
-  strict checks = [
-    amount <= userBalance || throwErr("not enough balance")
+  loanPaymentHelper(user, assetId, amount)
+}
+
+@Callable(i)
+func loanPaymentFor(user: String, assetId: String, amount: Int) = {
+  strict check = [
+      orderContractList.containsElement(i.caller.toString()) || throwErr("permission denied")
   ]
 
-  strict inv = [
-    pool.invoke("loanPayment", [user], [AttachedPayment(assetId.stringToAssetId(), amount)])
-  ]
-
-  let balanceActions = changeBalanceHelper(user, assetId, amount, false)
-  let loanActions = changeLoanHelper(user, assetId, amount, false)
-
-  balanceActions ++ loanActions
+  loanPaymentHelper(user, assetId, amount)
 }
