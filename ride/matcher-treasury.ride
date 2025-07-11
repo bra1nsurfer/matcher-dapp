@@ -140,6 +140,22 @@ func loanPaymentHelper(user: String, assetId: String, amount: Int) = {
   balanceActions ++ loanActions
 }
 
+func loanBorrowHelper(user: String, assetId: String, amount: Int) = {
+  let pool = poolAddress.addressFromStringValue()
+  strict inv = [
+    pool.invoke("loanBorrow", [user, assetId, amount], [])
+  ]
+
+  # TODO: Parametrize in future
+  # 0.05 from amount (5%)
+  let interest = fraction(amount, 500_0000, DEC8)
+
+  let balanceActions = changeBalanceHelper(user, assetId, amount, true)
+  let loanActions = changeLoanHelper(user, assetId, amount+interest, true)
+
+  balanceActions ++ loanActions
+}
+
 @Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
@@ -210,19 +226,18 @@ func addBalance(user: String, assetId: String, amount: Int) = {
 
 @Callable(i)
 func loanBorrow(assetId: String, amount: Int) = {
-  let pool = poolAddress.addressFromStringValue()
   let user = i.caller.toString()
-  strict inv = [
-    pool.invoke("loanBorrow", [user, assetId, amount], [])
+
+  loanBorrowHelper(user, assetId, amount) 
+}
+
+@Callable(i)
+func loanBorrowFor(user: String, assetId: String, amount: Int) = {
+  strict check = [
+      orderContractList.containsElement(i.caller.toString()) || throwErr("permission denied")
   ]
-
-  # 0.05 from amount (5%)
-  let interest = fraction(amount, 500_0000, DEC8)
-
-  let balanceActions = changeBalanceHelper(user, assetId, amount, true)
-  let loanActions = changeLoanHelper(user, assetId, amount+interest, true)
-
-  balanceActions ++ loanActions
+  
+  loanBorrowHelper(user, assetId, amount) 
 }
 
 @Callable(i)
