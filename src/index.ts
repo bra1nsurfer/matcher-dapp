@@ -32,6 +32,7 @@ type Order = {
     amountAssetIdElement: HTMLInputElement,
     priceElement: HTMLInputElement,
     priceElementAssetId: HTMLInputElement,
+    feeElementAssetId: HTMLInputElement,
     getAmountElement: HTMLInputElement,
     orderTypeElement: HTMLInputElement,
     buyingElement: HTMLInputElement,
@@ -70,6 +71,7 @@ const maker = {
     amountAssetIdElement: document.getElementById("maker-amountAssetId") as HTMLInputElement,
     priceElement: document.getElementById("maker-price") as HTMLInputElement,
     priceElementAssetId: document.getElementById("maker-priceAssetId") as HTMLInputElement,
+    feeElementAssetId: document.getElementById("maker-feeAssetId") as HTMLInputElement,
     getAmountElement: document.getElementById("maker-getAmount") as HTMLInputElement,
     orderTypeElement: document.getElementById("maker-orderType") as HTMLInputElement,
     buyingElement: document.getElementById("maker-buying") as HTMLInputElement,
@@ -100,6 +102,7 @@ const taker = {
     amountAssetIdElement: document.getElementById("taker-amountAssetId") as HTMLInputElement,
     priceElement: document.getElementById("taker-price") as HTMLInputElement,
     priceElementAssetId: document.getElementById("taker-priceAssetId") as HTMLInputElement,
+    feeElementAssetId: document.getElementById("taker-feeAssetId") as HTMLInputElement,
     getAmountElement: document.getElementById("taker-getAmount") as HTMLInputElement,
     orderTypeElement: document.getElementById("taker-orderType") as HTMLInputElement,
     buyingElement: document.getElementById("taker-buying") as HTMLInputElement,
@@ -130,7 +133,7 @@ const depositBlockElement = document.getElementById("depositBlock") as HTMLDivEl
 
 const matchingAmountElement = document.getElementById("matchingAmount") as HTMLInputElement;
 const matchingPriceElement = document.getElementById("matchingPrice") as HTMLInputElement;
-const signExchangeElement = document.getElementById("signExchangeButton") as HTMLDivElement;
+const signExchangeElement = document.getElementById("signExchangeButton") as HTMLButtonElement;
 const exchangeOutputElement = document.getElementById("exchangeOutput") as HTMLDivElement;
 
 const poolUserElement = document.getElementById("poolUserAddress") as HTMLDivElement;
@@ -165,48 +168,63 @@ function encodeOrder(
     amountAsset: string,
     price: number,
     priceAsset: string,
+    feeAsset: string,
     orderType: number,
     buying: boolean,
     timestamp: number,
     expiration: number,
     flags: number,
-) {
-    const oBlobParts: Uint8Array[] = [];
+): ArrayBuffer {
+    const oArrayBufferParts: Uint8Array[] = [];
 
     const versionBytes = new Uint8Array(1).fill(version);
-    oBlobParts.push(versionBytes);
+    oArrayBufferParts.push(versionBytes);
 
     const networkBytes = new Uint8Array(1).fill(network.charCodeAt(0));
-    oBlobParts.push(networkBytes);
+    oArrayBufferParts.push(networkBytes);
 
     const senderPrefix = (signerType == "metamask") ? 1 : 0
     const senderPrefixBytes = new Uint8Array(1).fill(senderPrefix);
     const senderBytes = base58_to_binary(sender);
-    oBlobParts.push(senderPrefixBytes);
-    oBlobParts.push(senderBytes);
+    oArrayBufferParts.push(senderPrefixBytes);
+    oArrayBufferParts.push(senderBytes);
 
     const matcherBytes = base58_to_binary(matcher);
-    oBlobParts.push(matcherBytes);
+    oArrayBufferParts.push(matcherBytes);
 
-    convertAssetAndPush(oBlobParts, amountAsset);
-    convertAssetAndPush(oBlobParts, priceAsset);
+    convertAssetAndPush(oArrayBufferParts, amountAsset);
+    convertAssetAndPush(oArrayBufferParts, priceAsset);
+    convertAssetAndPush(oArrayBufferParts, feeAsset);
 
     const orderTypeByte = new Uint8Array(1).fill(orderType);
-    oBlobParts.push(orderTypeByte);
+    oArrayBufferParts.push(orderTypeByte);
 
     if (buying) {
-        oBlobParts.push(new Uint8Array(1).fill(0));
+        oArrayBufferParts.push(new Uint8Array(1).fill(0));
     } else {
-        oBlobParts.push(new Uint8Array(1).fill(1));
+        oArrayBufferParts.push(new Uint8Array(1).fill(1));
     }
 
-    oBlobParts.push(numberToBytes(amount));
-    oBlobParts.push(numberToBytes(price));
-    oBlobParts.push(numberToBytes(timestamp));
-    oBlobParts.push(numberToBytes(expiration));
-    oBlobParts.push(numberToBytes(flags));
+    oArrayBufferParts.push(numberToBytes(amount));
+    oArrayBufferParts.push(numberToBytes(price));
+    oArrayBufferParts.push(numberToBytes(timestamp));
+    oArrayBufferParts.push(numberToBytes(expiration));
+    oArrayBufferParts.push(numberToBytes(flags));
 
-    return new Blob(oBlobParts).arrayBuffer();
+    const arrayBuffer = flattenBytes(oArrayBufferParts);
+    return arrayBuffer;
+}
+
+function flattenBytes(data: Uint8Array[]): ArrayBuffer {
+    const totalLen = data.reduce((sum: number, val) => sum + val.byteLength, 0)
+    const buffer = new ArrayBuffer(totalLen);
+    const view = new DataView(buffer);
+    let pos = 0;
+    for (const arr of data) {
+        arr.forEach((val, i) => view.setUint8(pos + i, val));
+        pos += arr.byteLength;
+    }
+    return buffer;
 }
 
 function updateOrder(order: Order) {
@@ -220,7 +238,7 @@ function updateOrder(order: Order) {
 
     order.getAmountElement.value = (Number(order.amountElement.value) * Number(order.priceElement.value) / 1_0000_0000).toString();
 
-    encodeOrder(
+    const buffer = encodeOrder(
         order.signerType,
         Number(order.versionElement.value),
         order.networkElement.value,
@@ -230,25 +248,26 @@ function updateOrder(order: Order) {
         order.amountAssetIdElement.value,
         Number(order.priceElement.value),
         order.priceElementAssetId.value,
+        order.feeElementAssetId.value,
         Number(order.orderTypeElement.value),
         order.buyingElement.checked,
         Number(order.timestampElement.value),
         Number(order.expirationElement.value),
         Number(order.flagsElement.value),
-    ).then(buffer => {
-        const bytesString = fromByteArray(new Uint8Array(buffer));
+    );
 
-        window.crypto.subtle.digest("SHA-256", buffer)
-            .then(hash => {
-                const uintHash = new Uint8Array(hash);
-                order.orderIdb58Element.innerText = binary_to_base58(uintHash);
-                order.orderIdb64Element.innerText = window.btoa(order.orderIdb58Element.innerText);
-                return uintHash;
-            })
+    const bytesString = fromByteArray(new Uint8Array(buffer));
 
-        order.orderBytesElement.innerText = bytesString;
-        order.proofElement.innerText = "";
-    });
+    window.crypto.subtle.digest("SHA-256", buffer)
+        .then(hash => {
+            const uintHash = new Uint8Array(hash);
+            order.orderIdb58Element.innerText = binary_to_base58(uintHash);
+            order.orderIdb64Element.innerText = window.btoa(order.orderIdb58Element.innerText);
+            return uintHash;
+        })
+
+    order.orderBytesElement.innerText = bytesString;
+    order.proofElement.innerText = "";
 };
 
 function getFromState(state: ContractState, key: string) {
@@ -422,21 +441,68 @@ function setupEvents(order: Order) {
     order.balanceBlock.addEventListener("click", () => getTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
 
     order.signButton.addEventListener("click", () => {
-        order.signer.signMessage(order.orderIdb58Element.innerText.trim()).then(proof => {
-            if (order.signerType == "metamask") {
-                const hexString = proof.substring(2);
-                const array = new Uint8Array(Math.ceil(hexString.length / 2));
-                for (var i = 0; i < array.length; i++) {
-                    array[i] = parseInt(hexString.substring(i * 2, i * 2 + 2), 16);
+        if (order.versionElement.value == "1") {
+            order.signer.signMessage(order.orderIdb58Element.innerText.trim()).then(proof => {
+                if (order.signerType == "metamask") {
+                    const hexString = proof.substring(2);
+                    const array = new Uint8Array(Math.ceil(hexString.length / 2));
+                    for (var i = 0; i < array.length; i++) {
+                        array[i] = parseInt(hexString.substring(i * 2, i * 2 + 2), 16);
+                    }
+                    order.proofElement.innerText = fromByteArray(array)
+                } else {
+                    order.proofElement.innerText = fromByteArray(base58_to_binary(proof));
                 }
-                order.proofElement.innerText = fromByteArray(array)
-            } else {
-                order.proofElement.innerText = fromByteArray(base58_to_binary(proof));
-            }
-        });
+            });
+        }
+
+        if (order.versionElement.value == "2") {
+            order.signer.signTypedData([
+                {
+                    key: "version",
+                    type: "integer",
+                    value: Number(order.versionElement.value),
+                },
+                {
+                    key: "sender",
+                    type: "string",
+                    value: order.senderElement.value,
+                },
+                {
+                    key: "amount",
+                    type: "integer",
+                    value: Number(order.amountElement.value),
+                },
+                {
+                    key: "amount_asset_id",
+                    type: "string",
+                    value: order.amountAssetIdElement.value,
+                },
+                {
+                    key: "price",
+                    type: "integer",
+                    value: Number(order.priceElement.value),
+                },
+                {
+                    key: "price_asset_id",
+                    type: "string",
+                    value: order.priceElementAssetId.value,
+                },
+            ]).then(proof => {
+                if (order.signerType == "metamask") {
+                    const hexString = proof.substring(2);
+                    const array = new Uint8Array(Math.ceil(hexString.length / 2));
+                    for (var i = 0; i < array.length; i++) {
+                        array[i] = parseInt(hexString.substring(i * 2, i * 2 + 2), 16);
+                    }
+                    order.proofElement.innerText = fromByteArray(array)
+                } else {
+                    order.proofElement.innerText = fromByteArray(base58_to_binary(proof));
+                }
+            });
+        }
     })
 }
-
 
 signExchangeElement.addEventListener("click", () => {
     exchangeOutputElement.innerText = "";
@@ -512,5 +578,4 @@ window.addEventListener("DOMContentLoaded", () => {
     getContracts();
     setupEvents(maker);
     setupEvents(taker);
-})
-
+});
