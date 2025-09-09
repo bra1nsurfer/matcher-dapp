@@ -20,6 +20,8 @@ let wavesSignType = "waves-sign"
 let ecdsaSignType = "ecdsa-sign"
 let orderDirBuy   = "buy"
 let orderDirSell  = "sell"
+let MAKER         = "maker"
+let TAKER         = "taker"
 let dec8          = 1_0000_0000
 
 # ORDER STATUS
@@ -162,8 +164,8 @@ func parseOrderV1(orderBytes: ByteVector) = {
   let feeAssetFlag = data8.take(1).bytesToInt()
   let data9 = data8.drop(1)
   let feeAssetLen = if(feeAssetFlag == 0) then 0 else 32
-  let feeAsset = if(feeAssetFlag == 0) then unit else data9.take(feeAssetFlag)
-  let data10 = data9.drop(feeAssetFlag)
+  let feeAsset = if(feeAssetFlag == 0) then unit else data9.take(feeAssetLen)
+  let data10 = data9.drop(feeAssetLen)
 
   let orderType = data10.take(1).bytesToInt()
   let data11 = data10.drop(1)
@@ -255,7 +257,7 @@ func matchOrders(
   let o1 = parseOrder(o1Bytes, o1proof)
   let o2 = parseOrder(o2Bytes, o2proof)
 
-  let (bO, bFeeType, sO, sFeeType) = if (o1._1._9 == orderDirBuy) then (o1, "maker", o2, "taker") else (o2, "taker", o1, "maker")
+  let (bO, bFeeType, sO, sFeeType) = if (o1._1._9 == orderDirBuy) then (o1, MAKER, o2, TAKER) else (o2, TAKER, o1, MAKER)
   let (buyOrder, buyOrderId, buyOrderStatus) = bO
   let (sellOrder, sellOrderId, sellOrderStatus) = sO
 
@@ -333,7 +335,7 @@ func matchOrders(
   let sellPriceAssetRem = calcSendAmount(newSellRemaining, sellOrderFullAmount)
 
   (
-    (buyOrderAddress, matchedAmount, buyOrderAmountAsset, buyOrderType, bFeeType, buyOrderFlags, buyOrderFeeAsset),
+    (buyOrderAddress,  matchedAmount,        buyOrderAmountAsset, buyOrderType, bFeeType, buyOrderFlags, buyOrderFeeAsset),
     (sellOrderAddress, sendPriceAssetAmount, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags, sellOrderFeeAsset),
     (buyOrderId, newBuyFilled, buyPriceAssetRem), 
     (sellOrderId, newSellFilled, sellPriceAssetRem)
@@ -358,7 +360,9 @@ func validateAndExchange(
   o2Bytes    : ByteVector,
   o2proof    : ByteVector,
   matchAmount: Int,
-  matchPrice : Int
+  matchPrice : Int,
+  makerFee   : Int,
+  takerFee   : Int
   ) = {
   
   let (buyTransfer, sellTransfer, buyState, sellState) = matchOrders(o1Bytes, o1proof, o2Bytes, o2proof, matchAmount, matchPrice)
@@ -373,13 +377,13 @@ func validateAndExchange(
   let sellOrderRem    = sellState._3
 
   # Matched values
-  let buyTrAddress = buyTransfer._1
-  let buyTrAmount  = buyTransfer._2
-  let buyTrAsset   = buyTransfer._3
-  let buyTrType    = buyTransfer._4
-  let buyTrFeeType = buyTransfer._5
-  let buyTrFlags   = buyTransfer._6
-  let buyFeeAsset  = buyTransfer._7
+  let buyTrAddress  = buyTransfer._1
+  let buyTrAmount   = buyTransfer._2
+  let buyTrAsset    = buyTransfer._3
+  let buyTrType     = buyTransfer._4
+  let buyTrFeeType  = buyTransfer._5
+  let buyTrFlags    = buyTransfer._6
+  let buyTrFeeAsset = buyTransfer._7
 
   let sellTrAddress  = sellTransfer._1
   let sellTrAmount   = sellTransfer._2
@@ -413,6 +417,7 @@ func validateAndExchange(
     else nil
 
   let orderTypeContract = getOrderTypeContract(buyTrType).valueOrErrorMessage("order type contract error")
+  let (buyTrFee, sellTrFee) = if (buyTrFeeType == MAKER) then (makerFee, takerFee) else (takerFee, makerFee)
 
   strict exchange = [
     orderTypeContract.invoke(
@@ -420,8 +425,12 @@ func validateAndExchange(
       [
         buyTrAddress.toString(),
         buyTrFeeType,
+        buyTrFeeAsset.assetIdToString(),
+        buyTrFee,
         sellTrAddress.toString(),
         sellTrFeeType,
+        sellTrFeeAsset.assetIdToString(),
+        sellTrFee,
         buyTrAmount,
         buyTrAsset.assetIdToString(),
         sellTrAmount,

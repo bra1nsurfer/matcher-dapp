@@ -32,11 +32,11 @@ let factoryAddress       = factoryAddressString.addressFromString().valueOrError
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
-let kValidatorAddress     = ["%s", "validatorAddress"].makeString(SEP)
-let validatorAddress      = factoryAddress.getString(kValidatorAddress).valueOrElse("")
-let kTreasuryAddress      = ["%s", "treasuryAddress"].makeString(SEP)
-let treasuryAddressString = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
-let treasuryAddress       = treasuryAddressString.addressFromStringValue()
+let kValidatorAddress = ["%s", "validatorAddress"].makeString(SEP)
+let validatorAddress  = factoryAddress.getString(kValidatorAddress).valueOrElse("")
+let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
+let sTreasuryAddress  = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+let treasuryAddress   = sTreasuryAddress.addressFromStringValue()
 
 func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
 func getUserBalance(user: String, assetId: String) = treasuryAddress.getInteger(kUserBalance(user, assetId)).valueOrElse(0)
@@ -84,16 +84,20 @@ func init(matcherFactory: String) = {
 
 @Callable(i)
 func exchange(
-  buyerAddress : String,
-  buyerFeeType : String,
-  sellerAddress: String,
-  sellerFeeType: String,
-  asset1Amount : Int,
-  asset1Id     : String,
-  asset2Amount : Int,
-  asset2Id     : String,
-  buyerFlags   : ByteVector,
-  sellerFlags  : ByteVector
+  buyerAddress  : String,
+  buyerFeeType  : String,
+  buyerFeeAsset : String,
+  buyerFee      : Int,
+  sellerAddress : String,
+  sellerFeeType : String,
+  sellerFeeAsset: String,
+  sellerFee     : Int,
+  asset1Amount  : Int,
+  asset1Id      : String,
+  asset2Amount  : Int,
+  asset2Id      : String,
+  buyerFlags    : ByteVector,
+  sellerFlags   : ByteVector
   ) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -143,7 +147,11 @@ func exchange(
 
       # Swap priceAsset (buyer -> seller)
       treasuryAddress.invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
-      treasuryAddress.invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], [])
+      treasuryAddress.invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], []),
+
+      # Take fee
+      treasuryAddress.invoke("subBalance", [sellerAddress, sellerFeeAsset, sellerFee], []),
+      treasuryAddress.invoke("subBalance", [buyerAddress, buyerFeeAsset, buyerFee], [])
     ]
 
   # Actions order is important!

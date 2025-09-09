@@ -83,9 +83,9 @@ func changeBalanceHelper(user: String, assetId: String, amount: Int, add: Boolea
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
+    allowedAssets.containsElement(assetId) || ["(balance) asset is not allowed", assetId].makeString(" ").throwErr(),
     amount > 0 || throwErr("amount must be greater than 0"),
-    newBalance >= 0 || throwErr(["not enough balance", user].makeString(" "))
+    newBalance >= 0 || throwErr(["not enough balance", user, assetId].makeString(" "))
   ]
 
   [
@@ -100,7 +100,7 @@ func changeLoanHelper(user: String, assetId: String, amount: Int, add: Boolean) 
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
+    allowedAssets.containsElement(assetId) || ["(loan) asset is not allowed", assetId].makeString(" ").throwErr(),
     amount > 0 || throwErr("amount must be greater than 0")
   ]
 

@@ -133,6 +133,8 @@ const depositBlockElement = document.getElementById("depositBlock") as HTMLDivEl
 
 const matchingAmountElement = document.getElementById("matchingAmount") as HTMLInputElement;
 const matchingPriceElement = document.getElementById("matchingPrice") as HTMLInputElement;
+const matchingMakerFeeElement = document.getElementById("matchingMakerFee") as HTMLInputElement;
+const matchingTakerFeeElement = document.getElementById("matchingTakerFee") as HTMLInputElement;
 const signExchangeElement = document.getElementById("signExchangeButton") as HTMLButtonElement;
 const exchangeOutputElement = document.getElementById("exchangeOutput") as HTMLDivElement;
 
@@ -386,6 +388,7 @@ function setupEvents(order: Order) {
         order.amountAssetIdElement,
         order.priceElement,
         order.priceElementAssetId,
+        order.feeElementAssetId,
         order.orderTypeElement,
         order.buyingElement,
         order.timestampElement,
@@ -535,6 +538,14 @@ signExchangeElement.addEventListener("click", () => {
                 {
                     type: "integer",
                     value: Number(matchingPriceElement.value)
+                },
+                {
+                    type: "integer",
+                    value: Number(matchingMakerFeeElement.value)
+                },
+                {
+                    type: "integer",
+                    value: Number(matchingTakerFeeElement.value)
                 },
             ]
         }

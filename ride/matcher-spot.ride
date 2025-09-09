@@ -2,9 +2,9 @@
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
 
-let SEP = "__"
+let SEP           = "__"
 let CONTRACT_NAME = "matcher-spot.ride"
-let WAVES = "WAVES"
+let WAVES         = "WAVES"
 
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
@@ -35,7 +35,8 @@ let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 let kValidatorAddress = ["%s", "validatorAddress"].makeString(SEP)
 let validatorAddress  = factoryAddress.getString(kValidatorAddress).valueOrElse("")
 let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
-let treasuryAddress   = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+let sTreasuryAddress  = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+let treasuryAddress   = sTreasuryAddress.addressFromStringValue()
 
 @Callable(i)
 func init(matcherFactory: String) = {
@@ -48,16 +49,20 @@ func init(matcherFactory: String) = {
 
 @Callable(i)
 func exchange(
-  buyerAddress : String,
-  buyerFeeType : String,
-  sellerAddress: String,
-  sellerFeeType: String,
-  asset1Amount : Int,
-  asset1Id     : String,
-  asset2Amount : Int,
-  asset2Id     : String,
-  buyerFlag    : ByteVector,
-  sellerFlag   : ByteVector
+  buyerAddress  : String,
+  buyerFeeType  : String,
+  buyerFeeAsset : String,
+  buyerFee      : Int,
+  sellerAddress : String,
+  sellerFeeType : String,
+  sellerFeeAsset: String,
+  sellerFee     : Int,
+  asset1Amount  : Int,
+  asset1Id      : String,
+  asset2Amount  : Int,
+  asset2Id      : String,
+  buyerFlags    : ByteVector,
+  sellerFlags   : ByteVector
   ) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -69,12 +74,16 @@ func exchange(
     [],
     [
       # Swap amountAsset (seller -> buyer)
-      treasuryAddress.addressFromStringValue().invoke("subBalance", [sellerAddress, asset1Id, asset1Amount], []),
-      treasuryAddress.addressFromStringValue().invoke("addBalance", [buyerAddress, asset1Id, asset1Amount], []),
+      treasuryAddress.invoke("subBalance", [sellerAddress, asset1Id, asset1Amount], []),
+      treasuryAddress.invoke("addBalance", [buyerAddress, asset1Id, asset1Amount], []),
 
       # Swap priceAsset (buyer -> seller)
-      treasuryAddress.addressFromStringValue().invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
-      treasuryAddress.addressFromStringValue().invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], [])
+      treasuryAddress.invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
+      treasuryAddress.invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], []),
+
+      # Take fee
+      treasuryAddress.invoke("subBalance", [sellerAddress, sellerFeeAsset, sellerFee], []),
+      treasuryAddress.invoke("subBalance", [buyerAddress, buyerFeeAsset, buyerFee], [])
     ]
   )
 }
