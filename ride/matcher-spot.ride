@@ -38,6 +38,11 @@ let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
 let sTreasuryAddress  = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
 let treasuryAddress   = sTreasuryAddress.addressFromStringValue()
 
+let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
+let matcherPublicKey  = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
+let matcherAddress    = matcherPublicKey.addressFromPublicKey()
+let sMatcherAddress   = matcherAddress.toString()
+
 @Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
@@ -81,9 +86,11 @@ func exchange(
       treasuryAddress.invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
       treasuryAddress.invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], []),
 
-      # Take fee
+      # Transfer fee to Matcher
       treasuryAddress.invoke("subBalance", [sellerAddress, sellerFeeAsset, sellerFee], []),
-      treasuryAddress.invoke("subBalance", [buyerAddress, buyerFeeAsset, buyerFee], [])
+      treasuryAddress.invoke("transferTo", [sMatcherAddress, sellerFeeAsset, sellerFee], []),
+      treasuryAddress.invoke("subBalance", [buyerAddress, buyerFeeAsset, buyerFee], []),
+      treasuryAddress.invoke("transferTo", [sMatcherAddress, buyerFeeAsset, buyerFee], [])
     ]
   )
 }

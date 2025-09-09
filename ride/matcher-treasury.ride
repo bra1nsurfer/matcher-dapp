@@ -225,6 +225,17 @@ func addBalance(user: String, assetId: String, amount: Int) = {
 }
 
 @Callable(i)
+func transferTo(user: String, assetId: String, amount: Int) = {
+  strict check = [
+      orderContractList.containsElement(i.caller.toString()) || throwErr("permission denied")
+  ]
+  
+  [
+    ScriptTransfer(user.addressFromStringValue(), amount, assetId.stringToAssetId())
+  ]
+}
+
+@Callable(i)
 func loanBorrow(assetId: String, amount: Int) = {
   let user = i.caller.toString()
 
