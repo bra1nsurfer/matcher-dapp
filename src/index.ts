@@ -1,6 +1,6 @@
 import { base58_to_binary, binary_to_base58 } from "base58-js";
-import { fromByteArray, toByteArray } from "base64-js";
-import { Signer } from "@waves/signer";
+import { fromByteArray } from "base64-js";
+import { Signer, TypedData } from "@waves/signer";
 import { ProviderKeeper } from "@waves/provider-keeper";
 import { ProviderMetamask } from "@waves/provider-metamask";
 import { ProviderWeb } from "@waves.exchange/provider-web";
@@ -401,7 +401,7 @@ function setupEvents(order: Order) {
         }
 
         if (order.versionElement.value == "2") {
-            return order.signer.signTypedData([
+            const orderTypedData: TypedData[] = [
                 {
                     key: "version",
                     type: "integer",
@@ -467,8 +467,10 @@ function setupEvents(order: Order) {
                     type: "integer",
                     value: Number(order.flagsElement.value),
                 },
-            ])
+            ];
+            return order.signer.signTypedData(orderTypedData);
         }
+
 
         return Promise.reject("unsupported version");
     }

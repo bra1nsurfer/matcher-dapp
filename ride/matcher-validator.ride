@@ -86,7 +86,7 @@ func bytesToInt(x: ByteVector) = {
   x.padBytes().toBigInt().toInt()
 }
 
-func getMessageDataHashV1(orderId: String) = {
+func getEipOrderDataHashV1(orderId: String) = {
   ### EIP-712
   ### ABI encoding
 
@@ -109,7 +109,7 @@ func getMessageDataHashV1(orderId: String) = {
   keccak256(prefix + domain + message)
 }
 
-func getMessageDataHashV2(
+func getEipOrderDataHashV2(
     orderData: 
       (
         ByteVector, 
@@ -194,6 +194,106 @@ func getMessageDataHashV2(
   keccak256(prefix + domain + message)
 }
 
+func getOrderBytesV2(
+    orderData: 
+      (
+        ByteVector, 
+        String, 
+        ByteVector, 
+        ByteVector, 
+        ByteVector|Unit, 
+        ByteVector|Unit, 
+        Int, 
+        String, 
+        Int, 
+        Int, 
+        Int, 
+        Int, 
+        ByteVector
+      )) = {
+  let (
+    networkByte,
+    pubKeyType,
+    senderBytes,
+    matcherBytes,
+    amountAsset,
+    priceAsset,
+    orderType,
+    orderDir,
+    amount,
+    price,
+    timestamp,
+    expiration,
+    flags
+  ) = orderData
+  
+  func getLenAsShort(val: ByteVector) = val.size().toBytes().takeRight(2)
+
+  # Signer padding V2
+  # Prefix: [255, 255, 255, 2]
+  let prefix = base58'7YXq4u'
+
+  let LONG    = 0.toBytes().takeRight(1)
+  let BOOLEAN = 1.toBytes().takeRight(1)
+  let BYTES   = 2.toBytes().takeRight(1)
+  let STRING  = 3.toBytes().takeRight(1)
+
+  let versionKey   = "version".toBytes()
+  let versionValue = 2.toBytes()
+
+  let networkKey   = "network".toBytes()
+  let networkValue = networkByte
+  let networkLen   = 1.toBytes().takeRight(2)
+
+  let senderKey   = "sender".toBytes()
+  let senderValue = senderBytes.toBase58String().toBytes()
+
+  let matcherKey   = "matcherPublicKey".toBytes()
+  let matcherValue = matcherBytes.toBase58String().toBytes()
+
+  let amountAssetKey = "amountAssetId".toBytes()
+  let amountAssetValue = amountAsset.assetIdToString().toBytes()
+
+  let priceAssetKey   = "priceAssetId".toBytes()
+  let priceAssetValue = priceAsset.assetIdToString().toBytes()
+
+  let orderTypeKey   = "orderType".toBytes()
+  let orderTypeValue = orderType.toBytes()
+
+  let orderDirKey   = "orderDirection".toBytes()
+  let orderDirValue = orderDir.toBytes()
+
+  let amountKey   = "amount".toBytes()
+  let amountValue = amount.toBytes()
+
+  let priceKey   = "price".toBytes()
+  let priceValue = price.toBytes()
+
+  let timestampKey   = "timestamp".toBytes()
+  let timestampValue = timestamp.toBytes()
+
+  let expirationKey   = "expiration".toBytes()
+  let expirationValue = expiration.toBytes()
+
+  let flagsKey   = "flags".toBytes()
+  let flagsValue = flags
+
+  prefix + 13.toBytes().takeRight(2) + # 13 - amount of fields in order
+  versionKey.getLenAsShort() + versionKey + LONG + versionValue +
+  networkKey.getLenAsShort() + networkKey + STRING + networkLen + networkValue +
+  senderKey.getLenAsShort() + senderKey + STRING + senderValue.getLenAsShort() + senderValue +
+  matcherKey.getLenAsShort() + matcherKey + STRING + matcherValue.getLenAsShort() + matcherValue +
+  amountAssetKey.getLenAsShort() + amountAssetKey + STRING + amountAssetValue.getLenAsShort() + amountAssetValue +
+  priceAssetKey.getLenAsShort() + priceAssetKey + STRING + priceAssetValue.getLenAsShort() + priceAssetValue +
+  orderTypeKey.getLenAsShort() + orderTypeKey + LONG + orderTypeValue +
+  orderDirKey.getLenAsShort() + orderDirKey + STRING + orderDirValue.getLenAsShort() + orderDirValue +
+  amountKey.getLenAsShort() + amountKey + LONG + amountValue +
+  priceKey.getLenAsShort() + priceKey + LONG + priceValue +
+  timestampKey.getLenAsShort() + timestampKey + LONG + timestampValue +
+  expirationKey.getLenAsShort() + expirationKey + LONG + expirationValue +
+  flagsKey.getLenAsShort() + flagsKey + LONG + flagsValue
+}
+
 func checkSignV1(orderId: String, proof: ByteVector, pubKey: (String, ByteVector)) = {
   let (pubKeyType, senderBytes) = pubKey
 
@@ -209,7 +309,7 @@ func checkSignV1(orderId: String, proof: ByteVector, pubKey: (String, ByteVector
   let ecdsaCheck = if (pubKeyType == ecdsaSignType) 
     then {
       let address = Address(senderBytes)
-      let orderDataHash = getMessageDataHashV1(orderId)
+      let orderDataHash = getEipOrderDataHashV1(orderId)
       (ecrecover(orderDataHash, proof).addressFromPublicKey() == address)
     }
     else false
@@ -239,16 +339,14 @@ func checkSignV2(
   let (pubKeyType, senderBytes) = pubKey
   let wavesCheck = if (pubKeyType == wavesSignType) 
     then {
-      # Signer padding 
-      # Prefix: [255, 255, 255, 1]
-      let prefix = base58'7YXq4t'
-      (sigVerify(prefix, proof, senderBytes))
+      let signedBytes = getOrderBytesV2(orderData)
+      (sigVerify(signedBytes, proof, senderBytes))
     }
     else false
   let ecdsaCheck = if (pubKeyType == ecdsaSignType) 
     then {
       let address = Address(senderBytes)
-      let orderDataHash = getMessageDataHashV2(orderData)
+      let orderDataHash = getEipOrderDataHashV2(orderData)
       (ecrecover(orderDataHash, proof).addressFromPublicKey() == address)
     }
     else false
