@@ -17,15 +17,13 @@
 | 7  |      0 or 32 | if amount asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                      |
 | 8  |            1 | price asset flag                                                                |
 | 9  |      0 or 32 | if price asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                       |
-| 10 |            1 | fee asset flag                                                                  |
-| 11 |      0 or 32 | if fee asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                         |
-| 12 |            1 | order type (0 -> spot, 1 -> leverage, 2 -> margin)                              |
-| 13 |            1 | order direction 0 -> buying, 1 -> selling                                       |
-| 14 |            8 | amount                                                                          |
-| 15 |            8 | price (fixed decimals 10^8)                                                     |
-| 16 |            8 | nonce (timestamp)                                                               |
-| 17 |            8 | expiration (0 -> indefinite)                                                    |
-| 18 |            8 | custom flags                                                                    |
+| 10 |            1 | order type (0 -> spot, 1 -> leverage, 2 -> margin)                              |
+| 11 |            1 | order direction 0 -> buying, 1 -> selling                                       |
+| 12 |            8 | amount                                                                          |
+| 13 |            8 | price (fixed decimals 10^8)                                                     |
+| 14 |            8 | nonce (timestamp)                                                               |
+| 15 |            8 | expiration (0 -> indefinite)                                                    |
+| 16 |            8 | custom flags                                                                    |
 
 ## Proof Order V1
 

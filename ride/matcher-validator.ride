@@ -161,32 +161,26 @@ func parseOrderV1(orderBytes: ByteVector) = {
   let priceAsset = if(priceAssetLen == 0) then unit else data7.take(priceAssetLen)
   let data8 = data7.drop(priceAssetLen)
 
-  let feeAssetFlag = data8.take(1).bytesToInt()
+  let orderType = data8.take(1).bytesToInt()
   let data9 = data8.drop(1)
-  let feeAssetLen = if(feeAssetFlag == 0) then 0 else 32
-  let feeAsset = if(feeAssetFlag == 0) then unit else data9.take(feeAssetLen)
-  let data10 = data9.drop(feeAssetLen)
 
-  let orderType = data10.take(1).bytesToInt()
-  let data11 = data10.drop(1)
-
-  let orderDirByte = data11.take(1).bytesToInt()
+  let orderDirByte = data9.take(1).bytesToInt()
   let orderDir = if (orderDirByte == 0) then orderDirBuy else orderDirSell
-  let data12 = data11.drop(1)
+  let data10 = data9.drop(1)
 
-  let amount = data12.take(8).bytesToInt()
+  let amount = data10.take(8).bytesToInt()
+  let data11 = data10.drop(8)
+
+  let price = data11.take(8).bytesToInt()
+  let data12 = data11.drop(8)
+
+  let timestamp = data12.take(8).bytesToInt()
   let data13 = data12.drop(8)
-
-  let price = data13.take(8).bytesToInt()
+  
+  let expiration = data13.take(8).bytesToInt()
   let data14 = data13.drop(8)
 
-  let timestamp = data14.take(8).bytesToInt()
-  let data15 = data14.drop(8)
-  
-  let expiration = data15.take(8).bytesToInt()
-  let data16 = data15.drop(8)
-
-  let flags = data16.take(8)
+  let flags = data14.take(8)
   
   (
     networkByte,
@@ -195,7 +189,6 @@ func parseOrderV1(orderBytes: ByteVector) = {
     matcherBytes,
     amountAsset,
     priceAsset,
-    feeAsset,
     orderType,
     orderDir,
     amount,
@@ -245,19 +238,18 @@ func matchOrders(
   #   ._4  matcherBytes,
   #   ._5  amountAsset,
   #   ._6  priceAsset,
-  #   ._7  feeAsset,
-  #   ._8  orderType,
-  #   ._9  orderDirection,
-  #   ._10 amount,
-  #   ._11 price,
-  #   ._12 timestamp (nonce)
-  #   ._13 expiration | 0
-  #   ._14 flags
+  #   ._7  orderType,
+  #   ._8  orderDirection,
+  #   ._9 amount,
+  #   ._10 price,
+  #   ._11 timestamp (nonce)
+  #   ._12 expiration | 0
+  #   ._13 flags
   
   let o1 = parseOrder(o1Bytes, o1proof)
   let o2 = parseOrder(o2Bytes, o2proof)
 
-  let (bO, bFeeType, sO, sFeeType) = if (o1._1._9 == orderDirBuy) then (o1, MAKER, o2, TAKER) else (o2, TAKER, o1, MAKER)
+  let (bO, bFeeType, sO, sFeeType) = if (o1._1._8 == orderDirBuy) then (o1, MAKER, o2, TAKER) else (o2, TAKER, o1, MAKER)
   let (buyOrder, buyOrderId, buyOrderStatus) = bO
   let (sellOrder, sellOrderId, sellOrderStatus) = sO
 
@@ -267,14 +259,13 @@ func matchOrders(
   let buyOrderMatcherBytes = buyOrder._4
   let buyOrderAmountAsset  = buyOrder._5
   let buyOrderPriceAsset   = buyOrder._6
-  let buyOrderFeeAsset     = buyOrder._7
-  let buyOrderType         = buyOrder._8
-  let buyOrderDir          = buyOrder._9
-  let buyOrderFullAmount   = buyOrder._10
-  let buyOrderPrice        = buyOrder._11
-  let buyOrderNonce        = buyOrder._12
-  let buyOrderExpiration   = buyOrder._13
-  let buyOrderFlags        = buyOrder._14
+  let buyOrderType         = buyOrder._7
+  let buyOrderDir          = buyOrder._8
+  let buyOrderFullAmount   = buyOrder._9
+  let buyOrderPrice        = buyOrder._10
+  let buyOrderNonce        = buyOrder._11
+  let buyOrderExpiration   = buyOrder._12
+  let buyOrderFlags        = buyOrder._13
   
   let sellOrderNetwork      = sellOrder._1
   let sellOrderPubKeyType   = sellOrder._2
@@ -282,14 +273,13 @@ func matchOrders(
   let sellOrderMatcherBytes = sellOrder._4
   let sellOrderAmountAsset  = sellOrder._5
   let sellOrderPriceAsset   = sellOrder._6
-  let sellOrderFeeAsset     = sellOrder._7
-  let sellOrderType         = sellOrder._8
-  let sellOrderDir          = sellOrder._9
-  let sellOrderFullAmount   = sellOrder._10
-  let sellOrderPrice        = sellOrder._11
-  let sellOrderNonce        = sellOrder._12
-  let sellOrderExpiration   = sellOrder._13
-  let sellOrderFlags        = sellOrder._14
+  let sellOrderType         = sellOrder._7
+  let sellOrderDir          = sellOrder._8
+  let sellOrderFullAmount   = sellOrder._9
+  let sellOrderPrice        = sellOrder._10
+  let sellOrderNonce        = sellOrder._11
+  let sellOrderExpiration   = sellOrder._12
+  let sellOrderFlags        = sellOrder._13
 
   # TODO: Add matcher public key validation
   strict validation = [
@@ -335,8 +325,8 @@ func matchOrders(
   let sellPriceAssetRem = calcSendAmount(newSellRemaining, sellOrderFullAmount)
 
   (
-    (buyOrderAddress,  matchedAmount,        buyOrderAmountAsset, buyOrderType, bFeeType, buyOrderFlags, buyOrderFeeAsset),
-    (sellOrderAddress, sendPriceAssetAmount, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags, sellOrderFeeAsset),
+    (buyOrderAddress,  matchedAmount,        buyOrderAmountAsset, buyOrderType,  bFeeType, buyOrderFlags),
+    (sellOrderAddress, sendPriceAssetAmount, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags),
     (buyOrderId, newBuyFilled, buyPriceAssetRem), 
     (sellOrderId, newSellFilled, sellPriceAssetRem)
   )
@@ -355,14 +345,16 @@ func getOrderTypeContract(orderType: Int) = {
 # o2 - Taker
 @Callable(i)
 func validateAndExchange(
-  o1Bytes    : ByteVector,
-  o1proof    : ByteVector,
-  o2Bytes    : ByteVector,
-  o2proof    : ByteVector,
-  matchAmount: Int,
-  matchPrice : Int,
-  makerFee   : Int,
-  takerFee   : Int
+  o1Bytes      : ByteVector,
+  o1proof      : ByteVector,
+  o2Bytes      : ByteVector,
+  o2proof      : ByteVector,
+  matchAmount  : Int,
+  matchPrice   : Int,
+  makerFeeAsset: String,
+  makerFee     : Int,
+  takerFeeAsset: String,
+  takerFee     : Int
   ) = {
   
   let (buyTransfer, sellTransfer, buyState, sellState) = matchOrders(o1Bytes, o1proof, o2Bytes, o2proof, matchAmount, matchPrice)
@@ -383,7 +375,6 @@ func validateAndExchange(
   let buyTrType     = buyTransfer._4
   let buyTrFeeType  = buyTransfer._5
   let buyTrFlags    = buyTransfer._6
-  let buyTrFeeAsset = buyTransfer._7
 
   let sellTrAddress  = sellTransfer._1
   let sellTrAmount   = sellTransfer._2
@@ -391,7 +382,6 @@ func validateAndExchange(
   let sellTrType     = sellTransfer._4
   let sellTrFeeType  = sellTransfer._5
   let sellTrFlags    = sellTransfer._6
-  let sellTrFeeAsset = sellTransfer._7
 
   strict checks = [
     # TODO: Enable after testing
@@ -417,7 +407,7 @@ func validateAndExchange(
     else nil
 
   let orderTypeContract = getOrderTypeContract(buyTrType).valueOrErrorMessage("order type contract error")
-  let (buyTrFee, sellTrFee) = if (buyTrFeeType == MAKER) then (makerFee, takerFee) else (takerFee, makerFee)
+  let (buyTrFeeAsset, buyTrFee, sellTrFeeAsset, sellTrFee) = if (buyTrFeeType == MAKER) then (makerFeeAsset, makerFee, takerFeeAsset, takerFee) else (takerFeeAsset, takerFee, makerFeeAsset, makerFee)
 
   strict exchange = [
     orderTypeContract.invoke(
@@ -425,11 +415,11 @@ func validateAndExchange(
       [
         buyTrAddress.toString(),
         buyTrFeeType,
-        buyTrFeeAsset.assetIdToString(),
+        buyTrFeeAsset,
         buyTrFee,
         sellTrAddress.toString(),
         sellTrFeeType,
-        sellTrFeeAsset.assetIdToString(),
+        sellTrFeeAsset,
         sellTrFee,
         buyTrAmount,
         buyTrAsset.assetIdToString(),

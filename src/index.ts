@@ -32,7 +32,6 @@ type Order = {
     amountAssetIdElement: HTMLInputElement,
     priceElement: HTMLInputElement,
     priceElementAssetId: HTMLInputElement,
-    feeElementAssetId: HTMLInputElement,
     getAmountElement: HTMLInputElement,
     orderTypeElement: HTMLInputElement,
     buyingElement: HTMLInputElement,
@@ -71,7 +70,6 @@ const maker = {
     amountAssetIdElement: document.getElementById("maker-amountAssetId") as HTMLInputElement,
     priceElement: document.getElementById("maker-price") as HTMLInputElement,
     priceElementAssetId: document.getElementById("maker-priceAssetId") as HTMLInputElement,
-    feeElementAssetId: document.getElementById("maker-feeAssetId") as HTMLInputElement,
     getAmountElement: document.getElementById("maker-getAmount") as HTMLInputElement,
     orderTypeElement: document.getElementById("maker-orderType") as HTMLInputElement,
     buyingElement: document.getElementById("maker-buying") as HTMLInputElement,
@@ -102,7 +100,6 @@ const taker = {
     amountAssetIdElement: document.getElementById("taker-amountAssetId") as HTMLInputElement,
     priceElement: document.getElementById("taker-price") as HTMLInputElement,
     priceElementAssetId: document.getElementById("taker-priceAssetId") as HTMLInputElement,
-    feeElementAssetId: document.getElementById("taker-feeAssetId") as HTMLInputElement,
     getAmountElement: document.getElementById("taker-getAmount") as HTMLInputElement,
     orderTypeElement: document.getElementById("taker-orderType") as HTMLInputElement,
     buyingElement: document.getElementById("taker-buying") as HTMLInputElement,
@@ -134,7 +131,9 @@ const depositBlockElement = document.getElementById("depositBlock") as HTMLDivEl
 const matchingAmountElement = document.getElementById("matchingAmount") as HTMLInputElement;
 const matchingPriceElement = document.getElementById("matchingPrice") as HTMLInputElement;
 const matchingMakerFeeElement = document.getElementById("matchingMakerFee") as HTMLInputElement;
+const matchingMakerFeeAssetElement = document.getElementById("matchingMakerFeeAsset") as HTMLInputElement;
 const matchingTakerFeeElement = document.getElementById("matchingTakerFee") as HTMLInputElement;
+const matchingTakerFeeAssetElement = document.getElementById("matchingTakerFeeAsset") as HTMLInputElement;
 const signExchangeElement = document.getElementById("signExchangeButton") as HTMLButtonElement;
 const exchangeOutputElement = document.getElementById("exchangeOutput") as HTMLDivElement;
 
@@ -170,7 +169,6 @@ function encodeOrder(
     amountAsset: string,
     price: number,
     priceAsset: string,
-    feeAsset: string,
     orderType: number,
     buying: boolean,
     timestamp: number,
@@ -196,7 +194,6 @@ function encodeOrder(
 
     convertAssetAndPush(oArrayBufferParts, amountAsset);
     convertAssetAndPush(oArrayBufferParts, priceAsset);
-    convertAssetAndPush(oArrayBufferParts, feeAsset);
 
     const orderTypeByte = new Uint8Array(1).fill(orderType);
     oArrayBufferParts.push(orderTypeByte);
@@ -250,7 +247,6 @@ function updateOrder(order: Order) {
         order.amountAssetIdElement.value,
         Number(order.priceElement.value),
         order.priceElementAssetId.value,
-        order.feeElementAssetId.value,
         Number(order.orderTypeElement.value),
         order.buyingElement.checked,
         Number(order.timestampElement.value),
@@ -388,11 +384,11 @@ function setupEvents(order: Order) {
         order.amountAssetIdElement,
         order.priceElement,
         order.priceElementAssetId,
-        order.feeElementAssetId,
         order.orderTypeElement,
         order.buyingElement,
         order.timestampElement,
         order.expirationElement,
+        order.flagsElement,
     ]
 
     for (const el of orderElement) {
@@ -540,8 +536,16 @@ signExchangeElement.addEventListener("click", () => {
                     value: Number(matchingPriceElement.value)
                 },
                 {
+                    type: "string",
+                    value: matchingMakerFeeAssetElement.value,
+                },
+                {
                     type: "integer",
                     value: Number(matchingMakerFeeElement.value)
+                },
+                {
+                    type: "string",
+                    value: matchingTakerFeeAssetElement.value,
                 },
                 {
                     type: "integer",
