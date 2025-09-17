@@ -395,6 +395,84 @@ function setupEvents(order: Order) {
         el.addEventListener("change", () => { updateOrder(order) });
     }
 
+    function getProofPromise(order: Order): Promise<string> {
+        if (order.versionElement.value == "1") {
+            return order.signer.signMessage(order.orderIdb58Element.innerText.trim());
+        }
+
+        if (order.versionElement.value == "2") {
+            return order.signer.signTypedData([
+                {
+                    key: "version",
+                    type: "integer",
+                    value: Number(order.versionElement.value),
+                },
+                {
+                    key: "network",
+                    type: "string",
+                    value: order.networkElement.value,
+                },
+                {
+                    key: "sender",
+                    type: "string",
+                    value: order.senderElement.value,
+                },
+                {
+                    key: "matcherPublicKey",
+                    type: "string",
+                    value: order.matcherElement.value,
+                },
+                {
+                    key: "amountAssetId",
+                    type: "string",
+                    value: order.amountAssetIdElement.value,
+                },
+                {
+                    key: "priceAssetId",
+                    type: "string",
+                    value: order.priceElementAssetId.value,
+                },
+                {
+                    key: "orderType",
+                    type: "integer",
+                    value: Number(order.orderTypeElement.value),
+                },
+                {
+                    key: "orderDirection",
+                    type: "string",
+                    value: order.buyingElement.checked ? "buy" : "sell",
+                },
+                {
+                    key: "amount",
+                    type: "integer",
+                    value: Number(order.amountElement.value),
+                },
+                {
+                    key: "price",
+                    type: "integer",
+                    value: Number(order.priceElement.value),
+                },
+                {
+                    key: "timestamp",
+                    type: "integer",
+                    value: Number(order.timestampElement.value),
+                },
+                {
+                    key: "expiration",
+                    type: "integer",
+                    value: Number(order.expirationElement.value),
+                },
+                {
+                    key: "flags",
+                    type: "integer",
+                    value: Number(order.flagsElement.value),
+                },
+            ])
+        }
+
+        return Promise.reject("unsupported version");
+    }
+
     order.loginKeeperButton.addEventListener("click", () => {
         const provider = new ProviderKeeper();
         order.signerType = "keeper";
@@ -440,66 +518,18 @@ function setupEvents(order: Order) {
     order.balanceBlock.addEventListener("click", () => getTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
 
     order.signButton.addEventListener("click", () => {
-        if (order.versionElement.value == "1") {
-            order.signer.signMessage(order.orderIdb58Element.innerText.trim()).then(proof => {
-                if (order.signerType == "metamask") {
-                    const hexString = proof.substring(2);
-                    const array = new Uint8Array(Math.ceil(hexString.length / 2));
-                    for (var i = 0; i < array.length; i++) {
-                        array[i] = parseInt(hexString.substring(i * 2, i * 2 + 2), 16);
-                    }
-                    order.proofElement.innerText = fromByteArray(array)
-                } else {
-                    order.proofElement.innerText = fromByteArray(base58_to_binary(proof));
+        getProofPromise(order).then(proof => {
+            if (order.signerType == "metamask") {
+                const hexString = proof.substring(2);
+                const array = new Uint8Array(Math.ceil(hexString.length / 2));
+                for (var i = 0; i < array.length; i++) {
+                    array[i] = parseInt(hexString.substring(i * 2, i * 2 + 2), 16);
                 }
-            });
-        }
-
-        if (order.versionElement.value == "2") {
-            order.signer.signTypedData([
-                {
-                    key: "version",
-                    type: "integer",
-                    value: Number(order.versionElement.value),
-                },
-                {
-                    key: "sender",
-                    type: "string",
-                    value: order.senderElement.value,
-                },
-                {
-                    key: "amount",
-                    type: "integer",
-                    value: Number(order.amountElement.value),
-                },
-                {
-                    key: "amount_asset_id",
-                    type: "string",
-                    value: order.amountAssetIdElement.value,
-                },
-                {
-                    key: "price",
-                    type: "integer",
-                    value: Number(order.priceElement.value),
-                },
-                {
-                    key: "price_asset_id",
-                    type: "string",
-                    value: order.priceElementAssetId.value,
-                },
-            ]).then(proof => {
-                if (order.signerType == "metamask") {
-                    const hexString = proof.substring(2);
-                    const array = new Uint8Array(Math.ceil(hexString.length / 2));
-                    for (var i = 0; i < array.length; i++) {
-                        array[i] = parseInt(hexString.substring(i * 2, i * 2 + 2), 16);
-                    }
-                    order.proofElement.innerText = fromByteArray(array)
-                } else {
-                    order.proofElement.innerText = fromByteArray(base58_to_binary(proof));
-                }
-            });
-        }
+                order.proofElement.innerText = fromByteArray(array)
+            } else {
+                order.proofElement.innerText = fromByteArray(base58_to_binary(proof));
+            }
+        });
     })
 }
 

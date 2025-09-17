@@ -86,7 +86,7 @@ func bytesToInt(x: ByteVector) = {
   x.padBytes().toBigInt().toInt()
 }
 
-func getMessageDataHash(orderId: String) = {
+func getMessageDataHashV1(orderId: String) = {
   ### EIP-712
   ### ABI encoding
 
@@ -109,6 +109,91 @@ func getMessageDataHash(orderId: String) = {
   keccak256(prefix + domain + message)
 }
 
+func getMessageDataHashV2(
+    orderData: 
+      (
+        ByteVector, 
+        String, 
+        ByteVector, 
+        ByteVector, 
+        ByteVector|Unit, 
+        ByteVector|Unit, 
+        Int, 
+        String, 
+        Int, 
+        Int, 
+        Int, 
+        Int, 
+        ByteVector
+      )) = {
+  let (
+    networkByte,
+    pubKeyType,
+    senderBytes,
+    matcherBytes,
+    amountAsset,
+    priceAsset,
+    orderType,
+    orderDir,
+    amount,
+    price,
+    timestamp,
+    expiration,
+    flags
+  ) = orderData
+
+  ### EIP-712
+  ### ABI encoding
+
+  # Constant prefix [25, 1]
+  let prefix = base58'2uN'
+
+  ### Domain typed data
+  ###
+  let domainType = "EIP712Domain(uint256 chainId)".toBytes().keccak256()
+  # 31 zeroes padding + network byte (uint256 chainId)
+  let domainValue = base58'1111111111111111111111111111111' + NETWORK
+  let domain = keccak256(domainType + domainValue)
+
+  ### Message typed data
+  ###
+  let zero24          = base58'111111111111111111111111'
+  let messageType     = "TypedData(int64 version,string network,string sender,string matcherPublicKey,string amountAssetId,string priceAssetId,int64 orderType,string orderDirection,int64 amount,int64 price,int64 timestamp,int64 expiration,int64 flags)".toBytes().keccak256()
+  let versionHash     = zero24 + 2.toBytes()
+  let networkHash     = networkByte.keccak256()
+  let senderHash      = senderBytes.toBase58String().toBytes().keccak256()
+  let matcherHash     = matcherPublicKey.toBase58String().toBytes().keccak256()
+  let amountAssetHash = amountAsset.assetIdToString().toBytes().keccak256()
+  let priceAssetHash  = priceAsset.assetIdToString().toBytes().keccak256()
+  let orderTypeHash   = zero24 + orderType.toBytes()
+  let orderDirHash    = orderDir.toBytes().keccak256()
+  let amountHash      = zero24 + amount.toBytes()
+  let priceHash       = zero24 + price.toBytes()
+  let timestampHash   = zero24 + timestamp.toBytes()
+  let expirationHash  = zero24 + expiration.toBytes()
+  let flagsHash       = zero24 + flags
+
+  let message         = keccak256(
+    messageType + 
+    versionHash +
+    networkHash +
+    senderHash +
+    matcherHash +
+    amountAssetHash +
+    priceAssetHash +
+    orderTypeHash +
+    orderDirHash +
+    amountHash +
+    priceHash +
+    timestampHash +
+    expirationHash +
+    flagsHash
+    )
+
+
+  keccak256(prefix + domain + message)
+}
+
 func checkSignV1(orderId: String, proof: ByteVector, pubKey: (String, ByteVector)) = {
   let (pubKeyType, senderBytes) = pubKey
 
@@ -124,7 +209,46 @@ func checkSignV1(orderId: String, proof: ByteVector, pubKey: (String, ByteVector
   let ecdsaCheck = if (pubKeyType == ecdsaSignType) 
     then {
       let address = Address(senderBytes)
-      let orderDataHash = getMessageDataHash(orderId)
+      let orderDataHash = getMessageDataHashV1(orderId)
+      (ecrecover(orderDataHash, proof).addressFromPublicKey() == address)
+    }
+    else false
+  
+  wavesCheck || ecdsaCheck
+}
+
+func checkSignV2(
+    orderData: 
+      (
+        ByteVector, 
+        String, 
+        ByteVector, 
+        ByteVector, 
+        ByteVector|Unit, 
+        ByteVector|Unit, 
+        Int, 
+        String, 
+        Int, 
+        Int, 
+        Int, 
+        Int, 
+        ByteVector
+      ),
+    proof: ByteVector, 
+    pubKey: (String, ByteVector)) = {
+  let (pubKeyType, senderBytes) = pubKey
+  let wavesCheck = if (pubKeyType == wavesSignType) 
+    then {
+      # Signer padding 
+      # Prefix: [255, 255, 255, 1]
+      let prefix = base58'7YXq4t'
+      (sigVerify(prefix, proof, senderBytes))
+    }
+    else false
+  let ecdsaCheck = if (pubKeyType == ecdsaSignType) 
+    then {
+      let address = Address(senderBytes)
+      let orderDataHash = getMessageDataHashV2(orderData)
       (ecrecover(orderDataHash, proof).addressFromPublicKey() == address)
     }
     else false
@@ -202,16 +326,21 @@ func parseOrderV1(orderBytes: ByteVector) = {
 func parseOrder(orderBytes: ByteVector, proof: ByteVector) = {
   let version = orderBytes.take(1).bytesToInt()
 
-  let orderData = if (version == 1) 
+  let orderData = if (version == 1 || version == 2) 
     then parseOrderV1(orderBytes) 
     else throwErr("order version is not supported")
   let orderId = sha256(orderBytes).toBase58String()
   let orderStatus = this.getInteger(keyOrderStatus(orderId)).valueOrElse(O_OPEN)
   let (pubKeyType, pubKey) = (orderData._2, orderData._3)
   
+  let signCheck = if (version == 1) 
+  then checkSignV1(orderId, proof, (pubKeyType, pubKey))
+  else if (version == 2) 
+  then checkSignV2(orderData, proof, (pubKeyType, pubKey))
+  else false
+
   strict check = [
-    checkSignV1(orderId, proof, (pubKeyType, pubKey)) ||
-    throwErr(["order proof is not valid ", orderId].makeString(" "))
+    signCheck || throwErr(["order proof is not valid ", orderId].makeString(" "))
   ]
 
   (orderData, orderId, orderStatus)
