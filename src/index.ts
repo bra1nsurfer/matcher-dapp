@@ -1,6 +1,6 @@
 import { base58_to_binary, binary_to_base58 } from "base58-js";
 import { fromByteArray } from "base64-js";
-import { Signer, TypedData } from "@waves/signer";
+import { Signer } from "@waves/signer";
 import { ProviderKeeper } from "@waves/provider-keeper";
 import { ProviderMetamask } from "@waves/provider-metamask";
 import { ProviderWeb } from "@waves.exchange/provider-web";
@@ -20,6 +20,74 @@ type EvalResult = {
 }
 
 type SignerType = "keeper" | "metamask" | "web" | (string & {})
+
+type OrderTypedData = [
+    {
+        key: "version",
+        type: "integer",
+        value: number,
+    },
+    {
+        key: "network",
+        type: "string",
+        value: string,
+    },
+    {
+        key: "sender",
+        type: "string",
+        value: string,
+    },
+    {
+        key: "matcherPublicKey",
+        type: "string",
+        value: string,
+    },
+    {
+        key: "amountAssetId",
+        type: "string",
+        value: "WAVES" | string,
+    },
+    {
+        key: "priceAssetId",
+        type: "string",
+        value: "WAVES" | string,
+    },
+    {
+        key: "orderType",
+        type: "integer",
+        value: number,
+    },
+    {
+        key: "orderDirection",
+        type: "string",
+        value: "buy" | "sell",
+    },
+    {
+        key: "amount",
+        type: "integer",
+        value: number,
+    },
+    {
+        key: "price",
+        type: "integer",
+        value: number,
+    },
+    {
+        key: "timestamp",
+        type: "integer",
+        value: number,
+    },
+    {
+        key: "expiration",
+        type: "integer",
+        value: number,
+    },
+    {
+        key: "flags",
+        type: "integer",
+        value: number,
+    },
+]
 
 type Order = {
     signer: Signer,
@@ -401,7 +469,7 @@ function setupEvents(order: Order) {
         }
 
         if (order.versionElement.value == "2") {
-            const orderTypedData: TypedData[] = [
+            const orderData: OrderTypedData = [
                 {
                     key: "version",
                     type: "integer",
@@ -468,7 +536,7 @@ function setupEvents(order: Order) {
                     value: Number(order.flagsElement.value),
                 },
             ];
-            return order.signer.signTypedData(orderTypedData);
+            return order.signer.signTypedData(orderData);
         }
 
 
