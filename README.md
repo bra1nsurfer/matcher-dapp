@@ -1,10 +1,33 @@
-# Matching Dapp
 
-## Demo
+# Matching Dapp <a name="matching-dapp"></a>
+
+## Demo <a name="demo"></a>
 
 <https://bra1nsurfer.github.io/matcher-dapp/>
 
-## Matcher Exchange
+## Table of Content <a name="table-of-content"></a>
+
+- [Matching Dapp](#matching-dapp)
+  - [Demo](#demo)
+  - [Table of Content](#table-of-content)
+  - [Matcher Exchange](#matcher-exchange)
+  - [Order Bytes Structure](#order-bytes-structure)
+  - [Proof Order V1](#proof-order-v1)
+    - [Waves Account Order V1](#waves-account-order-v1)
+      - [Signing Order V1 for Waves Account](#signing-order-v1-for-waves-account)
+      - [Verify Order V1 for Waves Account](#verify-order-v1-for-waves-account)
+    - [EIP-712 (Metamask) Order V1](#eip-712-metamask-order-v1)
+      - [Signing Order V1 for EIP-712 (Metamask)](#signing-order-v1-for-eip-712-metamask)
+      - [Verify Order V1 EIP-712 (Metamask)](#verify-order-v1-eip-712-metamask)
+  - [Proof Order V2](#proof-order-v2)
+    - [Waves Account Order V2](#waves-account-order-v2)
+      - [Signing Order V2 for Waves Account](#signing-order-v2-for-waves-account)
+      - [Verify Order V2 for Waves Account](#verify-order-v2-for-waves-account)
+    - [EIP-712 (Metamask) Order V2](#eip-712-metamask-order-v2)
+      - [Signing Order V2 for EIP-712 (Metamask)](#signing-order-v2-for-eip-712-metamask)
+      - [Verify Order V2 EIP-712 (Metamask)](#verify-order-v2-eip-712-metamask)
+
+## Matcher Exchange <a name="matcher-exchange"></a>
 
 After matching two orders, matcher should invoke `validateAndExchange()` function to Validator contract
 
@@ -26,7 +49,7 @@ func validateAndExchange(
   )
 ```
 
-## Order Bytes Structure
+## Order Bytes Structure <a name="order-bytes-structure"></a>
 
 |  # | Bytes Length | Value Description                                                                               |
 |---:|-------------:|-------------------------------------------------------------------------------------------------|
@@ -47,21 +70,21 @@ func validateAndExchange(
 | 15 |            8 | expiration (0 -> indefinite)                                                                    |
 | 16 |            8 | custom flags                                                                                    |
 
-## Proof Order V1
+## Proof Order V1 <a name="proof-order-v1"></a>
 
 1. Calculate sh256 hash from `orderBytes` -> `sha256(orderBytes)`
 1. Convert hash to base58 string -> `sha256(orderBytes).toBase58String()`
 1. Sign string as custom message with [`signMessage(data: string | number)`](https://docs.waves.tech/en/building-apps/waves-api-and-sdk/client-libraries/signer#signmessage) ([Signer library](https://github.com/wavesplatform/signer))
 
-### Waves Account Order V1
+### Waves Account Order V1 <a name="waves-account-order-v1"></a>
 
-#### Signing Order V1 for Waves Account
+#### Signing Order V1 for Waves Account <a name="signing-order-v1-for-waves-account"></a>
 
 1. `orderIdString = sha256(orderBytes).toBase58String()`
 1. Add prefix bytes (`[255, 255, 255, 1]`)
 1. Bytes to sign = `[255, 255, 255, 1, ...stringToBytes(orderIdString)]`
 
-#### Verify Order V1 for Waves Account
+#### Verify Order V1 for Waves Account <a name="verify-order-v1-for-waves-account"></a>
 
 1. We can recover sender public key from `orderBytes` (sender flag (byte #3) must be `0`)
 1. [Verify waves signature](<https://docs.waves.tech/en/blockchain/waves-protocol/cryptographic-practical-details>)
@@ -72,9 +95,9 @@ const crypto = require('@waves/ts-lib-crypto');
 return crypto.verifySignature(userPublicKey, [255, 255, 255, 1, ...crypto.stringToBytes(orderIdString)], signature);
 ```
 
-### EIP-712 (Metamask) Order V1
+### EIP-712 (Metamask) Order V1 <a name="eip-712-metamask-order-v1"></a>
 
-#### Signing Order V1 for EIP-712 (Metamask)
+#### Signing Order V1 for EIP-712 (Metamask) <a name="signing-order-v1-for-eip-712-metamask"></a>
 
 <https://eips.ethereum.org/EIPS/eip-712>
 
@@ -110,7 +133,7 @@ ProviderMetamask uses EIP-712 and `signTypedData` version 4 function of MetaMask
 }
 ```
 
-#### Verify Order V1 EIP-712 (Metamask)
+#### Verify Order V1 EIP-712 (Metamask) <a name="verify-order-v1-eip-712-metamask"></a>
 
 1. Extract waves address from `orderBytes` (sender flag (byte #3) must be `1`)
 1. Using signature and message we can recover user eth-address
@@ -162,7 +185,7 @@ const recoveredWavesAddress = wavesAddress2eth(recoveredEthAddress);
 return (userAddress == recoveredWavesAddress);
 ```
 
-## Proof Order V2
+## Proof Order V2 <a name="proof-order-v2"></a>
 
 1. Set version to `2` in `orderBytes`
 1. Use [Signer](https://github.com/wavesplatform/signer#readme) `signTypedData(data: OrderTypedData): Promise<string>;` function
@@ -239,9 +262,9 @@ type OrderTypedData = [
 ]
 ```
 
-### Waves Account Order V2
+### Waves Account Order V2 <a name="waves-account-order-v2"></a>
 
-#### Signing Order V2 for Waves Account
+#### Signing Order V2 for Waves Account <a name="signing-order-v2-for-waves-account"></a>
 
 Data can be serialized with `@waves/waves-transaction` [library](https://github.com/wavesplatform/waves-transactions/blob/df16cb37c6e5167aa2918bf067096168843cab73/src/requests/custom-data.ts#L63)
 
@@ -266,7 +289,7 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 |  2.2 | network key value             | String     | 7                   | `"network"`                |                                                                                  |
 |  2.3 | network value type            | Byte       | 1                   | `3`                        | `3` for String type                                                              |
 |  2.4 | network value length          | Short      | 2                   | `1`                        |                                                                                  |
-|  2.5 | network value                 | String     | 1                   | `"T".toBytes`              | `T` for testnet<br> `W` for mainnet                                              |
+|  2.5 | network value                 | String     | 1                   | `"T"`or `"W"`              | `T` for testnet<br> `W` for mainnet                                              |
 |  3.1 | sender key length             | Short      | 2                   | `6`                        |                                                                                  |
 |  3.2 | sender key value              | String     | 6                   | `"sender"`                 |                                                                                  |
 |  3.3 | sender value type             | Byte       | 1                   | `3`                        | `3` for String type                                                              |
@@ -317,7 +340,7 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 | 13.3 | flags value type              | Byte       | 1                   | `0`                        | `0` for Long type                                                                |
 | 13.4 | flags value                   | Long       | 8                   | `<flags>`                  |                                                                                  |
 
-#### Verify Order V2 for Waves Account
+#### Verify Order V2 for Waves Account <a name="verify-order-v2-for-waves-account"></a>
 
 1. We can recover sender public key from `orderBytes` (sender flag (byte #3) must be `0`)
 1. Construct typed data serialized bytes
@@ -330,9 +353,9 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 return crypto.verifySignature(userPublicKey, [255, 255, 255, 2, ...serializedBytes], signature);
 ```
 
-### EIP-712 (Metamask) Order V2
+### EIP-712 (Metamask) Order V2 <a name="eip-712-metamask-order-v2"></a>
 
-#### Signing Order V2 for EIP-712 (Metamask)
+#### Signing Order V2 for EIP-712 (Metamask) <a name="signing-order-v2-for-eip-712-metamask"></a>
 
 <https://eips.ethereum.org/EIPS/eip-712>
 
@@ -426,7 +449,7 @@ type EipOrderTypedData = {
 }
 ```
 
-#### Verify Order V2 EIP-712 (Metamask)
+#### Verify Order V2 EIP-712 (Metamask) <a name="verify-order-v2-eip-712-metamask"></a>
 
 1. Extract waves address from `orderBytes` (sender flag (byte #3) must be `1`)
 1. Using signature and message we can recover user eth-address
