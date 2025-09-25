@@ -28,17 +28,17 @@ func validateAndExchange(
 
 ## Order Bytes Structure
 
-| #  | Bytes Length | Value Description                                                                               |
-|----|-------------:|-------------------------------------------------------------------------------------------------|
-| 1  |            1 | version                                                                                         |
-| 2  |            1 | network byte                                                                                    |
-| 3  |            1 | sender flag (0 -> waves public key, 1 -> EIP-712 signature)                                     |
-| 4  |     32 or 26 | sender public key OR waves address (32 bytes if Waves signature, 26 bytes if EIP-712 signature) |
-| 5  |           32 | matcher public key                                                                              |
-| 6  |            1 | amount asset flag                                                                               |
-| 7  |      0 or 32 | if amount asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                                      |
-| 8  |            1 | price asset flag                                                                                |
-| 9  |      0 or 32 | if price asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                                       |
+|  # | Bytes Length | Value Description                                                                               |
+|---:|-------------:|-------------------------------------------------------------------------------------------------|
+|  1 |            1 | version                                                                                         |
+|  2 |            1 | network byte                                                                                    |
+|  3 |            1 | sender flag (0 -> waves public key, 1 -> EIP-712 signature)                                     |
+|  4 |     32 or 26 | sender public key OR waves address (32 bytes if Waves signature, 26 bytes if EIP-712 signature) |
+|  5 |           32 | matcher public key                                                                              |
+|  6 |            1 | amount asset flag                                                                               |
+|  7 |      0 or 32 | if amount asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                                      |
+|  8 |            1 | price asset flag                                                                                |
+|  9 |      0 or 32 | if price asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                                       |
 | 10 |            1 | order type (0 -> spot, 1 -> leverage, 2 -> margin)                                              |
 | 11 |            1 | order direction 0 -> buying, 1 -> selling                                                       |
 | 12 |            8 | amount                                                                                          |
@@ -326,7 +326,8 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 ```js
 const crypto = require('@waves/ts-lib-crypto');
 
-return crypto.verifySignature(userPublicKey, [255, 255, 255, 1, ...crypto.stringToBytes(orderIdString)], signature);
+const serializedBytes = serializeCustomData(data: OrderTypedData);
+return crypto.verifySignature(userPublicKey, [255, 255, 255, 2, ...serializedBytes], signature);
 ```
 
 ### EIP-712 (Metamask) Order V2
