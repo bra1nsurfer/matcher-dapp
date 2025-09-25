@@ -55,19 +55,19 @@ func validateAndExchange(
 |---:|-------------:|-------------------------------------------------------------------------------------------------|
 |  1 |            1 | version                                                                                         |
 |  2 |            1 | network byte                                                                                    |
-|  3 |            1 | sender flag (0 -> waves public key, 1 -> EIP-712 signature)                                     |
+|  3 |            1 | sender flag (`0` -> waves public key, `1` -> EIP-712 signature)                                 |
 |  4 |     32 or 26 | sender public key OR waves address (32 bytes if Waves signature, 26 bytes if EIP-712 signature) |
 |  5 |           32 | matcher public key                                                                              |
 |  6 |            1 | amount asset flag                                                                               |
-|  7 |      0 or 32 | if amount asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                                      |
+|  7 |      0 or 32 | if amount asset flag is `0` -> 0 bytes (WAVES) else 32 bytes                                    |
 |  8 |            1 | price asset flag                                                                                |
-|  9 |      0 or 32 | if price asset flag is 1 -> 0 bytes (WAVES) else 32 bytes                                       |
-| 10 |            1 | order type (0 -> spot, 1 -> leverage, 2 -> margin)                                              |
-| 11 |            1 | order direction 0 -> buying, 1 -> selling                                                       |
+|  9 |      0 or 32 | if price asset flag is `0` -> 0 bytes (WAVES) else 32 bytes                                     |
+| 10 |            1 | order type (`0` -> spot, `1` -> leverage, `2` -> margin)                                        |
+| 11 |            1 | order direction `0` -> buying, `1` -> selling                                                   |
 | 12 |            8 | amount                                                                                          |
 | 13 |            8 | price (fixed decimals 10^8)                                                                     |
 | 14 |            8 | nonce (timestamp)                                                                               |
-| 15 |            8 | expiration (0 -> indefinite)                                                                    |
+| 15 |            8 | expiration (`0` -> indefinite)                                                                  |
 | 16 |            8 | custom flags                                                                                    |
 
 ## Proof Order V1 <a name="proof-order-v1"></a>
