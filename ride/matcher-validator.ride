@@ -93,6 +93,10 @@ func toUint256(n: ByteVector) = {
   (pad + n)
 }
 
+func toShort(val: ByteVector) = (0.toBytes() + val).takeRight(2)
+func getLenAsShort(val: ByteVector) = val.size().toBytes().takeRight(2)
+func getBytesWithLen(val: ByteVector) = (val.getLenAsShort() + val)
+
 func getEipOrderDataHashV1(orderId: String) = {
   ### EIP-712
   ### ABI encoding
@@ -177,7 +181,7 @@ func getEipOrderDataHashV2(
   let expirationHash  = expiration.toBytes().toUint256()
   let flagsHash       = flags.toUint256()
 
-  let message         = keccak256(
+  let message = keccak256(
     messageType + 
     versionHash +
     networkHash +
@@ -230,8 +234,6 @@ func getOrderBytesV2(
     expiration,
     flags
   ) = orderData
-  
-  func getLenAsShort(val: ByteVector) = val.size().toBytes().takeRight(2)
 
   # Signer padding V2
   # Prefix: [255, 255, 255, 2]
@@ -247,7 +249,6 @@ func getOrderBytesV2(
 
   let networkKey   = "network".toBytes()
   let networkValue = networkByte
-  let networkLen   = 1.toBytes().takeRight(2)
 
   let senderKey   = "sender".toBytes()
   let senderValue = senderBytes.toBase58String().toBytes()
@@ -282,20 +283,20 @@ func getOrderBytesV2(
   let flagsKey   = "flags".toBytes()
   let flagsValue = flags
 
-  prefix + 13.toBytes().takeRight(2) + # 13 - amount of fields in order
-  versionKey.getLenAsShort() + versionKey + LONG + versionValue +
-  networkKey.getLenAsShort() + networkKey + STRING + networkLen + networkValue +
-  senderKey.getLenAsShort() + senderKey + STRING + senderValue.getLenAsShort() + senderValue +
-  matcherKey.getLenAsShort() + matcherKey + STRING + matcherValue.getLenAsShort() + matcherValue +
-  amountAssetKey.getLenAsShort() + amountAssetKey + STRING + amountAssetValue.getLenAsShort() + amountAssetValue +
-  priceAssetKey.getLenAsShort() + priceAssetKey + STRING + priceAssetValue.getLenAsShort() + priceAssetValue +
-  orderTypeKey.getLenAsShort() + orderTypeKey + LONG + orderTypeValue +
-  orderDirKey.getLenAsShort() + orderDirKey + STRING + orderDirValue.getLenAsShort() + orderDirValue +
-  amountKey.getLenAsShort() + amountKey + LONG + amountValue +
-  priceKey.getLenAsShort() + priceKey + LONG + priceValue +
-  timestampKey.getLenAsShort() + timestampKey + LONG + timestampValue +
-  expirationKey.getLenAsShort() + expirationKey + LONG + expirationValue +
-  flagsKey.getLenAsShort() + flagsKey + LONG + flagsValue
+  prefix + 13.toBytes().toShort() + # 13 - amount of fields in order
+  versionKey.getBytesWithLen() + LONG + versionValue +
+  networkKey.getBytesWithLen() + STRING + networkValue.getBytesWithLen() +
+  senderKey.getBytesWithLen() + STRING + senderValue.getBytesWithLen() +
+  matcherKey.getBytesWithLen() + STRING + matcherValue.getBytesWithLen() +
+  amountAssetKey.getBytesWithLen() + STRING + amountAssetValue.getBytesWithLen() +
+  priceAssetKey.getBytesWithLen() + STRING + priceAssetValue.getBytesWithLen() +
+  orderTypeKey.getBytesWithLen() + LONG + orderTypeValue +
+  orderDirKey.getBytesWithLen() + STRING + orderDirValue.getBytesWithLen() +
+  amountKey.getBytesWithLen() + LONG + amountValue +
+  priceKey.getBytesWithLen() + LONG + priceValue +
+  timestampKey.getBytesWithLen() + LONG + timestampValue +
+  expirationKey.getBytesWithLen() + LONG + expirationValue +
+  flagsKey.getBytesWithLen() + LONG + flagsValue
 }
 
 func checkSignV1(orderId: String, proof: ByteVector, pubKey: (String, ByteVector)) = {
