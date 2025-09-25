@@ -86,6 +86,13 @@ func bytesToInt(x: ByteVector) = {
   x.padBytes().toBigInt().toInt()
 }
 
+func toUint256(n: ByteVector) = {
+  # 32 zeroes
+  let z = base58'11111111111111111111111111111111'
+  let pad = z.drop(n.size())
+  (pad + n)
+}
+
 func getEipOrderDataHashV1(orderId: String) = {
   ### EIP-712
   ### ABI encoding
@@ -96,8 +103,7 @@ func getEipOrderDataHashV1(orderId: String) = {
   ### Domain typed data
   ###
   let domainType = "EIP712Domain(uint256 chainId)".toBytes().keccak256()
-  # 31 zeroes padding + network byte (uint256 chainId)
-  let domainValue = base58'1111111111111111111111111111111' + NETWORK
+  let domainValue = NETWORK.toUint256()
   let domain = keccak256(domainType + domainValue)
 
   ### Message typed data
@@ -151,27 +157,25 @@ func getEipOrderDataHashV2(
   ### Domain typed data
   ###
   let domainType = "EIP712Domain(uint256 chainId)".toBytes().keccak256()
-  # 31 zeroes padding + network byte (uint256 chainId)
-  let domainValue = base58'1111111111111111111111111111111' + NETWORK
+  let domainValue = NETWORK.toUint256()
   let domain = keccak256(domainType + domainValue)
 
   ### Message typed data
   ###
-  let zero24          = base58'111111111111111111111111'
   let messageType     = "TypedData(int64 version,string network,string sender,string matcherPublicKey,string amountAssetId,string priceAssetId,int64 orderType,string orderDirection,int64 amount,int64 price,int64 timestamp,int64 expiration,int64 flags)".toBytes().keccak256()
-  let versionHash     = zero24 + 2.toBytes()
+  let versionHash     = 2.toBytes().toUint256()
   let networkHash     = networkByte.keccak256()
   let senderHash      = senderBytes.toBase58String().toBytes().keccak256()
   let matcherHash     = matcherPublicKey.toBase58String().toBytes().keccak256()
   let amountAssetHash = amountAsset.assetIdToString().toBytes().keccak256()
   let priceAssetHash  = priceAsset.assetIdToString().toBytes().keccak256()
-  let orderTypeHash   = zero24 + orderType.toBytes()
+  let orderTypeHash   = orderType.toBytes().toUint256()
   let orderDirHash    = orderDir.toBytes().keccak256()
-  let amountHash      = zero24 + amount.toBytes()
-  let priceHash       = zero24 + price.toBytes()
-  let timestampHash   = zero24 + timestamp.toBytes()
-  let expirationHash  = zero24 + expiration.toBytes()
-  let flagsHash       = zero24 + flags
+  let amountHash      = amount.toBytes().toUint256()
+  let priceHash       = price.toBytes().toUint256()
+  let timestampHash   = timestamp.toBytes().toUint256()
+  let expirationHash  = expiration.toBytes().toUint256()
+  let flagsHash       = flags.toUint256()
 
   let message         = keccak256(
     messageType + 
@@ -572,9 +576,9 @@ func getOrderTypeContract(orderType: Int) = {
 # o2 - Taker
 @Callable(i)
 func validateAndExchange(
-  o1Bytes      : ByteVector,
+  o1bytes      : ByteVector,
   o1proof      : ByteVector,
-  o2Bytes      : ByteVector,
+  o2bytes      : ByteVector,
   o2proof      : ByteVector,
   matchAmount  : Int,
   matchPrice   : Int,
@@ -584,7 +588,7 @@ func validateAndExchange(
   takerFee     : Int
   ) = {
   
-  let (buyTransfer, sellTransfer, buyState, sellState) = matchOrders(o1Bytes, o1proof, o2Bytes, o2proof, matchAmount, matchPrice)
+  let (buyTransfer, sellTransfer, buyState, sellState) = matchOrders(o1bytes, o1proof, o2bytes, o2proof, matchAmount, matchPrice)
 
   # Order state
   let buyOrderId     = buyState._1
