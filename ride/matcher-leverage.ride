@@ -49,6 +49,14 @@ func getUserBalance(user: String, assetId: String) = treasuryAddress.getInteger(
 func kUserLoan(user: String, assetId: String) = ["%s%s%s", "loan", user, assetId].makeString(SEP)
 func getUserLoan(user: String, assetId: String) = treasuryAddress.getInteger(kUserLoan(user, assetId)).valueOrElse(0)
 
+func kUserLeverage(user: String) = ["%s%s", "leverage", user].makeString(SEP)
+func getUserLeverage(user: String) = {
+  let stateLeverage = factoryAddress.getInteger(kUserLeverage(user)).valueOrElse(1)
+  
+  # Clamp value to [1, 10]
+  min([max([1, stateLeverage]), 10])
+}
+
 func padBytes(x: ByteVector) = {
   let a = 0.toBytes()
   a + a.drop(x.size()) + x
@@ -62,10 +70,7 @@ func parseOrderFlags(flags: ByteVector) = {
   let loanPaymentFlag = flags.takeRight(1).bytesToInt()
   let isLoanPayment = (loanPaymentFlag == 1)
 
-  let leverageRaw = flags.dropRight(1).takeRight(1).bytesToInt()
-  # Clamp value to [1, 10]
-  let leverage = min([max([1, leverageRaw]), 10])
-  (isLoanPayment, leverage)
+  (isLoanPayment)
 }
 
 func calcUserAmountFromLeverage(totalAmount: Int, leverage: Int) = {
@@ -115,7 +120,7 @@ func exchange(
   # takes asset1
   # can borrow asset2
   # can repay asset1
-  let (isBuyerLoanPayment, buyerLeverage) = parseOrderFlags(buyerFlags)
+  let (isBuyerLoanPayment, buyerLeverage) = (parseOrderFlags(buyerFlags), getUserLeverage(buyerAddress))
   let buyerNewLoanAmount = calcLoanAmountFromLeverage(asset2Amount, buyerLeverage)
   let buyerLoanBorrowAction = if (buyerNewLoanAmount > 0) 
     then [ treasuryAddress.invoke("loanBorrowFor", [buyerAddress, asset2Id, buyerNewLoanAmount], []) ]
@@ -132,7 +137,7 @@ func exchange(
   # takes asset2
   # can borrow asset1
   # can repay asset2
-  let (isSellerLoanPayment, sellerLeverage) = parseOrderFlags(sellerFlags)
+  let (isSellerLoanPayment, sellerLeverage) = (parseOrderFlags(sellerFlags), getUserLeverage(sellerAddress))
   let sellerNewLoanAmount = calcLoanAmountFromLeverage(asset1Amount, sellerLeverage)
   let sellerLoanBorrowAction = if (sellerNewLoanAmount > 0) 
     then [ treasuryAddress.invoke("loanBorrowFor", [sellerAddress, asset1Id, sellerNewLoanAmount], []) ]
