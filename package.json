@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@dotenvx/dotenvx": "^1.45.1",
+    "@waves.exchange/provider-cloud": "^1.2.0",
     "@waves.exchange/provider-web": "^1.4.0",
     "@waves/provider-keeper": "^2.0.9",
     "@waves/provider-metamask": "^1.1.7",

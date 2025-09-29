@@ -1,9 +1,10 @@
 import { base58_to_binary, binary_to_base58 } from "base58-js";
 import { fromByteArray } from "base64-js";
-import { Signer } from "@waves/signer";
+import { Provider, Signer } from "@waves/signer";
 import { ProviderKeeper } from "@waves/provider-keeper";
 import { ProviderMetamask } from "@waves/provider-metamask";
 import { ProviderWeb } from "@waves.exchange/provider-web";
+import { ProviderCloud } from "@waves.exchange/provider-cloud";
 
 type StateValue = {
     key: string,
@@ -119,6 +120,7 @@ type Order = {
     loginKeeperButton: HTMLButtonElement,
     loginMetamaskButton: HTMLButtonElement,
     loginWebButton: HTMLButtonElement,
+    loginEmailButton: HTMLButtonElement,
 }
 
 const FACTORY_ADDRESS = "3My9nqNjUMmVzeybGf1nmVW2ZAGTUihShWm";
@@ -155,6 +157,7 @@ const maker = {
     loginKeeperButton: document.getElementById("maker-loginKeeperButton") as HTMLButtonElement,
     loginMetamaskButton: document.getElementById("maker-loginMetamaskButton") as HTMLButtonElement,
     loginWebButton: document.getElementById("maker-loginWebButton") as HTMLButtonElement,
+    loginEmailButton: document.getElementById("maker-loginEmailButton") as HTMLButtonElement,
 } as Order;
 
 const taker = {
@@ -185,6 +188,7 @@ const taker = {
     loginKeeperButton: document.getElementById("taker-loginKeeperButton") as HTMLButtonElement,
     loginMetamaskButton: document.getElementById("taker-loginMetamaskButton") as HTMLButtonElement,
     loginWebButton: document.getElementById("taker-loginWebButton") as HTMLButtonElement,
+    loginEmailButton: document.getElementById("taker-loginEmailButton") as HTMLButtonElement,
 } as Order;
 
 const factoryAddressElement = document.getElementById("factoryAddress") as HTMLSpanElement;
@@ -543,46 +547,45 @@ function setupEvents(order: Order) {
         return Promise.reject("unsupported version");
     }
 
-    order.loginKeeperButton.addEventListener("click", () => {
-        const provider = new ProviderKeeper();
-        order.signerType = "keeper";
+    function setProviderAndUpdateOrder(order: Order, provider: Provider) {
         order.signer.setProvider(provider);
         order.signer.login().then(user => {
             order.addressElement.innerText = user.address;
-            order.publicKeyElement.innerText = user.publicKey;
+            if (order.signerType == "metamask") {
+                order.publicKeyElement.innerText = "METAMASK USER (NO PUBKEY)";
+                order.senderElement.value = user.address;
+            } else {
+                order.publicKeyElement.innerText = user.publicKey;
+                order.senderElement.value = user.publicKey;
+            }
 
-            order.senderElement.value = user.publicKey;
             updateOrder(order);
             getTreasuryBalance(user.address, order.balanceBlock);
         });
+    }
+
+    order.loginKeeperButton.addEventListener("click", () => {
+        const provider = new ProviderKeeper();
+        order.signerType = "keeper";
+        setProviderAndUpdateOrder(order, provider);
     })
 
     order.loginMetamaskButton.addEventListener("click", () => {
         const provider = new ProviderMetamask();
-        order.signer.setProvider(provider);
         order.signerType = "metamask";
-        order.signer.login().then(user => {
-            order.addressElement.innerText = user.address;
-            order.publicKeyElement.innerText = "METAMASK USER (NO PUBKEY)";
-
-            order.senderElement.value = user.address;
-            updateOrder(order);
-            getTreasuryBalance(user.address, order.balanceBlock);
-        });
+        setProviderAndUpdateOrder(order, provider);
     })
 
     order.loginWebButton.addEventListener("click", () => {
         const provider = new ProviderWeb(WX_PROVIDER_URL);
-        order.signer.setProvider(provider);
         order.signerType = "web";
-        order.signer.login().then(user => {
-            order.addressElement.innerText = user.address;
-            order.publicKeyElement.innerText = user.publicKey;
+        setProviderAndUpdateOrder(order, provider);
+    })
 
-            order.senderElement.value = user.publicKey;
-            updateOrder(order);
-            getTreasuryBalance(user.address, order.balanceBlock);
-        });
+    order.loginEmailButton.addEventListener("click", () => {
+        const provider = new ProviderCloud(WX_PROVIDER_URL);
+        order.signerType = "email";
+        setProviderAndUpdateOrder(order, provider);
     })
 
     order.balanceBlock.addEventListener("click", () => getTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
