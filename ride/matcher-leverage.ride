@@ -50,12 +50,7 @@ func kUserLoan(user: String, assetId: String) = ["%s%s%s", "loan", user, assetId
 func getUserLoan(user: String, assetId: String) = treasuryAddress.getInteger(kUserLoan(user, assetId)).valueOrElse(0)
 
 func kUserLeverage(user: String) = ["%s%s", "leverage", user].makeString(SEP)
-func getUserLeverage(user: String) = {
-  let stateLeverage = factoryAddress.getInteger(kUserLeverage(user)).valueOrElse(1)
-  
-  # Clamp value to [1, 10]
-  min([max([1, stateLeverage]), 10])
-}
+func getUserLeverage(user: String) = factoryAddress.getInteger(kUserLeverage(user)).valueOrElse(1)
 
 func padBytes(x: ByteVector) = {
   let a = 0.toBytes()

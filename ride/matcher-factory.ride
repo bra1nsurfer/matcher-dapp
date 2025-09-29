@@ -27,11 +27,26 @@ let allowedAssets  = match (this.getString(kAllowedAssets)) {
     case _ => []
   }
 
+let kLeverageValue = ["%s", "maxLeverageValue"].makeString(SEP)
+let maxLeverageValue  = this.getInteger(kLeverageValue).valueOrElse(1)
+
+func kUserLeverage(user: String) = ["%s%s", "leverage", user].makeString(SEP)
+
 let contractsList = [
     this.getString(kSpotAddress).valueOrElse(""),     # spot
     this.getString(kLeverageAddress).valueOrElse(""), # leverage
     ""                                                # margin
   ]
+
+func setLeverageHelper(user: String, leverage: Int) = {
+  strict check = [
+    leverage > 0 || throwErr("leverage value must be greater than 0")
+  ]
+
+  [
+    IntegerEntry(kUserLeverage(user), leverage)
+  ]
+}
 
 @Callable(i)
 func init(
@@ -103,4 +118,33 @@ func removeAllowedAsset(assetId: String) = {
       }
       case _ => throw("asset is not found")
     }
+}
+
+@Callable(i)
+func setLeverage(leverage: Int) = {
+  strict check = [
+    leverage <= maxLeverageValue || ["max leverage is ", maxLeverageValue.toString()].makeString(" ").throwErr()
+  ]
+
+  setLeverageHelper(i.caller.toString(), leverage)
+}
+
+@Callable(i)
+func setLeverageFor(user: String, leverage: Int) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  setLeverageHelper(user, leverage)
+}
+
+@Callable(i)
+func setMaxLeverage(maxLeverage: Int) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [
+    IntegerEntry(kLeverageValue, maxLeverage)
+  ]
 }
