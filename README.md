@@ -146,7 +146,7 @@ ProviderMetamask uses EIP-712 and `signTypedData` version 4 function of MetaMask
 
 ```js
 const { recoverTypedSignature } = require('@metamask/eth-sig-util');
-const { wavesAddress2eth } = require('@waves/node-api-js');
+const { ethAddress2waves } = require("@waves/node-api-js");
 
 const orderIdString = sha256(orderBytes).toBase58String();
 
@@ -180,7 +180,7 @@ const recoveredEthAddress = recoverTypedSignature({
    version: 'V4'
 });
 
-const recoveredWavesAddress = wavesAddress2eth(recoveredEthAddress);
+const recoveredWavesAddress = ethAddress2waves(recoveredEthAddress);
 
 return (userAddress == recoveredWavesAddress);
 ```
@@ -318,7 +318,7 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 |  8.2 | orderDirection key value      | String     | 14                  | `"orderDirection"`         |                                                                                  |
 |  8.3 | orderDirection value type     | Byte       | 1                   | `3`                        | `3` for String type                                                              |
 |  8.4 | orderDirection value length   | Short      | 2                   | T                          | `3` for `"buy"`<br> `4` for `"sell"`                                             |
-|  8.5 | orderDirection value          | String     | T                   | `"buy"` or `"sell"`        | Base58 encoded assetId string                                                    |
+|  8.5 | orderDirection value          | String     | T                   | `"buy"` or `"sell"`        |                                                                                  |
 |  9.1 | amount key length             | Short      | 2                   | `6`                        |                                                                                  |
 |  9.2 | amount key value              | String     | 6                   | `"amount"`                 |                                                                                  |
 |  9.3 | amount value type             | Byte       | 1                   | `0`                        | `0` for Long type                                                                |
@@ -350,7 +350,7 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 const crypto = require('@waves/ts-lib-crypto');
 
 const serializedBytes = serializeCustomData(data: OrderTypedData);
-return crypto.verifySignature(userPublicKey, [255, 255, 255, 2, ...serializedBytes], signature);
+return crypto.verifySignature(userPublicKey, ...serializedBytes, signature);
 ```
 
 ### EIP-712 (Metamask) Order V2 <a name="eip-712-metamask-order-v2"></a>
@@ -462,7 +462,7 @@ type EipOrderTypedData = {
 
 ```js
 const { recoverTypedSignature } = require('@metamask/eth-sig-util');
-const { wavesAddress2eth } = require('@waves/node-api-js');
+const { ethAddress2waves } = require("@waves/node-api-js");
 
 const orderIdString = sha256(orderBytes).toBase58String();
 
@@ -476,7 +476,7 @@ const recoveredEthAddress = recoverTypedSignature({
    version: 'V4'
 });
 
-const recoveredWavesAddress = wavesAddress2eth(recoveredEthAddress);
+const recoveredWavesAddress = ethAddress2waves(recoveredEthAddress);
 
 return (userAddress == recoveredWavesAddress);
 ```
