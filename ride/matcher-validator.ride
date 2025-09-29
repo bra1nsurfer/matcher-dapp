@@ -39,14 +39,14 @@ let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("
 let factoryAddress = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
 
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
-let forceStop = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
+let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
 let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
-let matcherPublicKey = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
+let matcherPublicKey  = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
 
 let (NETWORK, CUR_TIMESTAMP) = match (blockInfoByHeight(height)) {
   case a:BlockInfo => (a.generator.bytes.drop(1).take(1), a.timestamp)
-  case _ => throwErr("network byte error: block 1 is not found")
+  case _ => throwErr("network byte error: block is not found")
 }
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
@@ -59,8 +59,8 @@ let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
 
 func keyInternalIdToOrderId(internalId: Int) = ["%s%d", "internalId", internalId.toString()].makeString(SEP)
-func keyOrderFilled(orderId: String) = ["%s%s", "orderFilled", orderId].makeString(SEP)
-func keyOrderStatus(orderId: String) = ["%s%s", "orderStatus", orderId].makeString(SEP)
+func keyOrderFilled(orderId: String)         = ["%s%s", "orderFilled", orderId].makeString(SEP)
+func keyOrderStatus(orderId: String)         = ["%s%s", "orderStatus", orderId].makeString(SEP)
 
 func calcSendAmount(amount: Int, price: Int) = {
   fraction(amount, price, dec8)
@@ -535,8 +535,14 @@ func matchOrders(
     (allowedAssets.containsElement(buyOrderPriceAsset.assetIdToString())) || throwErr("price asset not in the allowed list")
   ]
 
-  let buyOrderAddress = if(buyOrderPubKeyType == ecdsaSignType) then Address(buyOrderSenderBytes) else addressFromPublicKey(buyOrderSenderBytes)
-  let sellOrderAddress = if(sellOrderPubKeyType == ecdsaSignType) then Address(sellOrderSenderBytes) else addressFromPublicKey(sellOrderSenderBytes)
+  let buyOrderAddress = 
+    if(buyOrderPubKeyType == ecdsaSignType) 
+    then Address(buyOrderSenderBytes) 
+    else addressFromPublicKey(buyOrderSenderBytes)
+  let sellOrderAddress = 
+    if(sellOrderPubKeyType == ecdsaSignType) 
+    then Address(sellOrderSenderBytes) 
+    else addressFromPublicKey(sellOrderSenderBytes)
 
   let (buyAmount, buyFilled) = getRemainingAmount(buyOrderId, buyOrderFullAmount)
   let (sellAmount, sellFilled) = getRemainingAmount(sellOrderId, sellOrderFullAmount)
@@ -639,7 +645,10 @@ func validateAndExchange(
     else nil
 
   let orderTypeContract = getOrderTypeContract(buyTrType).valueOrErrorMessage("order type contract error")
-  let (buyTrFeeAsset, buyTrFee, sellTrFeeAsset, sellTrFee) = if (buyTrFeeType == MAKER) then (makerFeeAsset, makerFee, takerFeeAsset, takerFee) else (takerFeeAsset, takerFee, makerFeeAsset, makerFee)
+  let (buyTrFeeAsset, buyTrFee, sellTrFeeAsset, sellTrFee) = 
+    if (buyTrFeeType == MAKER) 
+    then (makerFeeAsset, makerFee, takerFeeAsset, takerFee) 
+    else (takerFeeAsset, takerFee, makerFeeAsset, makerFee)
 
   strict exchange = [
     orderTypeContract.invoke(

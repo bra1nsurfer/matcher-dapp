@@ -94,7 +94,7 @@ func getAllUserInfo(user: String) = {
     acc :+ assetData
   }
 
-  let all = FOLD<10>(allowedAssets, [], helper)
+  let all = FOLD<100>(allowedAssets, [], helper)
 
   all
 }

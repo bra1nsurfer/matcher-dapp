@@ -72,7 +72,7 @@ let orderContractList = {
 
 func isUserWithDebt(user: String) = {
   func sumDebt(acc: Int, nextAsset: String) = (acc + getUserLoan(user, nextAsset))
-  let debt = FOLD<10>(allowedAssets, 0, sumDebt)
+  let debt = FOLD<100>(allowedAssets, 0, sumDebt)
 
   (debt > 0)
 }
@@ -117,7 +117,7 @@ func getAllUserInfo(user: String) = {
     acc :+ (nextAsset, balance, loan)
   }
 
-  let info = FOLD<10>(allowedAssets, [], helper)
+  let info = FOLD<100>(allowedAssets, [], helper)
 
   info
 }
