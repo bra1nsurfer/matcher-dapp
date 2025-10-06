@@ -20,6 +20,7 @@ let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
 let kPoolAddress      = ["%s", "poolAddress"].makeString(SEP)
 let kSpotAddress      = ["%s", "spotAddress"].makeString(SEP)
 let kLeverageAddress  = ["%s", "leverageAddress"].makeString(SEP)
+let kWithdrawDelay    = ["%s", "withdrawDelay"].makeString(SEP)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (this.getString(kAllowedAssets)) {
@@ -146,5 +147,16 @@ func setMaxLeverage(maxLeverage: Int) = {
 
   [
     IntegerEntry(kLeverageValue, maxLeverage)
+  ]
+}
+
+@Callable(i)
+func setWithdrawDelay(delay: Int) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [
+    IntegerEntry(kWithdrawDelay, delay)
   ]
 }

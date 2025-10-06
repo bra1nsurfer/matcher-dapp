@@ -51,6 +51,27 @@ let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
     case _ => []
 }
 
+let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
+let matcherPublicKey  = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
+
+let kWithdrawDelay = ["%s", "withdrawDelay"].makeString(SEP)
+let withdrawDelay  = factoryAddress.getInteger(kWithdrawDelay).valueOrElse(0)
+
+func kUserWithdraw(user: String, txId: String) = ["%s%s%s", "withdraw", user, txId].makeString(SEP)
+func vUserWithdraw(assetId: String, amount: Int, unlockHeight: Int) = 
+  ["%s%d%d", assetId, amount.toString(), unlockHeight.toString()].makeString(SEP)
+func parseWithdraw(vWithdraw: String) = {
+  let x = vWithdraw.split(SEP)
+  let (assetId, amount, unlockHeight) = 
+    (
+      x[1].valueOrErrorMessage("could not get unlock asset id"), 
+      x[2].parseInt().valueOrErrorMessage("could not parse unlock amount"), 
+      x[3].parseInt().valueOrErrorMessage("could not parse unlock height")
+    )
+
+  (assetId, amount, unlockHeight)
+}
+
 # TODO: decide which way is better
 # let kSpotAddress     = ["%s", "spotAddress"].makeString(SEP)
 # let kLeverageAddress = ["%s", "leverageAddress"].makeString(SEP)
@@ -156,6 +177,37 @@ func loanBorrowHelper(user: String, assetId: String, amount: Int) = {
   balanceActions ++ loanActions
 }
 
+func unlockWithdrawHelper(user: String, txId: String, isMatcher: Boolean) = {
+  let withdrawKey = kUserWithdraw(user, txId)
+  let withdrawValueString = this.getStringValue(withdrawKey)
+  let (assetId, amount, unlockHeight) = parseWithdraw(withdrawValueString)
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    isMatcher || height > unlockHeight || throwErr(["withdraw is locked until (" + unlockHeight.toString() + ")"].makeString(""))
+  ]
+
+  [
+    DeleteEntry(withdrawKey),
+    ScriptTransfer(user.addressFromStringValue(), amount, assetId.stringToAssetId())
+  ]
+}
+
+func withdrawHelper(user: String, assetId: String, amount: Int) = {
+  let kBalance = kUserBalance(user, assetId)
+  let balance = this.getInteger(kBalance).valueOrElse(0)
+  let newBalance = balance - amount
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    amount > 0 || throwErr("amount must be greater than 0"),
+    newBalance >= 0 || throwErr(["not enough balance to withdraw", user].makeString(" ")),
+    !isUserWithDebt(user) || throwErr("cannot withdraw with debt")
+  ]
+
+  (kBalance, newBalance)
+}
+
 @Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
@@ -189,23 +241,46 @@ func deposit() = {
 }
 
 @Callable(i) 
-func withdraw(assetId: String, amount: Int) = {
+func userWithdraw(assetId: String, amount: Int) = {
   let user = i.caller.toString()
-  let kBalance = kUserBalance(user, assetId)
-  let balance = this.getInteger(kBalance).valueOrElse(0)
-  let newBalance = balance - amount
+  let (kBalance, newBalance) = withdrawHelper(user, assetId, amount)
+
+  let key = kUserWithdraw(user, i.transactionId.toBase58String())
+  let val = vUserWithdraw(assetId, amount, height+withdrawDelay)
+
+  [
+    StringEntry(key, val),
+    IntegerEntry(kBalance, newBalance)
+  ]
+}
+
+@Callable(i)
+func matcherWithdraw(user: String, assetId: String, amount: Int) = {
+  let (kBalance, newBalance) = withdrawHelper(user, assetId, amount)
 
   strict check = [
-    !forceStop || throwErr("contract is temporary stopped"),
-    amount > 0 || throwErr("amount must be greater than 0"),
-    newBalance >= 0 || throwErr(["not enough balance to withdraw", user].makeString(" ")),
-    !isUserWithDebt(user) || throwErr("cannot withdraw with debt")
+    (i.callerPublicKey == matcherPublicKey) || throwErr("matcherWithdraw: permission denied")
   ]
 
   [
-    ScriptTransfer(i.caller, amount, assetId.stringToAssetId()),
+    ScriptTransfer(user.addressFromStringValue(), amount, assetId.stringToAssetId()),
     IntegerEntry(kBalance, newBalance)
   ]
+}
+
+@Callable(i) 
+func userUnlockWithdraw(txId: String) = {
+  unlockWithdrawHelper(i.caller.toString(), txId, false)
+}
+
+@Callable(i) 
+func matcherUnlockWithdraw(user: String, txId: String) = {
+  let isMatcher = (i.callerPublicKey == matcherPublicKey)
+  strict check = [
+    isMatcher || throwErr("unlock permission denied")
+  ]
+
+  unlockWithdrawHelper(user, txId, isMatcher)
 }
 
 @Callable(i)
