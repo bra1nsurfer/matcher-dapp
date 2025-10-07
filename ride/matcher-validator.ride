@@ -363,7 +363,7 @@ func parseOrderV1(orderBytes: ByteVector) = {
   let networkByte = orderBytes.drop(1).take(1)
   let data1 = orderBytes.drop(2)
   
-  # Waves pubKey or address (ECDSA)
+  # Waves pubKey or address (EIP-712)
   let senderFlag = data1.take(1).bytesToInt()
   let data2 = data1.drop(1)
   let (senderBytesLen, pubKeyType) = if(senderFlag == 0) 
@@ -437,10 +437,10 @@ func parseOrder(orderBytes: ByteVector, proof: ByteVector) = {
   let (pubKeyType, pubKey) = (orderData._2, orderData._3)
   
   let signCheck = if (version == 1) 
-  then checkSignV1(orderId, proof, (pubKeyType, pubKey))
-  else if (version == 2) 
-  then checkSignV2(orderData, proof, (pubKeyType, pubKey))
-  else false
+    then checkSignV1(orderId, proof, (pubKeyType, pubKey))
+    else if (version == 2) 
+      then checkSignV2(orderData, proof, (pubKeyType, pubKey))
+      else false
 
   strict check = [
     signCheck || throwErr(["order proof is not valid ", orderId].makeString(" "))
@@ -464,6 +464,8 @@ func matchOrders(
   amount : Int,
   price  : Int
   ) = {
+
+  ### parseOrder struct
   #   ._1  networkByte,
   #   ._2  pubKeyType,
   #   ._3  senderBytes,
@@ -472,12 +474,11 @@ func matchOrders(
   #   ._6  priceAsset,
   #   ._7  orderType,
   #   ._8  orderDirection,
-  #   ._9 amount,
+  #   ._9  amount,
   #   ._10 price,
   #   ._11 timestamp (nonce)
   #   ._12 expiration | 0
   #   ._13 flags
-  
   let o1 = parseOrder(o1Bytes, o1proof)
   let o2 = parseOrder(o2Bytes, o2proof)
 
@@ -513,7 +514,6 @@ func matchOrders(
   let sellOrderExpiration   = sellOrder._12
   let sellOrderFlags        = sellOrder._13
 
-  # TODO: Add matcher public key validation
   strict validation = [
     (buyOrderNetwork == NETWORK && sellOrderNetwork == NETWORK) || throwErr("network byte is not valid"),
     (buyOrderMatcherBytes == matcherPublicKey) || throwErr("buy order matcher bytes does not match"),
@@ -650,6 +650,9 @@ func validateAndExchange(
     then (makerFeeAsset, makerFee, takerFeeAsset, takerFee) 
     else (takerFeeAsset, takerFee, makerFeeAsset, makerFee)
 
+  let buyRealAmount = if (buyTrAsset.assetIdToString() == buyTrFeeAsset) then (buyTrAmount - buyTrFee) else (buyTrAmount)
+  let sellRealAmount = if (sellTrAsset.assetIdToString() == sellTrFeeAsset) then (sellTrAmount - sellTrFee) else (sellTrAmount)
+
   strict exchange = [
     orderTypeContract.invoke(
       "exchange",
@@ -662,9 +665,9 @@ func validateAndExchange(
         sellTrFeeType,
         sellTrFeeAsset,
         sellTrFee,
-        buyTrAmount,
+        buyRealAmount,
         buyTrAsset.assetIdToString(),
-        sellTrAmount,
+        sellRealAmount,
         sellTrAsset.assetIdToString(),
         buyTrFlags,
         sellTrFlags

@@ -71,7 +71,7 @@ func kUserLoanAmount(user: String, assetId: String) = ["%s%s%s", "userLoanAmount
 func getUserLoanAmount(user: String, assetId: String) = this.getInteger(kUserLoanAmount(user, assetId)).valueOrElse(0)
 
 
-func isAddressValid(addressString: String) = {
+func isValidAddress(addressString: String) = {
   match (addressFromString(addressString)) {
     case t:Address => true
     case _ => false
@@ -105,7 +105,7 @@ func depositHelper(user: String, i: Invocation) = {
 
   strict checks = [
     !forceStop || throwErr("contract is temporary stopped"),
-    user.isAddressValid() || throwErr("address is not valid"),
+    user.isValidAddress() || throwErr("address is not valid"),
     i.payments.size() == 1 || throwErr("must be only 1 payment"),
     allowedAssets.containsElement(assetId) || throwErr("asset is not allowed")
   ]
@@ -134,7 +134,7 @@ func withdrawHelper(user: String, assetId: String, amount: Int) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
     allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
-    user.isAddressValid() || throwErr("address is not valid"),
+    user.isValidAddress() || throwErr("address is not valid"),
     amount > 0 || throwErr("amount should be greater than 0"),
     amount <= available || throwErr("not enough available balance")
   ]
@@ -169,7 +169,7 @@ func loanBorrow(user: String, assetId: String, amount: Int) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
     i.caller.toString() == treasuryAddress || throwErr("permission denied"),
-    user.isAddressValid() || throwErr("address is not valid"),
+    user.isValidAddress() || throwErr("address is not valid"),
     allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
     amount <= available || throwErr("not enough available balance to borrow")
   ]
@@ -191,7 +191,7 @@ func loanPayment(user: String) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
     i.caller.toString() == treasuryAddress || throwErr("permission denied"),
-    user.isAddressValid() || throwErr("address is not valid"),
+    user.isValidAddress() || throwErr("address is not valid"),
     allowedAssets.containsElement(assetId) || throwErr("asset is not allowed"),
     i.payments.size() == 1 || throwErr("must be only 1 payment")
   ]
@@ -213,7 +213,7 @@ func loanPayment(user: String) = {
 @Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
-    matcherFactory.isAddressValid() || throwErr("address is not valid"),
+    matcherFactory.isValidAddress() || throwErr("address is not valid"),
     i.caller == this || throwErr("permission denied")
   ]
 

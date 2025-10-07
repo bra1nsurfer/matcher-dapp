@@ -26,6 +26,13 @@ func stringToAssetId(s: String) = {
   if (s == WAVES) then unit else s.fromBase58String()
 }
 
+func isValidAddress(addressString: String) = {
+  match (addressFromString(addressString)) {
+    case t:Address => true
+    case _ => false
+  }
+}
+
 let kFactoryAddress      = ["%s", "factoryAddress"].makeString(SEP)
 let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
 let factoryAddress       = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
@@ -208,21 +215,10 @@ func withdrawHelper(user: String, assetId: String, amount: Int) = {
   (kBalance, newBalance)
 }
 
-@Callable(i)
-func init(matcherFactory: String) = {
+func depositHelper(userAddress: String, i: Invocation) = {
   strict check = [
-    i.caller == this || throwErr("permission denied")
-  ]
-
-  [StringEntry(kFactoryAddress, matcherFactory)]
-}
-
-@Callable(i)
-func deposit() = {
-  let userAddress = i.caller.toString()
-
-  strict check = [
-    !forceStop || throwErr("contract is temporary stopped")
+    !forceStop || throwErr("contract is temporary stopped"),
+    userAddress.isValidAddress() || throwErr("userAddress is not valid")
   ]
 
   func a(actionsList: List[IntegerEntry], nextPayment: AttachedPayment) = {
@@ -238,6 +234,27 @@ func deposit() = {
   let allActions = FOLD<10>(i.payments, [], a)
 
   allActions
+}
+
+@Callable(i)
+func init(matcherFactory: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [StringEntry(kFactoryAddress, matcherFactory)]
+}
+
+@Callable(i)
+func deposit() = {
+  let userAddress = i.caller.toString()
+
+  depositHelper(userAddress, i)
+}
+
+@Callable(i)
+func depositFor(userAddress: String) = {
+  depositHelper(userAddress, i)
 }
 
 @Callable(i) 
