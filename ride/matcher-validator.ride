@@ -59,7 +59,7 @@ let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
 
 func keyInternalIdToOrderId(internalId: Int) = ["%s%d", "internalId", internalId.toString()].makeString(SEP)
-func keyOrderFilled(orderId: String)         = ["%s%s", "orderFilled", orderId].makeString(SEP)
+func keyOrderRemaining(orderId: String)      = ["%s%s", "orderRemaining", orderId].makeString(SEP)
 func keyOrderStatus(orderId: String)         = ["%s%s", "orderStatus", orderId].makeString(SEP)
 
 func calcSendAmount(amount: Int, price: Int) = {
@@ -450,19 +450,23 @@ func parseOrder(orderBytes: ByteVector, proof: ByteVector) = {
 }
 
 func getRemainingAmount(orderId: String, fullAmount: Int) = {
-  let filled = this.getInteger(keyOrderFilled(orderId)).valueOrElse(0)
-  let remainingAmount = max([fullAmount - filled, 0])
+  let remainingAmount = this.getInteger(keyOrderRemaining(orderId)).valueOrElse(fullAmount)
+  let filled = max([fullAmount - remainingAmount, 0])
 
   (remainingAmount, filled)
 }
 
 func matchOrders(
-  o1Bytes: ByteVector,
-  o1proof: ByteVector,
-  o2Bytes: ByteVector,
-  o2proof: ByteVector,
-  amount : Int,
-  price  : Int
+  o1Bytes       : ByteVector,
+  o1proof       : ByteVector,
+  o2Bytes       : ByteVector,
+  o2proof       : ByteVector,
+  amount        : Int,
+  price         : Int,
+  makerFeeAsset : String,
+  makerFeeAmount: Int,
+  takerFeeAsset : String,
+  takerFeeAmount: Int
   ) = {
 
   ### parseOrder struct
@@ -482,7 +486,10 @@ func matchOrders(
   let o1 = parseOrder(o1Bytes, o1proof)
   let o2 = parseOrder(o2Bytes, o2proof)
 
-  let (bO, bFeeType, sO, sFeeType) = if (o1._1._8 == orderDirBuy) then (o1, MAKER, o2, TAKER) else (o2, TAKER, o1, MAKER)
+  let (bO, bFeeType, bFeeAsset, bFeeAmount, sO, sFeeType, sFeeAsset, sFeeAmount) = 
+    if (o1._1._8 == orderDirBuy) 
+      then (o1, MAKER, makerFeeAsset, makerFeeAmount, o2, TAKER, takerFeeAsset, takerFeeAmount) 
+      else (o2, TAKER, takerFeeAsset, takerFeeAmount, o1, MAKER, makerFeeAsset, makerFeeAmount)
   let (buyOrder, buyOrderId, buyOrderStatus) = bO
   let (sellOrder, sellOrderId, sellOrderStatus) = sO
 
@@ -553,20 +560,21 @@ func matchOrders(
 
   let sendPriceAssetAmount = calcSendAmount(matchedAmount, price)
 
-  let newBuyFilled     = buyFilled + matchedAmount
-  let newSellFilled    = sellFilled + matchedAmount
-  let newBuyRemaining  = buyOrderFullAmount - newBuyFilled
-  let newSellRemaining = sellOrderFullAmount - newSellFilled
+  let newBuyRemaining  = buyAmount - matchedAmount
+  let newSellRemaining = sellAmount - matchedAmount
 
-  # Calculate if it is possible to match remaining amount at order price
-  let buyPriceAssetRem = calcSendAmount(newBuyRemaining, buyOrderFullAmount)
-  let sellPriceAssetRem = calcSendAmount(newSellRemaining, sellOrderFullAmount)
+  let newBuyFilled     = buyOrderFullAmount - newBuyRemaining
+  let newSellFilled    = sellOrderFullAmount - newSellRemaining
+
+  # Convert remaining amount to price asset at order price
+  let buyPriceAssetRem = calcSendAmount(newBuyRemaining, buyOrderPrice)
+  let sellPriceAssetRem = calcSendAmount(newSellRemaining, sellOrderPrice)
 
   (
     (buyOrderAddress,  matchedAmount,        buyOrderAmountAsset, buyOrderType,  bFeeType, buyOrderFlags),
     (sellOrderAddress, sendPriceAssetAmount, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags),
-    (buyOrderId, newBuyFilled, buyPriceAssetRem), 
-    (sellOrderId, newSellFilled, sellPriceAssetRem)
+    (buyOrderId, newBuyFilled, newBuyRemaining, buyPriceAssetRem), 
+    (sellOrderId, newSellFilled, newSellRemaining, sellPriceAssetRem)
   )
 }
 
@@ -583,28 +591,42 @@ func getOrderTypeContract(orderType: Int) = {
 # o2 - Taker
 @Callable(i)
 func validateAndExchange(
-  o1bytes      : ByteVector,
-  o1proof      : ByteVector,
-  o2bytes      : ByteVector,
-  o2proof      : ByteVector,
-  matchAmount  : Int,
-  matchPrice   : Int,
-  makerFeeAsset: String,
-  makerFee     : Int,
-  takerFeeAsset: String,
-  takerFee     : Int
+  o1bytes       : ByteVector,
+  o1proof       : ByteVector,
+  o2bytes       : ByteVector,
+  o2proof       : ByteVector,
+  matchAmount   : Int,
+  matchPrice    : Int,
+  makerFeeAsset : String,
+  makerFeeAmount: Int,
+  takerFeeAsset : String,
+  takerFeeAmount: Int
   ) = {
   
-  let (buyTransfer, sellTransfer, buyState, sellState) = matchOrders(o1bytes, o1proof, o2bytes, o2proof, matchAmount, matchPrice)
+  let (buyTransfer, sellTransfer, buyState, sellState) = 
+    matchOrders(
+      o1bytes, 
+      o1proof, 
+      o2bytes, 
+      o2proof, 
+      matchAmount, 
+      matchPrice, 
+      makerFeeAsset,
+      makerFeeAmount,
+      takerFeeAsset,
+      takerFeeAmount
+    )
 
   # Order state
-  let buyOrderId     = buyState._1
-  let buyOrderFilled = buyState._2
-  let buyOrderRem    = buyState._3
+  let buyOrderId            = buyState._1
+  let buyOrderFilled        = buyState._2
+  let buyOrderRemaining     = buyState._3
+  let buyOrderPriceAssetRem = buyState._4
 
-  let sellOrderId     = sellState._1
-  let sellOrderFilled = sellState._2
-  let sellOrderRem    = sellState._3
+  let sellOrderId            = sellState._1
+  let sellOrderFilled        = sellState._2
+  let sellOrderRemaining     = sellState._3
+  let sellOrderPriceAssetRem = sellState._4
 
   # Matched values
   let buyTrAddress  = buyTransfer._1
@@ -630,12 +652,12 @@ func validateAndExchange(
   ]
 
   let (buyOrderInternalId, buyOrderIdAction) = 
-    if(isDefined(this.getInteger(keyOrderFilled(buyOrderId))))
+    if(isDefined(this.getInteger(keyOrderRemaining(buyOrderId))))
     then (O_COUNTER, nil)
     else (O_COUNTER+1, [StringEntry(keyInternalIdToOrderId(O_COUNTER+1), buyOrderId)])
 
   let (sellOrderInternalId, sellOrderIdAction) = 
-    if(isDefined(this.getInteger(keyOrderFilled(sellOrderId))))
+    if(isDefined(this.getInteger(keyOrderRemaining(sellOrderId))))
     then (buyOrderInternalId, nil)
     else (buyOrderInternalId+1, [StringEntry(keyInternalIdToOrderId(buyOrderInternalId+1), sellOrderId)])
 
@@ -647,11 +669,8 @@ func validateAndExchange(
   let orderTypeContract = getOrderTypeContract(buyTrType).valueOrErrorMessage("order type contract error")
   let (buyTrFeeAsset, buyTrFee, sellTrFeeAsset, sellTrFee) = 
     if (buyTrFeeType == MAKER) 
-    then (makerFeeAsset, makerFee, takerFeeAsset, takerFee) 
-    else (takerFeeAsset, takerFee, makerFeeAsset, makerFee)
-
-  let buyRealAmount = if (buyTrAsset.assetIdToString() == buyTrFeeAsset) then (buyTrAmount - buyTrFee) else (buyTrAmount)
-  let sellRealAmount = if (sellTrAsset.assetIdToString() == sellTrFeeAsset) then (sellTrAmount - sellTrFee) else (sellTrAmount)
+    then (makerFeeAsset, makerFeeAmount, takerFeeAsset, takerFeeAmount) 
+    else (takerFeeAsset, takerFeeAmount, makerFeeAsset, makerFeeAmount)
 
   strict exchange = [
     orderTypeContract.invoke(
@@ -665,9 +684,9 @@ func validateAndExchange(
         sellTrFeeType,
         sellTrFeeAsset,
         sellTrFee,
-        buyRealAmount,
+        buyTrAmount,
         buyTrAsset.assetIdToString(),
-        sellRealAmount,
+        sellTrAmount,
         sellTrAsset.assetIdToString(),
         buyTrFlags,
         sellTrFlags
@@ -676,19 +695,20 @@ func validateAndExchange(
     )
   ]
 
-  let buyOrderStatusAction = 
-    if (buyOrderRem <= 0) 
-    then [IntegerEntry(keyOrderStatus(buyOrderId), O_FILLED)] 
-    else nil
+  # Set remaining amount to `0` if it's fully filled
+  let (buyOrderStatusAction, buyOrderRealRemaining) = 
+    if (buyOrderPriceAssetRem <= 0) 
+    then ([IntegerEntry(keyOrderStatus(buyOrderId), O_FILLED)], 0)
+    else (nil, buyOrderRemaining)
 
-  let sellOrderStatusAction =
-    if (sellOrderRem <= 0) 
-    then [IntegerEntry(keyOrderStatus(sellOrderId), O_FILLED)] 
-    else nil
+  let (sellOrderStatusAction, sellOrderRealRemaining) =
+    if (sellOrderPriceAssetRem <= 0) 
+    then ([IntegerEntry(keyOrderStatus(sellOrderId), O_FILLED)], 0) 
+    else (nil, sellOrderRemaining)
 
   let updateOrderActions = [
-    IntegerEntry(keyOrderFilled(buyOrderId), buyOrderFilled),
-    IntegerEntry(keyOrderFilled(sellOrderId), sellOrderFilled)
+    IntegerEntry(keyOrderRemaining(buyOrderId), buyOrderRealRemaining),
+    IntegerEntry(keyOrderRemaining(sellOrderId), sellOrderRealRemaining)
   ]
 
   updateOrderActions ++ 
