@@ -62,8 +62,12 @@ func keyInternalIdToOrderId(internalId: Int) = ["%s%d", "internalId", internalId
 func keyOrderRemaining(orderId: String)      = ["%s%s", "orderRemaining", orderId].makeString(SEP)
 func keyOrderStatus(orderId: String)         = ["%s%s", "orderStatus", orderId].makeString(SEP)
 
-func calcSendAmount(amount: Int, price: Int) = {
-  fraction(amount, price, dec8)
+func amountAssetToPriceAsset(amount: Int, price: Int) = {
+  fraction(amount, price, dec8, DOWN)
+}
+
+func priceAssetToAmountAsset(priceAssetAmount: Int, price: Int) = {
+  fraction(priceAssetAmount, dec8, price, CEILING)
 }
 
 func assetIdToString(assetId: ByteVector|Unit) = {
@@ -461,8 +465,8 @@ func matchOrders(
   o1proof       : ByteVector,
   o2Bytes       : ByteVector,
   o2proof       : ByteVector,
-  amount        : Int,
-  price         : Int,
+  matchAmount   : Int,
+  matchPrice    : Int,
   makerFeeAsset : String,
   makerFeeAmount: Int,
   takerFeeAsset : String,
@@ -530,8 +534,8 @@ func matchOrders(
     (buyOrderType == sellOrderType) || throwErr("order type does not match"),
     (buyOrderDir == orderDirBuy) || throwErr("buy order direction byte is not valid"),
     (sellOrderDir == orderDirSell) || throwErr("sell order direction byte is not valid"),
-    (price <= buyOrderPrice) || throwErr("buy order price error"),
-    (price >= sellOrderPrice) || throwErr("sell order price error"),
+    (matchPrice <= buyOrderPrice) || throwErr("buy order price error"),
+    (matchPrice >= sellOrderPrice) || throwErr("sell order price error"),
     (buyOrderExpiration == 0 || buyOrderExpiration >= CUR_TIMESTAMP) || throwErr("buy order is expired"),
     (sellOrderExpiration == 0 || sellOrderExpiration >= CUR_TIMESTAMP) || throwErr("sell order is expired"),
     (buyOrderStatus == O_OPEN) || throwErr("buy order is closed"),
@@ -542,37 +546,49 @@ func matchOrders(
     (allowedAssets.containsElement(buyOrderPriceAsset.assetIdToString())) || throwErr("price asset not in the allowed list")
   ]
 
-  let buyOrderAddress = 
+  let buyOrderSenderAddress = 
     if(buyOrderPubKeyType == ecdsaSignType) 
     then Address(buyOrderSenderBytes) 
     else addressFromPublicKey(buyOrderSenderBytes)
-  let sellOrderAddress = 
+  let sellOrderSenderAddress = 
     if(sellOrderPubKeyType == ecdsaSignType) 
     then Address(sellOrderSenderBytes) 
     else addressFromPublicKey(sellOrderSenderBytes)
 
-  let (buyAmount, buyFilled) = getRemainingAmount(buyOrderId, buyOrderFullAmount)
-  let (sellAmount, sellFilled) = getRemainingAmount(sellOrderId, sellOrderFullAmount)
+  let (buyRawRemaining, _buyFilled) = getRemainingAmount(buyOrderId, buyOrderFullAmount)
+  let (sellRawRemaining, _sellFilled) = getRemainingAmount(sellOrderId, sellOrderFullAmount)
 
-  let matchedAmount = if (amount <= min([buyAmount, sellAmount])) 
-    then amount 
-    else throwErr("matched amount exceeds order remaining amount")
+  # If order fee asset is the same as order sending asset
+  # decrease order amount by fee
+  let buyRemaining = 
+    if (buyOrderPriceAsset.assetIdToString() == bFeeAsset) 
+    then (buyRawRemaining - priceAssetToAmountAsset(bFeeAmount, buyOrderPrice)) 
+    else buyRawRemaining
+  let sellRemaining = 
+    if (sellOrderAmountAsset.assetIdToString() == sFeeAsset)
+    then (sellRawRemaining - sFeeAmount)
+    else sellRawRemaining
 
-  let sendPriceAssetAmount = calcSendAmount(matchedAmount, price)
+  strict check2 = [
+    matchAmount <= buyRemaining || ["matched amount exceeds buy order remaining amount (", buyRemaining.toString(), ")"].makeString("").throwErr(),
+    matchAmount <= sellRemaining || ["matched amount exceeds sell order remaining amount (", sellRemaining.toString(), ")"].makeString("").throwErr()
+  ]
 
-  let newBuyRemaining  = buyAmount - matchedAmount
-  let newSellRemaining = sellAmount - matchedAmount
+  let matchAmountInPriceAsset = amountAssetToPriceAsset(matchAmount, matchPrice)
 
-  let newBuyFilled     = buyOrderFullAmount - newBuyRemaining
-  let newSellFilled    = sellOrderFullAmount - newSellRemaining
+  let newBuyRemaining  = buyRemaining - matchAmount
+  let newSellRemaining = sellRemaining - matchAmount
+
+  let newBuyFilled  = buyOrderFullAmount - newBuyRemaining
+  let newSellFilled = sellOrderFullAmount - newSellRemaining
 
   # Convert remaining amount to price asset at order price
-  let buyPriceAssetRem = calcSendAmount(newBuyRemaining, buyOrderPrice)
-  let sellPriceAssetRem = calcSendAmount(newSellRemaining, sellOrderPrice)
+  let buyPriceAssetRem = amountAssetToPriceAsset(newBuyRemaining, buyOrderPrice)
+  let sellPriceAssetRem = amountAssetToPriceAsset(newSellRemaining, sellOrderPrice)
 
   (
-    (buyOrderAddress,  matchedAmount,        buyOrderAmountAsset, buyOrderType,  bFeeType, buyOrderFlags),
-    (sellOrderAddress, sendPriceAssetAmount, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags),
+    (buyOrderSenderAddress,  matchAmount, buyOrderAmountAsset, buyOrderType,  bFeeType, buyOrderFlags),
+    (sellOrderSenderAddress, matchAmountInPriceAsset, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags),
     (buyOrderId, newBuyFilled, newBuyRemaining, buyPriceAssetRem), 
     (sellOrderId, newSellFilled, newSellRemaining, sellPriceAssetRem)
   )
@@ -603,7 +619,7 @@ func validateAndExchange(
   takerFeeAmount: Int
   ) = {
   
-  let (buyTransfer, sellTransfer, buyState, sellState) = 
+  let (buyTransfer, sellTransfer, buyOrderState, sellOrderState) = 
     matchOrders(
       o1bytes, 
       o1proof, 
@@ -618,37 +634,37 @@ func validateAndExchange(
     )
 
   # Order state
-  let buyOrderId            = buyState._1
-  let buyOrderFilled        = buyState._2
-  let buyOrderRemaining     = buyState._3
-  let buyOrderPriceAssetRem = buyState._4
+  let buyOrderId            = buyOrderState._1
+  let buyOrderFilled        = buyOrderState._2
+  let buyOrderRemaining     = buyOrderState._3
+  let buyOrderPriceAssetRem = buyOrderState._4
 
-  let sellOrderId            = sellState._1
-  let sellOrderFilled        = sellState._2
-  let sellOrderRemaining     = sellState._3
-  let sellOrderPriceAssetRem = sellState._4
+  let sellOrderId            = sellOrderState._1
+  let sellOrderFilled        = sellOrderState._2
+  let sellOrderRemaining     = sellOrderState._3
+  let sellOrderPriceAssetRem = sellOrderState._4
 
   # Matched values
-  let buyTrAddress  = buyTransfer._1
-  let buyTrAmount   = buyTransfer._2
-  let buyTrAsset    = buyTransfer._3
-  let buyTrType     = buyTransfer._4
-  let buyTrFeeType  = buyTransfer._5
-  let buyTrFlags    = buyTransfer._6
+  let buyerAddress = buyTransfer._1
+  let asset1Amount = buyTransfer._2
+  let asset1Id     = buyTransfer._3
+  let buyOrderType = buyTransfer._4
+  let buyerFeeType = buyTransfer._5
+  let buyerFlags   = buyTransfer._6
 
-  let sellTrAddress  = sellTransfer._1
-  let sellTrAmount   = sellTransfer._2
-  let sellTrAsset    = sellTransfer._3
-  let sellTrType     = sellTransfer._4
-  let sellTrFeeType  = sellTransfer._5
-  let sellTrFlags    = sellTransfer._6
+  let sellerAddress = sellTransfer._1
+  let asset2Amount  = sellTransfer._2
+  let asset2Id      = sellTransfer._3
+  let sellOrderType = sellTransfer._4
+  let sellerFeeType = sellTransfer._5
+  let sellerFlags   = sellTransfer._6
 
   strict checks = [
     # TODO: Enable after testing
     # i.callerPublicKey == matcherPublicKey || throwErr("permission denied"),
     !forceStop || throwErr("contract is temporary stopped"),
-    buyTrAmount > 0 || throwErr("cannot send zero to buyer"),
-    sellTrAmount > 0 || throwErr("cannot send zero to seller")
+    asset1Amount > 0 || throwErr("cannot send zero to buyer"),
+    asset2Amount > 0 || throwErr("cannot send zero to seller")
   ]
 
   let (buyOrderInternalId, buyOrderIdAction) = 
@@ -666,30 +682,32 @@ func validateAndExchange(
     then [IntegerEntry(keyIdCounter, sellOrderInternalId)]
     else nil
 
-  let orderTypeContract = getOrderTypeContract(buyTrType).valueOrErrorMessage("order type contract error")
-  let (buyTrFeeAsset, buyTrFee, sellTrFeeAsset, sellTrFee) = 
-    if (buyTrFeeType == MAKER) 
+  let orderTypeContract = getOrderTypeContract(buyOrderType).valueOrErrorMessage("order type contract error")
+  let (buyerFeeAsset, buyerFee, sellerFeeAsset, sellerFee) = 
+    if (buyerFeeType == MAKER) 
     then (makerFeeAsset, makerFeeAmount, takerFeeAsset, takerFeeAmount) 
     else (takerFeeAsset, takerFeeAmount, makerFeeAsset, makerFeeAmount)
 
+  # asset1 (amount asset) goes to buyer
+  # asset2 (price asset) goes to seller
   strict exchange = [
     orderTypeContract.invoke(
       "exchange",
       [
-        buyTrAddress.toString(),
-        buyTrFeeType,
-        buyTrFeeAsset,
-        buyTrFee,
-        sellTrAddress.toString(),
-        sellTrFeeType,
-        sellTrFeeAsset,
-        sellTrFee,
-        buyTrAmount,
-        buyTrAsset.assetIdToString(),
-        sellTrAmount,
-        sellTrAsset.assetIdToString(),
-        buyTrFlags,
-        sellTrFlags
+        buyerAddress.toString(),
+        buyerFeeType,
+        buyerFeeAsset,
+        buyerFee,
+        sellerAddress.toString(),
+        sellerFeeType,
+        sellerFeeAsset,
+        sellerFee,
+        asset1Amount,
+        asset1Id.assetIdToString(),
+        asset2Amount,
+        asset2Id.assetIdToString(),
+        buyerFlags,
+        sellerFlags
       ],
       []
     )
