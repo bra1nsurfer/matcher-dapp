@@ -569,15 +569,19 @@ func matchOrders(
     then (sellRawRemaining - sFeeAmount)
     else sellRawRemaining
 
+  # If matchAmount is set to `-1`, match orders with maximum available amount
+  let realMatchAmount = if (matchAmount == -1) then min([buyRemaining, sellRemaining]) else matchAmount
+
   strict check2 = [
-    matchAmount <= buyRemaining || ["matched amount exceeds buy order remaining amount (", buyRemaining.toString(), ")"].makeString("").throwErr(),
-    matchAmount <= sellRemaining || ["matched amount exceeds sell order remaining amount (", sellRemaining.toString(), ")"].makeString("").throwErr()
+    realMatchAmount >= 0 || "cannot match negative amount".throwErr(),
+    realMatchAmount <= buyRemaining || ["matched amount exceeds buy order remaining amount (", buyRemaining.toString(), ")"].makeString("").throwErr(),
+    realMatchAmount <= sellRemaining || ["matched amount exceeds sell order remaining amount (", sellRemaining.toString(), ")"].makeString("").throwErr()
   ]
 
-  let matchAmountInPriceAsset = amountAssetToPriceAsset(matchAmount, matchPrice)
+  let matchAmountInPriceAsset = amountAssetToPriceAsset(realMatchAmount, matchPrice)
 
-  let newBuyRemaining  = buyRemaining - matchAmount
-  let newSellRemaining = sellRemaining - matchAmount
+  let newBuyRemaining  = buyRemaining - realMatchAmount
+  let newSellRemaining = sellRemaining - realMatchAmount
 
   let newBuyFilled  = buyOrderFullAmount - newBuyRemaining
   let newSellFilled = sellOrderFullAmount - newSellRemaining
@@ -587,7 +591,7 @@ func matchOrders(
   let sellPriceAssetRem = amountAssetToPriceAsset(newSellRemaining, sellOrderPrice)
 
   (
-    (buyOrderSenderAddress,  matchAmount, buyOrderAmountAsset, buyOrderType,  bFeeType, buyOrderFlags),
+    (buyOrderSenderAddress,  realMatchAmount, buyOrderAmountAsset, buyOrderType,  bFeeType, buyOrderFlags),
     (sellOrderSenderAddress, matchAmountInPriceAsset, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags),
     (buyOrderId, newBuyFilled, newBuyRemaining, buyPriceAssetRem), 
     (sellOrderId, newSellFilled, newSellRemaining, sellPriceAssetRem)
