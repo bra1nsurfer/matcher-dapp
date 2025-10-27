@@ -20,8 +20,8 @@
   "version": "1.0.0",
   "scripts": {
     "build": "tsc & webpack",
-    "deploy": "tsc & node ./deploy.js",
-    "deploy-testnet": "tsc & dotenvx run -f ./.env.testnet -- node ./deploy.js"
+    "deploy": "tsc & node ./deploy/deploy.js",
+    "deploy-testnet": "tsc & dotenvx run -f ./.env.testnet -- node ./deploy/deploy.js"
   },
   "author": "",
   "license": "ISC",

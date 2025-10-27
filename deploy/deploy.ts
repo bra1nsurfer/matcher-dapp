@@ -83,27 +83,15 @@ const leverage: Account = {
     address: e.LEVERAGE_ADDRESS ? e.LEVERAGE_ADDRESS : "",
 }
 
+const deployPromises = [
+    broadcastNewScript('./ride/matcher-validator.ride', validator),
+    broadcastNewScript('./ride/matcher-factory.ride', factory),
+    broadcastNewScript('./ride/matcher-spot.ride', spot),
+    broadcastNewScript('./ride/matcher-treasury.ride', treasury),
+    broadcastNewScript('./ride/matcher-pool.ride', pool),
+    broadcastNewScript('./ride/matcher-leverage.ride', leverage),
+]
 
-broadcastNewScript('./ride/matcher-validator.ride', validator)
-    .then(res => console.log(res))
-    .catch(e => console.error(e));
-
-broadcastNewScript('./ride/matcher-factory.ride', factory)
-    .then(res => console.log(res))
-    .catch(e => console.error(e));
-
-broadcastNewScript('./ride/matcher-spot.ride', spot)
-    .then(res => console.log(res))
-    .catch(e => console.error(e));
-
-broadcastNewScript('./ride/matcher-treasury.ride', treasury)
-    .then(res => console.log(res))
-    .catch(e => console.error(e));
-
-broadcastNewScript('./ride/matcher-pool.ride', pool)
-    .then(res => console.log(res))
-    .catch(e => console.error(e));
-
-broadcastNewScript('./ride/matcher-leverage.ride', leverage)
+Promise.all(deployPromises)
     .then(res => console.log(res))
     .catch(e => console.error(e));
