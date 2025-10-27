@@ -34,7 +34,7 @@ function getScript(address: string) {
 
 function broadcastNewScript(newScriptFilename: string, account: Account) {
     if (account.seed == "") return Promise.reject(new Error(`${newScriptFilename}: empty seed`))
-    if (account.address == "") return Promise.reject(new Error(`${newScriptFilename}: empty seed`))
+    if (account.address == "") return Promise.reject(new Error(`${newScriptFilename}: empty address`))
 
     return getScript(account.address).then(oldScript => {
         return compile(newScriptFilename).then(newScript => {
