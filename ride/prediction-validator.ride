@@ -1,0 +1,765 @@
+{-# STDLIB_VERSION 7 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let SEP = "__"
+
+let CONTRACT_NAME = "prediction-validator.ride"
+
+func wrapErr(s: String) = {
+  CONTRACT_NAME + ": " + s
+}
+
+func throwErr(s: String) = {
+  throw(wrapErr(s))
+}
+
+let PENDING       = "PENDING"
+let WAVES         = "WAVES"
+let wavesSignType = "waves-sign"
+let ecdsaSignType = "ecdsa-sign"
+let MAKER         = "maker"
+let TAKER         = "taker"
+let DEC8          = 1_0000_0000
+let PRICE_UNIT    = 1_000_000
+
+
+# ORDER STATUS
+let O_OPEN     = 0
+let O_FILLED   = 1
+let O_CANCELED = 2
+
+# ORDER TYPE
+let O_SPOT       = 0
+let O_LEVERAGE   = 1
+let O_MARGIN     = 2
+let O_PREDICTION = 3
+
+# ORDER DIRECTION
+let ORDER_DIR_BUY  = "buy"
+let ORDER_DIR_SELL = "sell"
+
+# PREDICTION DIR
+let P_DIR_YES = "yes"
+let P_DIR_NO  = "no"
+
+let kFactoryAddress = ["%s", "factoryAddress"].makeString(SEP)
+let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
+
+let kForceStop = ["%s", "forceStop"].makeString(SEP)
+let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
+
+let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
+let matcherPublicKey  = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
+
+let (NETWORK, CUR_TIMESTAMP) = match (blockInfoByHeight(height)) {
+  case a:BlockInfo => (a.generator.bytes.drop(1).take(1), a.timestamp)
+  case _ => throwErr("network byte error: block is not found")
+}
+
+let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
+let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
+    case s:String => s.split_4C(SEP)
+    case _ => []  
+  }
+
+let keyIdCounter = ["%s", "counter"].makeString(SEP)
+let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
+
+func keyInternalIdToOrderId(internalId: Int) = ["%s%d", "internalId", internalId.toString()].makeString(SEP)
+func keyOrderRemaining(orderId: String)      = ["%s%s", "orderRemaining", orderId].makeString(SEP)
+func keyOrderStatus(orderId: String)         = ["%s%s", "orderStatus", orderId].makeString(SEP)
+
+func amountAssetToPriceAsset(amount: Int, price: Int) = {
+  fraction(amount, price, DEC8, DOWN)
+}
+
+func priceAssetToAmountAsset(priceAssetAmount: Int, price: Int) = {
+  fraction(priceAssetAmount, DEC8, price, CEILING)
+}
+
+func assetIdToString(assetId: ByteVector|Unit) = {
+  match assetId {
+    case b: ByteVector => b.toBase58String()
+    case _: Unit => WAVES
+  }
+}
+
+func stringToAssetId(s: String) = {
+  if (s == WAVES) then unit else s.fromBase58String()
+}
+
+func padBytes(x: ByteVector) = {
+  let a = 0.toBytes()
+  a + a.drop(x.size()) + x
+}
+
+func bytesToInt(x: ByteVector) = {
+  x.padBytes().toBigInt().toInt()
+}
+
+func toUint256(n: ByteVector) = {
+  # 32 zeroes
+  let z = base58'11111111111111111111111111111111'
+  let pad = z.drop(n.size())
+  (pad + n)
+}
+
+func toShort(val: ByteVector) = (0.toBytes() + val).takeRight(2)
+func getLenAsShort(val: ByteVector) = val.size().toBytes().takeRight(2)
+func getBytesWithLen(val: ByteVector) = (val.getLenAsShort() + val)
+
+func checkDirections(o1PredictionDir: String, o2PredictionDir: String, o1OrderDir: String, o2OrderDir: String) = {
+  if (o1PredictionDir == o2PredictionDir) 
+    then (o1OrderDir == ORDER_DIR_BUY && o2OrderDir == ORDER_DIR_SELL) || (o1OrderDir == ORDER_DIR_SELL && o2OrderDir == ORDER_DIR_BUY)
+    else (o1OrderDir == ORDER_DIR_BUY && o2OrderDir == ORDER_DIR_BUY) || (o1OrderDir == ORDER_DIR_SELL && o2OrderDir == ORDER_DIR_SELL)
+}
+
+func getEipOrderDataHashV1(orderId: String) = {
+  ### EIP-712
+  ### ABI encoding
+
+  # Constant prefix [25, 1]
+  let prefix = base58'2uN'
+
+  ### Domain typed data
+  ###
+  let domainType = "EIP712Domain(uint256 chainId)".toBytes().keccak256()
+  let domainValue = NETWORK.toUint256()
+  let domain = keccak256(domainType + domainValue)
+
+  ### Message typed data
+  ###
+  let messageType = "Message(string text)".toBytes().keccak256()
+  let messageValue = orderId.toBytes().keccak256()
+  let message = keccak256(messageType + messageValue)
+
+  keccak256(prefix + domain + message)
+}
+
+func getEipOrderDataHashV2(
+    orderData: 
+      (
+        ByteVector, 
+        String, 
+        ByteVector, 
+        ByteVector, 
+        ByteVector|Unit, 
+        ByteVector|Unit, 
+        Int, 
+        String, 
+        Int, 
+        Int, 
+        Int, 
+        Int, 
+        ByteVector
+      )) = {
+  let (
+    networkByte,
+    pubKeyType,
+    senderBytes,
+    matcherBytes,
+    amountAsset,
+    priceAsset,
+    orderType,
+    orderDir,
+    amount,
+    price,
+    timestamp,
+    expiration,
+    flags
+  ) = orderData
+
+  ### EIP-712
+  ### ABI encoding
+
+  # Constant prefix [25, 1]
+  let prefix = base58'2uN'
+
+  ### Domain typed data
+  ###
+  let domainType = "EIP712Domain(uint256 chainId)".toBytes().keccak256()
+  let domainValue = NETWORK.toUint256()
+  let domain = keccak256(domainType + domainValue)
+
+  ### Message typed data
+  ###
+  let messageType     = "TypedData(int64 version,string network,string sender,string matcherPublicKey,string amountAssetId,string priceAssetId,int64 orderType,string orderDirection,int64 amount,int64 price,int64 timestamp,int64 expiration,int64 flags)".toBytes().keccak256()
+  let versionHash     = 2.toBytes().toUint256()
+  let networkHash     = networkByte.keccak256()
+  let senderHash      = senderBytes.toBase58String().toBytes().keccak256()
+  let matcherHash     = matcherPublicKey.toBase58String().toBytes().keccak256()
+  let amountAssetHash = amountAsset.assetIdToString().toBytes().keccak256()
+  let priceAssetHash  = priceAsset.assetIdToString().toBytes().keccak256()
+  let orderTypeHash   = orderType.toBytes().toUint256()
+  let orderDirHash    = orderDir.toBytes().keccak256()
+  let amountHash      = amount.toBytes().toUint256()
+  let priceHash       = price.toBytes().toUint256()
+  let timestampHash   = timestamp.toBytes().toUint256()
+  let expirationHash  = expiration.toBytes().toUint256()
+  let flagsHash       = flags.toUint256()
+
+  let message = keccak256(
+    messageType + 
+    versionHash +
+    networkHash +
+    senderHash +
+    matcherHash +
+    amountAssetHash +
+    priceAssetHash +
+    orderTypeHash +
+    orderDirHash +
+    amountHash +
+    priceHash +
+    timestampHash +
+    expirationHash +
+    flagsHash
+    )
+
+
+  keccak256(prefix + domain + message)
+}
+
+func getOrderBytesV2(
+    orderData: 
+      (
+        ByteVector, 
+        String, 
+        ByteVector, 
+        ByteVector, 
+        ByteVector|Unit, 
+        ByteVector|Unit, 
+        Int, 
+        String, 
+        Int, 
+        Int, 
+        Int, 
+        Int, 
+        ByteVector
+      )) = {
+  let (
+    networkByte,
+    pubKeyType,
+    senderBytes,
+    matcherBytes,
+    amountAsset,
+    priceAsset,
+    orderType,
+    orderDir,
+    amount,
+    price,
+    timestamp,
+    expiration,
+    flags
+  ) = orderData
+
+  # Signer padding V2
+  # Prefix: [255, 255, 255, 2]
+  let prefix = base58'7YXq4u'
+
+  let LONG    = 0.toBytes().takeRight(1)
+  let BOOLEAN = 1.toBytes().takeRight(1)
+  let BYTES   = 2.toBytes().takeRight(1)
+  let STRING  = 3.toBytes().takeRight(1)
+
+  let versionKey   = "version".toBytes()
+  let versionValue = 2.toBytes()
+
+  let networkKey   = "network".toBytes()
+  let networkValue = networkByte
+
+  let senderKey   = "sender".toBytes()
+  let senderValue = senderBytes.toBase58String().toBytes()
+
+  let matcherKey   = "matcherPublicKey".toBytes()
+  let matcherValue = matcherBytes.toBase58String().toBytes()
+
+  let amountAssetKey = "amountAssetId".toBytes()
+  let amountAssetValue = amountAsset.assetIdToString().toBytes()
+
+  let priceAssetKey   = "priceAssetId".toBytes()
+  let priceAssetValue = priceAsset.assetIdToString().toBytes()
+
+  let orderTypeKey   = "orderType".toBytes()
+  let orderTypeValue = orderType.toBytes()
+
+  let orderDirKey   = "orderDirection".toBytes()
+  let orderDirValue = orderDir.toBytes()
+
+  let amountKey   = "amount".toBytes()
+  let amountValue = amount.toBytes()
+
+  let priceKey   = "price".toBytes()
+  let priceValue = price.toBytes()
+
+  let timestampKey   = "timestamp".toBytes()
+  let timestampValue = timestamp.toBytes()
+
+  let expirationKey   = "expiration".toBytes()
+  let expirationValue = expiration.toBytes()
+
+  let flagsKey   = "flags".toBytes()
+  let flagsValue = flags
+
+  prefix + 13.toBytes().toShort() + # 13 - amount of fields in order
+  versionKey.getBytesWithLen() + LONG + versionValue +
+  networkKey.getBytesWithLen() + STRING + networkValue.getBytesWithLen() +
+  senderKey.getBytesWithLen() + STRING + senderValue.getBytesWithLen() +
+  matcherKey.getBytesWithLen() + STRING + matcherValue.getBytesWithLen() +
+  amountAssetKey.getBytesWithLen() + STRING + amountAssetValue.getBytesWithLen() +
+  priceAssetKey.getBytesWithLen() + STRING + priceAssetValue.getBytesWithLen() +
+  orderTypeKey.getBytesWithLen() + LONG + orderTypeValue +
+  orderDirKey.getBytesWithLen() + STRING + orderDirValue.getBytesWithLen() +
+  amountKey.getBytesWithLen() + LONG + amountValue +
+  priceKey.getBytesWithLen() + LONG + priceValue +
+  timestampKey.getBytesWithLen() + LONG + timestampValue +
+  expirationKey.getBytesWithLen() + LONG + expirationValue +
+  flagsKey.getBytesWithLen() + LONG + flagsValue
+}
+
+func checkSignV1(orderId: String, proof: ByteVector, pubKey: (String, ByteVector)) = {
+  let (pubKeyType, senderBytes) = pubKey
+
+  let wavesCheck = if (pubKeyType == wavesSignType) 
+    then {
+      # Signer padding 
+      # Prefix: [255, 255, 255, 1]
+      let prefix = base58'7YXq4t'
+      let orderIdBytes = prefix + orderId.toBytes()
+      (sigVerify(orderIdBytes, proof, senderBytes))
+    }
+    else false
+  let ecdsaCheck = if (pubKeyType == ecdsaSignType) 
+    then {
+      let address = Address(senderBytes)
+      let orderDataHash = getEipOrderDataHashV1(orderId)
+      (ecrecover(orderDataHash, proof).addressFromPublicKey() == address)
+    }
+    else false
+  
+  wavesCheck || ecdsaCheck
+}
+
+func checkSignV2(
+    orderData: 
+      (
+        ByteVector, 
+        String, 
+        ByteVector, 
+        ByteVector, 
+        ByteVector|Unit, 
+        ByteVector|Unit, 
+        Int, 
+        String, 
+        Int, 
+        Int, 
+        Int, 
+        Int, 
+        ByteVector
+      ),
+    proof: ByteVector, 
+    pubKey: (String, ByteVector)) = {
+  let (pubKeyType, senderBytes) = pubKey
+  let wavesCheck = if (pubKeyType == wavesSignType) 
+    then {
+      let signedBytes = getOrderBytesV2(orderData)
+      (sigVerify(signedBytes, proof, senderBytes))
+    }
+    else false
+  let ecdsaCheck = if (pubKeyType == ecdsaSignType) 
+    then {
+      let address = Address(senderBytes)
+      let orderDataHash = getEipOrderDataHashV2(orderData)
+      (ecrecover(orderDataHash, proof).addressFromPublicKey() == address)
+    }
+    else false
+  
+  wavesCheck || ecdsaCheck
+}
+
+func parseOrderV1(orderBytes: ByteVector) = {
+  let networkByte = orderBytes.drop(1).take(1)
+  let data1 = orderBytes.drop(2)
+  
+  # Waves pubKey or address (EIP-712)
+  let senderFlag = data1.take(1).bytesToInt()
+  let data2 = data1.drop(1)
+  let (senderBytesLen, pubKeyType) = if(senderFlag == 0) 
+    then (32, wavesSignType) 
+    else (26, ecdsaSignType)
+  let senderBytes = data2.take(senderBytesLen)
+  let data3 = data2.drop(senderBytesLen)
+
+  let matcherBytesLen = 32
+  let matcherBytes = data3.take(matcherBytesLen)
+  let data4 = data3.drop(matcherBytesLen)
+
+  let amountAssetFlag = data4.take(1).bytesToInt()
+  let data5 = data4.drop(1)
+  let amountAssetLen = if(amountAssetFlag == 0) then 0 else 32
+  let amountAsset = if(amountAssetLen == 0) then unit else data5.take(amountAssetLen)
+  let data6 = data5.drop(amountAssetLen)
+
+  let priceAssetFlag = data6.take(1).bytesToInt()
+  let data7 = data6.drop(1)
+  let priceAssetLen = if(priceAssetFlag == 0) then 0 else 32
+  let priceAsset = if(priceAssetLen == 0) then unit else data7.take(priceAssetLen)
+  let data8 = data7.drop(priceAssetLen)
+
+  let orderType = data8.take(1).bytesToInt()
+  let data9 = data8.drop(1)
+
+  let orderDirByte = data9.take(1).bytesToInt()
+  let orderDir = if (orderDirByte == 0) then ORDER_DIR_BUY else ORDER_DIR_SELL
+  let data10 = data9.drop(1)
+
+  let amount = data10.take(8).bytesToInt()
+  let data11 = data10.drop(8)
+
+  let price = data11.take(8).bytesToInt()
+  let data12 = data11.drop(8)
+
+  let timestamp = data12.take(8).bytesToInt()
+  let data13 = data12.drop(8)
+  
+  let expiration = data13.take(8).bytesToInt()
+  let data14 = data13.drop(8)
+
+  let flags = data14.take(8)
+
+  let (p_dir, realPrice) = if (price < 0) then (P_DIR_NO, PRICE_UNIT-price) else (P_DIR_YES, price)
+  
+  (
+    (
+      networkByte,
+      pubKeyType,
+      senderBytes,
+      matcherBytes,
+      amountAsset,
+      priceAsset,
+      orderType,
+      orderDir,
+      amount,
+      price,
+      timestamp,
+      expiration,
+      flags
+    ),
+    p_dir,
+    realPrice
+  )
+}
+
+func parseOrder(orderBytes: ByteVector, proof: ByteVector) = {
+  let version = orderBytes.take(1).bytesToInt()
+
+  let (orderData, p_dir, realPrice) = if (version == 1 || version == 2) 
+    then parseOrderV1(orderBytes) 
+    else throwErr("order version is not supported")
+  let orderId = sha256(orderBytes).toBase58String()
+  let orderStatus = this.getInteger(keyOrderStatus(orderId)).valueOrElse(O_OPEN)
+  let (pubKeyType, pubKey) = (orderData._2, orderData._3)
+  
+  let signCheck = if (version == 1) 
+    then checkSignV1(orderId, proof, (pubKeyType, pubKey))
+    else if (version == 2) 
+      then checkSignV2(orderData, proof, (pubKeyType, pubKey))
+      else false
+
+  strict check = [
+    signCheck || throwErr(["order proof is not valid ", orderId].makeString(" "))
+  ]
+
+  (orderData, orderId, orderStatus, p_dir, realPrice)
+}
+
+func getRemainingAmount(orderId: String, fullAmount: Int) = {
+  let remainingAmount = this.getInteger(keyOrderRemaining(orderId)).valueOrElse(fullAmount)
+  let filled = max([fullAmount - remainingAmount, 0])
+
+  (remainingAmount, filled)
+}
+
+func matchOrders(
+  o1Bytes       : ByteVector,
+  o1proof       : ByteVector,
+  o2Bytes       : ByteVector,
+  o2proof       : ByteVector,
+  matchAmount   : Int,
+  matchPrice    : Int,
+  makerFeeAsset : String,
+  makerFeeAmount: Int,
+  takerFeeAsset : String,
+  takerFeeAmount: Int
+  ) = {
+
+  ### parseOrder._1 struct
+  #   ._1  networkByte,
+  #   ._2  pubKeyType,
+  #   ._3  senderBytes,
+  #   ._4  matcherBytes,
+  #   ._5  amountAsset,
+  #   ._6  priceAsset,
+  #   ._7  orderType,
+  #   ._8  orderDirection,
+  #   ._9  amount,
+  #   ._10 price,
+  #   ._11 timestamp (nonce)
+  #   ._12 expiration | 0
+  #   ._13 flags
+  let o1 = parseOrder(o1Bytes, o1proof)
+  let o2 = parseOrder(o2Bytes, o2proof)
+
+  # let (bO, bFeeType, bFeeAsset, bFeeAmount, sO, sFeeType, sFeeAsset, sFeeAmount) = 
+    # if (o1._1._8 == ORDER_DIR_BUY) 
+      # then (o1, MAKER, makerFeeAsset, makerFeeAmount, o2, TAKER, takerFeeAsset, takerFeeAmount) 
+      # else (o2, TAKER, takerFeeAsset, takerFeeAmount, o1, MAKER, makerFeeAsset, makerFeeAmount)
+  let (order1, buyOrderId, buyOrderStatus, buyOrderPredDir, buyOrderRealPrice) = o1
+  let (sellOrder, sellOrderId, sellOrderStatus, sellOrderPredDir, sellOrderRealPrice) = o2
+
+  let buyOrderNetwork      = order1._1
+  let buyOrderPubKeyType   = order1._2
+  let buyOrderSenderBytes  = order1._3
+  let buyOrderMatcherBytes = order1._4
+  let buyOrderAmountAsset  = order1._5
+  let buyOrderPriceAsset   = order1._6
+  let buyOrderType         = order1._7
+  let buyOrderDir          = order1._8
+  let buyOrderFullAmount   = order1._9
+  let buyOrderPrice        = buyOrderRealPrice
+  let buyOrderNonce        = order1._11
+  let buyOrderExpiration   = order1._12
+  let buyOrderFlags        = order1._13
+  
+  let sellOrderNetwork      = sellOrder._1
+  let sellOrderPubKeyType   = sellOrder._2
+  let sellOrderSenderBytes  = sellOrder._3
+  let sellOrderMatcherBytes = sellOrder._4
+  let sellOrderAmountAsset  = sellOrder._5
+  let sellOrderPriceAsset   = sellOrder._6
+  let sellOrderType         = sellOrder._7
+  let sellOrderDir          = sellOrder._8
+  let sellOrderFullAmount   = sellOrder._9
+  let sellOrderPrice        = sellOrderRealPrice
+  let sellOrderNonce        = sellOrder._11
+  let sellOrderExpiration   = sellOrder._12
+  let sellOrderFlags        = sellOrder._13
+
+  strict validation = [
+    (buyOrderNetwork == NETWORK && sellOrderNetwork == NETWORK) || throwErr("network byte is not valid"),
+    (buyOrderMatcherBytes == matcherPublicKey) || throwErr("buy order matcher bytes does not match"),
+    (sellOrderMatcherBytes == matcherPublicKey) || throwErr("sell order matcher bytes does not match"),
+    (buyOrderAmountAsset == sellOrderAmountAsset) || throwErr("amount asset Id does not match"),
+    (buyOrderPriceAsset == sellOrderPriceAsset) || throwErr("price asset Id does not match"),
+    (buyOrderPrice <= PRICE_UNIT && buyOrderPrice > 0) || throwErr("invalid order price"),
+    (sellOrderPrice <= PRICE_UNIT && sellOrderPrice > 0) || throwErr("invalid order price"),
+    # (buyOrderType == sellOrderType) || throwErr("order type does not match"),
+    # (buyOrderDir == orderDirBuy) || throwErr("buy order direction byte is not valid"),
+    # (sellOrderDir == orderDirSell) || throwErr("sell order direction byte is not valid"),
+    # (matchPrice <= buyOrderPrice) || throwErr("buy order price error"),
+    # (matchPrice >= sellOrderPrice) || throwErr("sell order price error"),
+    (buyOrderExpiration == 0 || buyOrderExpiration >= CUR_TIMESTAMP) || throwErr("buy order is expired"),
+    (sellOrderExpiration == 0 || sellOrderExpiration >= CUR_TIMESTAMP) || throwErr("sell order is expired"),
+    (buyOrderStatus == O_OPEN) || throwErr("buy order is closed"),
+    (sellOrderStatus == O_OPEN) || throwErr("sell order is closed"),
+    (buyOrderId != sellOrderId) || throwErr("buy order and sell order are the same"),
+    # (buyOrderAmountAsset != buyOrderPriceAsset) || throwErr("amount asset and price asset are the same"),
+    # (allowedAssets.containsElement(buyOrderAmountAsset.assetIdToString())) || throwErr("amount asset not in the allowed list"),
+    (allowedAssets.containsElement(buyOrderPriceAsset.assetIdToString())) || throwErr("price asset not in the allowed list")
+  ]
+
+  let buyOrderSenderAddress = 
+    if(buyOrderPubKeyType == ecdsaSignType) 
+    then Address(buyOrderSenderBytes) 
+    else addressFromPublicKey(buyOrderSenderBytes)
+  let sellOrderSenderAddress = 
+    if(sellOrderPubKeyType == ecdsaSignType) 
+    then Address(sellOrderSenderBytes) 
+    else addressFromPublicKey(sellOrderSenderBytes)
+
+  let (buyRawRemaining, _buyFilled) = getRemainingAmount(buyOrderId, buyOrderFullAmount)
+  let (sellRawRemaining, _sellFilled) = getRemainingAmount(sellOrderId, sellOrderFullAmount)
+
+  # If order fee asset is the same as order sending asset
+  # decrease order amount by fee
+  let buyRemaining = 
+    if (buyOrderPriceAsset.assetIdToString() == makerFeeAsset) 
+    then (buyRawRemaining - priceAssetToAmountAsset(makerFeeAmount, buyOrderPrice)) 
+    else buyRawRemaining
+  let sellRemaining = 
+    if (sellOrderAmountAsset.assetIdToString() == takerFeeAsset)
+    then (sellRawRemaining - takerFeeAmount)
+    else sellRawRemaining
+
+  # If matchAmount is set to `-1`, match orders with maximum available amount
+  let realMatchAmount = if (matchAmount == -1) then min([buyRemaining, sellRemaining]) else matchAmount
+
+  strict check2 = [
+    realMatchAmount >= 0 || "cannot match negative amount".throwErr(),
+    realMatchAmount <= buyRemaining || ["matched amount exceeds buy order remaining amount (", buyRemaining.toString(), ")"].makeString("").throwErr(),
+    realMatchAmount <= sellRemaining || ["matched amount exceeds sell order remaining amount (", sellRemaining.toString(), ")"].makeString("").throwErr()
+  ]
+
+  let matchAmountInPriceAsset = amountAssetToPriceAsset(realMatchAmount, matchPrice)
+
+  let newBuyRemaining  = buyRemaining - realMatchAmount
+  let newSellRemaining = sellRemaining - realMatchAmount
+
+  let newBuyFilled  = buyOrderFullAmount - newBuyRemaining
+  let newSellFilled = sellOrderFullAmount - newSellRemaining
+
+  # Convert remaining amount to price asset at order price
+  let buyPriceAssetRem = amountAssetToPriceAsset(newBuyRemaining, buyOrderPrice)
+  let sellPriceAssetRem = amountAssetToPriceAsset(newSellRemaining, sellOrderPrice)
+
+  (
+    (buyOrderSenderAddress,  realMatchAmount, buyOrderAmountAsset, buyOrderType, MAKER, buyOrderFlags),
+    (sellOrderSenderAddress, matchAmountInPriceAsset, sellOrderPriceAsset, sellOrderType, TAKER, sellOrderFlags),
+    (buyOrderId, newBuyFilled, newBuyRemaining, buyPriceAssetRem), 
+    (sellOrderId, newSellFilled, newSellRemaining, sellPriceAssetRem)
+  )
+}
+
+func getOrderTypeContract(orderType: Int) = {
+  let addressString = factoryAddress.invoke("getOrderTypeContract", [orderType], [])
+  
+  match (addressString) {
+      case s:String => s.addressFromString()
+      case _ => unit
+    }
+}
+
+# o1 - Maker
+# o2 - Taker
+@Callable(i)
+func validateAndExchange(
+  o1bytes       : ByteVector,
+  o1proof       : ByteVector,
+  o2bytes       : ByteVector,
+  o2proof       : ByteVector,
+  matchAmount   : Int,
+  matchPrice    : Int,
+  makerFeeAsset : String,
+  makerFeeAmount: Int,
+  takerFeeAsset : String,
+  takerFeeAmount: Int
+  ) = {
+  
+  let (buyTransfer, sellTransfer, buyOrderState, sellOrderState) = 
+    matchOrders(
+      o1bytes, 
+      o1proof, 
+      o2bytes, 
+      o2proof, 
+      matchAmount, 
+      matchPrice, 
+      makerFeeAsset,
+      makerFeeAmount,
+      takerFeeAsset,
+      takerFeeAmount
+    )
+
+  # Order state
+  let buyOrderId            = buyOrderState._1
+  let buyOrderFilled        = buyOrderState._2
+  let buyOrderRemaining     = buyOrderState._3
+  let buyOrderPriceAssetRem = buyOrderState._4
+
+  let sellOrderId            = sellOrderState._1
+  let sellOrderFilled        = sellOrderState._2
+  let sellOrderRemaining     = sellOrderState._3
+  let sellOrderPriceAssetRem = sellOrderState._4
+
+  # Matched values
+  let buyerAddress = buyTransfer._1
+  let asset1Amount = buyTransfer._2
+  let asset1Id     = buyTransfer._3
+  let buyOrderType = buyTransfer._4
+  let buyerFeeType = buyTransfer._5
+  let buyerFlags   = buyTransfer._6
+
+  let sellerAddress = sellTransfer._1
+  let asset2Amount  = sellTransfer._2
+  let asset2Id      = sellTransfer._3
+  let sellOrderType = sellTransfer._4
+  let sellerFeeType = sellTransfer._5
+  let sellerFlags   = sellTransfer._6
+
+  strict checks = [
+    # TODO: Enable after testing
+    # i.callerPublicKey == matcherPublicKey || throwErr("permission denied"),
+    !forceStop || throwErr("contract is temporary stopped"),
+    asset1Amount > 0 || throwErr("cannot send zero to buyer"),
+    asset2Amount > 0 || throwErr("cannot send zero to seller")
+  ]
+
+  let (buyOrderInternalId, buyOrderIdAction) = 
+    if(isDefined(this.getInteger(keyOrderRemaining(buyOrderId))))
+    then (O_COUNTER, nil)
+    else (O_COUNTER+1, [StringEntry(keyInternalIdToOrderId(O_COUNTER+1), buyOrderId)])
+
+  let (sellOrderInternalId, sellOrderIdAction) = 
+    if(isDefined(this.getInteger(keyOrderRemaining(sellOrderId))))
+    then (buyOrderInternalId, nil)
+    else (buyOrderInternalId+1, [StringEntry(keyInternalIdToOrderId(buyOrderInternalId+1), sellOrderId)])
+
+  let counterAction = 
+    if(O_COUNTER != sellOrderInternalId) 
+    then [IntegerEntry(keyIdCounter, sellOrderInternalId)]
+    else nil
+
+  let orderTypeContract = getOrderTypeContract(buyOrderType).valueOrErrorMessage("order type contract error")
+  let (buyerFeeAsset, buyerFee, sellerFeeAsset, sellerFee) = 
+    if (buyerFeeType == MAKER) 
+    then (makerFeeAsset, makerFeeAmount, takerFeeAsset, takerFeeAmount) 
+    else (takerFeeAsset, takerFeeAmount, makerFeeAsset, makerFeeAmount)
+
+  # asset1 (amount asset) goes to buyer
+  # asset2 (price asset) goes to seller
+  strict exchange = [
+    orderTypeContract.invoke(
+      "exchange",
+      [
+        buyerAddress.toString(),
+        buyerFeeType,
+        buyerFeeAsset,
+        buyerFee,
+        sellerAddress.toString(),
+        sellerFeeType,
+        sellerFeeAsset,
+        sellerFee,
+        asset1Amount,
+        asset1Id.assetIdToString(),
+        asset2Amount,
+        asset2Id.assetIdToString(),
+        buyerFlags,
+        sellerFlags
+      ],
+      []
+    )
+  ]
+
+  # Set remaining amount to `0` if it's fully filled
+  let (buyOrderStatusAction, buyOrderRealRemaining) = 
+    if (buyOrderPriceAssetRem <= 0) 
+    then ([IntegerEntry(keyOrderStatus(buyOrderId), O_FILLED)], 0)
+    else (nil, buyOrderRemaining)
+
+  let (sellOrderStatusAction, sellOrderRealRemaining) =
+    if (sellOrderPriceAssetRem <= 0) 
+    then ([IntegerEntry(keyOrderStatus(sellOrderId), O_FILLED)], 0) 
+    else (nil, sellOrderRemaining)
+
+  let updateOrderActions = [
+    IntegerEntry(keyOrderRemaining(buyOrderId), buyOrderRealRemaining),
+    IntegerEntry(keyOrderRemaining(sellOrderId), sellOrderRealRemaining)
+  ]
+
+  updateOrderActions ++ 
+  buyOrderIdAction ++
+  sellOrderIdAction ++
+  counterAction ++
+  buyOrderStatusAction ++
+  sellOrderStatusAction
+}
