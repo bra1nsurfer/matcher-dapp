@@ -83,6 +83,16 @@ const leverage: Account = {
     address: e.LEVERAGE_ADDRESS ? e.LEVERAGE_ADDRESS : "",
 }
 
+const prediction: Account = {
+    seed: e.PREDICTION_SEED ? e.PREDICTION_SEED : "",
+    address: e.PREDICTION_ADDRESS ? e.PREDICTION_ADDRESS : "",
+}
+
+const predictionValidator: Account = {
+    seed: e.PREDICTION_VALIDATOR_SEED ? e.PREDICTION_VALIDATOR_SEED : "",
+    address: e.PREDICTION_VALIDATOR_ADDRESS ? e.PREDICTION_VALIDATOR_ADDRESS : "",
+}
+
 const deployPromises = [
     broadcastNewScript('./ride/matcher-validator.ride', validator),
     broadcastNewScript('./ride/matcher-factory.ride', factory),
@@ -90,6 +100,8 @@ const deployPromises = [
     broadcastNewScript('./ride/matcher-treasury.ride', treasury),
     broadcastNewScript('./ride/matcher-pool.ride', pool),
     broadcastNewScript('./ride/matcher-leverage.ride', leverage),
+    broadcastNewScript('./ride/matcher-prediction.ride', prediction),
+    broadcastNewScript('./ride/prediction-validator.ride', predictionValidator),
 ]
 
 Promise.all(deployPromises)

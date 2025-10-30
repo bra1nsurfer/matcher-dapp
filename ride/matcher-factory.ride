@@ -13,14 +13,17 @@ func throwErr(s: String) = {
   throw(wrapErr(s))
 }
 
-let kForceStop        = ["%s", "forceStop"].makeString(SEP)
-let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
-let kValidatorAddress = ["%s", "validatorAddress"].makeString(SEP)
-let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
-let kPoolAddress      = ["%s", "poolAddress"].makeString(SEP)
-let kSpotAddress      = ["%s", "spotAddress"].makeString(SEP)
-let kLeverageAddress  = ["%s", "leverageAddress"].makeString(SEP)
-let kWithdrawDelay    = ["%s", "withdrawDelay"].makeString(SEP)
+let kForceStop                  = ["%s", "forceStop"].makeString(SEP)
+let kMatcherPublicKey           = ["%s", "matcherPublicKey"].makeString(SEP)
+let kValidatorAddress           = ["%s", "validatorAddress"].makeString(SEP)
+let kPredictionValidatorAddress = ["%s", "predictionValidatorAddress"].makeString(SEP)
+let kTreasuryAddress            = ["%s", "treasuryAddress"].makeString(SEP)
+let kPoolAddress                = ["%s", "poolAddress"].makeString(SEP)
+let kSpotAddress                = ["%s", "spotAddress"].makeString(SEP)
+let kLeverageAddress            = ["%s", "leverageAddress"].makeString(SEP)
+let kMarginAddress              = ["%s", "marginAddress"].makeString(SEP)
+let kPredictionAddress          = ["%s", "predictionAddress"].makeString(SEP)
+let kWithdrawDelay              = ["%s", "withdrawDelay"].makeString(SEP)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (this.getString(kAllowedAssets)) {
@@ -34,9 +37,10 @@ let maxLeverageValue  = this.getInteger(kLeverageValue).valueOrElse(1)
 func kUserLeverage(user: String) = ["%s%s", "leverage", user].makeString(SEP)
 
 let contractsList = [
-    this.getString(kSpotAddress).valueOrElse(""),     # spot
-    this.getString(kLeverageAddress).valueOrElse(""), # leverage
-    ""                                                # margin
+    this.getString(kSpotAddress).valueOrElse(""),      # spot
+    this.getString(kLeverageAddress).valueOrElse(""),  # leverage
+    "",                                                # margin
+    this.getString(kPredictionAddress).valueOrElse("") # prediction
   ]
 
 func setLeverageHelper(user: String, leverage: Int) = {
@@ -51,25 +55,39 @@ func setLeverageHelper(user: String, leverage: Int) = {
 
 @Callable(i)
 func init(
-    matcherPublicKey : String,
-    validatorContract: String,
-    treasuryContract : String,
-    poolContract     : String,
-    spotContract     : String,
-    leverageContract : String
+    matcherPublicKey          : String,
+    validatorAddress          : String,
+    predictionValidatorAddress: String,
+    treasuryAddress           : String,
+    poolAddress               : String,
+    spotAddress               : String,
+    leverageAddress           : String,
+    marginAddress             : String,
+    predictionAddress         : String
   ) = {
   strict check = [
     i.caller == this || throwErr("permission denied")
   ]
 
-  let pubKey    = if (matcherPublicKey  == "") then [] else [StringEntry(kMatcherPublicKey, matcherPublicKey)]
-  let validator = if (validatorContract == "") then [] else [StringEntry(kValidatorAddress, validatorContract)]
-  let treasury  = if (treasuryContract  == "") then [] else [StringEntry(kTreasuryAddress, treasuryContract)]
-  let pool      = if (poolContract      == "") then [] else [StringEntry(kPoolAddress, poolContract)]
-  let spot      = if (spotContract      == "") then [] else [StringEntry(kSpotAddress, spotContract)]
-  let leverage  = if (leverageContract  == "") then [] else [StringEntry(kLeverageAddress, leverageContract)]
+  let pubKey              = if (matcherPublicKey           == "") then [] else [StringEntry(kMatcherPublicKey, matcherPublicKey)]
+  let validator           = if (validatorAddress           == "") then [] else [StringEntry(kValidatorAddress, validatorAddress)]
+  let predictionValidator = if (predictionValidatorAddress == "") then [] else [StringEntry(kPredictionValidatorAddress, predictionValidatorAddress)]
+  let treasury            = if (treasuryAddress            == "") then [] else [StringEntry(kTreasuryAddress, treasuryAddress)]
+  let pool                = if (poolAddress                == "") then [] else [StringEntry(kPoolAddress, poolAddress)]
+  let spot                = if (spotAddress                == "") then [] else [StringEntry(kSpotAddress, spotAddress)]
+  let leverage            = if (leverageAddress            == "") then [] else [StringEntry(kLeverageAddress, leverageAddress)]
+  let margin              = if (marginAddress              == "") then [] else [StringEntry(kMarginAddress, marginAddress)]
+  let prediction          = if (predictionAddress          == "") then [] else [StringEntry(kPredictionAddress, predictionAddress)]
 
-  validator ++ pubKey ++ spot ++ treasury ++ pool ++ leverage
+  pubKey ++ 
+  validator ++ 
+  predictionValidator ++ 
+  spot ++ 
+  treasury ++ 
+  pool ++ 
+  leverage ++ 
+  margin ++ 
+  prediction
 }
 
 @Callable(i)

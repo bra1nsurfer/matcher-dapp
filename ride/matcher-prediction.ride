@@ -1,0 +1,112 @@
+{-# STDLIB_VERSION 7 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let SEP           = "__"
+let CONTRACT_NAME = "matcher-prediction.ride"
+let WAVES         = "WAVES"
+
+# ORDER DIRECTION
+let ORDER_DIR_BUY  = "buy"
+let ORDER_DIR_SELL = "sell"
+
+func wrapErr(s: String) = {
+  CONTRACT_NAME + ": " + s
+}
+
+func throwErr(s: String) = {
+  throw(wrapErr(s))
+}
+
+func assetIdToString(assetId: ByteVector|Unit) = {
+  match assetId {
+    case b: ByteVector => b.toBase58String()
+    case _: Unit => WAVES
+  }
+}
+
+func stringToAssetId(s: String) = {
+  if (s == WAVES) then unit else s.fromBase58String()
+}
+
+let kFactoryAddress      = ["%s", "factoryAddress"].makeString(SEP)
+let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress       = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
+
+let kForceStop = ["%s", "forceStop"].makeString(SEP)
+let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
+
+let kPredictionValidatorAddress = ["%s", "predictionValidatorAddress"].makeString(SEP)
+let predictionValidatorAddress  = factoryAddress.getString(kPredictionValidatorAddress).valueOrElse("")
+let kTreasuryAddress            = ["%s", "treasuryAddress"].makeString(SEP)
+let sTreasuryAddress            = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+let treasuryAddress             = sTreasuryAddress.addressFromStringValue()
+
+let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
+let matcherPublicKey  = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
+let matcherAddress    = matcherPublicKey.addressFromPublicKey()
+let sMatcherAddress   = matcherAddress.toString()
+
+@Callable(i)
+func init(matcherFactory: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [StringEntry(kFactoryAddress, matcherFactory)]
+}
+
+@Callable(i)
+func exchange(
+  makerAddress    : String,
+  makerFeeAsset   : String,
+  makerFeeAmount  : Int,
+  makerMatchAmount: Int,
+  makerEventId    : String,
+  makerPriceAmount: Int,
+  makerPriceAsset : String,
+  makerDir        : String,
+  makerFlags      : Int,
+  takerAddress    : String,
+  takerFeeAsset   : String,
+  takerFeeAmount  : Int,
+  takerMatchAmount: Int,
+  takerEventId    : String,
+  takerPriceAmount: Int,
+  takerPriceAsset : String,
+  takerDir        : String,
+  takerFlags      : Int
+  ) = {
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    i.caller.toString() == predictionValidatorAddress || throwErr("permission denied"),
+    makerAddress != takerAddress || throwErr("buyer and seller is the same")
+  ]
+
+  let (makerAmountBalanceAction, makerPriceBalanceAction) = if (makerDir == ORDER_DIR_BUY)
+    then ("addBalance", "subBalance")
+    else ("subBalance", "addBalance")
+
+  let (takerAmountBalanceAction, takerPriceBalanceAction) = if (takerDir == ORDER_DIR_BUY)
+    then ("addBalance", "subBalance")
+    else ("subBalance", "addBalance")
+
+  (
+    [],
+    [
+      # Maker balance actions
+      treasuryAddress.invoke(makerAmountBalanceAction, [makerAddress, makerEventId, makerMatchAmount], []),
+      treasuryAddress.invoke(makerPriceBalanceAction, [makerAddress, makerPriceAsset, makerPriceAmount], []),
+
+      # Taker balance actions
+      treasuryAddress.invoke(takerAmountBalanceAction, [takerAddress, takerEventId, takerMatchAmount], []),
+      treasuryAddress.invoke(takerPriceBalanceAction, [takerAddress, takerPriceAsset, takerPriceAmount], []),
+
+      # Transfer fee to Matcher
+      treasuryAddress.invoke("subBalance", [takerAddress, takerFeeAsset, takerFeeAmount], []),
+      treasuryAddress.invoke("transferTo", [sMatcherAddress, takerFeeAsset, takerFeeAmount], []),
+      treasuryAddress.invoke("subBalance", [makerAddress, makerFeeAsset, makerFeeAmount], []),
+      treasuryAddress.invoke("transferTo", [sMatcherAddress, makerFeeAsset, makerFeeAmount], [])
+    ]
+  )
+}
