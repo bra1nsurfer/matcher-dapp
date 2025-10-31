@@ -49,12 +49,14 @@ let poolAddress  = factoryAddress.getString(kPoolAddress).valueOrElse("")
 let kPredictionAddress = ["%s", "predictionAddress"].makeString(SEP)
 let predictionAddress = factoryAddress.getString(kPredictionAddress).valueOrElse("")
 
-
 func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
 func getUserBalance(user: String, assetId: String) = this.getInteger(kUserBalance(user, assetId)).valueOrElse(0)
 
 func kUserLoan(user: String, assetId: String) = ["%s%s%s", "loan", user, assetId].makeString(SEP)
 func getUserLoan(user: String, assetId: String) = this.getInteger(kUserLoan(user, assetId)).valueOrElse(0)
+
+func kUserLastWithdrawTx(user: String) = ["%s%s", "lastFastWithdrawTx", user].makeString(SEP)
+func getUserLastWithdrawTx(user: String) = this.getString(kUserLastWithdrawTx(user)).valueOrElse("")
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
@@ -240,6 +242,19 @@ func depositHelper(userAddress: String, i: Invocation) = {
   allActions
 }
 
+func getWithdrawMatcherSignData(lastFastWithdrawTx: String, userAddress: String, assetId: String, amount: Int) = {
+  let assetIdBytes = match (assetId.stringToAssetId()) {
+      case b:ByteVector => b
+      case _ => 0.toBytes().take(1)
+    }
+  # Signer padding 
+  # Prefix: [255, 255, 255, 1]
+  let prefix = base58'7YXq4t'
+  let signData = lastFastWithdrawTx.fromBase58String() + userAddress.fromBase58String() + assetIdBytes + amount.toBytes()
+  
+  prefix + signData
+}
+
 @Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
@@ -276,16 +291,22 @@ func userWithdraw(assetId: String, amount: Int) = {
 }
 
 @Callable(i)
-func matcherWithdraw(user: String, assetId: String, amount: Int) = {
-  let (kBalance, newBalance) = withdrawHelper(user, assetId, amount)
+func fastWithdraw(assetId: String, amount: Int, matcherSignature: String) = {
+  let user = i.caller.toString()
+  let lastFastWithdrawTx = getUserLastWithdrawTx(user)
+  let signData = getWithdrawMatcherSignData(lastFastWithdrawTx, user, assetId, amount)
+  let isApproved = sigVerify(signData, matcherSignature.fromBase58String(), matcherPublicKey)
 
   strict check = [
-    (i.callerPublicKey == matcherPublicKey) || throwErr("matcherWithdraw: permission denied")
+    lastFastWithdrawTx == "" || isApproved || throwErr("fast withdraw is not approved by matcher")
   ]
 
+  let (kBalance, newBalance) = withdrawHelper(user, assetId, amount)
+  
   [
     ScriptTransfer(user.addressFromStringValue(), amount, assetId.stringToAssetId()),
-    IntegerEntry(kBalance, newBalance)
+    IntegerEntry(kBalance, newBalance),
+    StringEntry(kUserLastWithdrawTx(user), i.transactionId.toBase58String())
   ]
 }
 
