@@ -129,6 +129,8 @@ const WX_PROVIDER_URL = "https://testnet.wx.network/signer";
 const ADDRESS_DATA_END = "/addresses/data/";
 const EVAL_END = "/utils/script/evaluate/";
 
+var PREDICTION_MODE = false;
+
 const maker = {
     signer: new Signer({ NODE_URL }),
     signerType: {},
@@ -194,8 +196,10 @@ const taker = {
 const factoryAddressElement = document.getElementById("factoryAddress") as HTMLSpanElement;
 const factoryMatcherPubKeyElement = document.getElementById("factoryMatcherPubKey") as HTMLSpanElement;
 const validatorAddressElement = document.getElementById("validatorAddress") as HTMLSpanElement;
+const predictionValidatorAddressElement = document.getElementById("predictionValidatorAddress") as HTMLSpanElement;
 const spotAddressElement = document.getElementById("spotAddress") as HTMLSpanElement;
 const leverageAddressElement = document.getElementById("leverageAddress") as HTMLSpanElement;
+const predictionAddressElement = document.getElementById("predictionAddress") as HTMLSpanElement;
 const treasuryAddressElement = document.getElementById("treasuryAddress") as HTMLSpanElement;
 const poolAddressElement = document.getElementById("poolAddress") as HTMLSpanElement;
 const depositBlockElement = document.getElementById("depositBlock") as HTMLDivElement;
@@ -299,6 +303,16 @@ function flattenBytes(data: Uint8Array[]): ArrayBuffer {
 }
 
 function updateOrder(order: Order) {
+    var priceMul;
+
+    if (order.orderTypeElement.value == "3") {
+        PREDICTION_MODE = true;
+        priceMul = 1;
+    } else {
+        PREDICTION_MODE = false;
+        priceMul = 1_0000_0000;
+    }
+
     if (Number(order.timestampElement.value) == 0) {
         order.timestampElement.value = `${Math.floor(new Date().getTime() / 1000)}`;
     }
@@ -307,7 +321,7 @@ function updateOrder(order: Order) {
         order.matcherElement.value = factoryMatcherPubKeyElement.innerText;
     }
 
-    order.getAmountElement.value = (Number(order.amountElement.value) * Number(order.priceElement.value) / 1_0000_0000).toString();
+    order.getAmountElement.value = (Number(order.amountElement.value) * Number(order.priceElement.value) / priceMul).toString();
 
     const buffer = encodeOrder(
         order.signerType,
@@ -353,27 +367,33 @@ function getContracts() {
 
     const kMatcherPubKey = "%s__matcherPublicKey";
     const kValidatorAddress = "%s__validatorAddress";
+    const kPredictionValidatorAddress = "%s__predictionValidatorAddress";
     const kTreasuryAddress = "%s__treasuryAddress";
     const kPoolAddress = "%s__poolAddress";
     const kSpotAddress = "%s__spotAddress";
     const kLeverageAddress = "%s__leverageAddress";
+    const kPredictionAddress = "%s__predictionAddress";
 
     factoryMatcherPubKeyElement.innerText = "LOADING...";
     validatorAddressElement.innerText = "LOADING...";
+    predictionValidatorAddressElement.innerText = "LOADING...";
     treasuryAddressElement.innerText = "LOADING...";
     poolAddressElement.innerText = "LOADING...";
     spotAddressElement.innerText = "LOADING...";
     leverageAddressElement.innerText = "LOADING...";
+    predictionAddressElement.innerText = "LOADING...";
 
     fetch(NODE_URL + ADDRESS_DATA_END + FACTORY_ADDRESS)
         .then(res => res.json() as Promise<ContractState>)
         .then(state => {
             factoryMatcherPubKeyElement.innerText = getFromState(state, kMatcherPubKey).toString();
             validatorAddressElement.innerText = getFromState(state, kValidatorAddress).toString();
+            predictionValidatorAddressElement.innerText = getFromState(state, kPredictionValidatorAddress).toString();
             treasuryAddressElement.innerText = getFromState(state, kTreasuryAddress).toString();
             poolAddressElement.innerText = getFromState(state, kPoolAddress).toString();
             spotAddressElement.innerText = getFromState(state, kSpotAddress).toString();
             leverageAddressElement.innerText = getFromState(state, kLeverageAddress).toString();
+            predictionAddressElement.innerText = getFromState(state, kPredictionAddress).toString();
 
             const depositLinkElement = document.createElement("a");
             const depositUrl = `https://waves-dapp.com/${getFromState(state, kTreasuryAddress).toString()}#deposit`;
@@ -610,7 +630,7 @@ signExchangeElement.addEventListener("click", () => {
     exchangeOutputElement.innerText = "";
 
     maker.signer.invoke({
-        dApp: validatorAddressElement.innerText,
+        dApp: PREDICTION_MODE ? predictionValidatorAddressElement.innerText : validatorAddressElement.innerText,
         call: {
             function: "validateAndExchange",
             args: [

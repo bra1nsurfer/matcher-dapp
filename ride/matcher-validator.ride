@@ -740,3 +740,12 @@ func validateAndExchange(
   buyOrderStatusAction ++
   sellOrderStatusAction
 }
+
+@Callable(i)
+func init(matcherFactory: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [StringEntry(kFactoryAddress, matcherFactory)]
+}

@@ -428,7 +428,7 @@ func parseOrderV1(orderBytes: ByteVector) = {
 
   let flags = data14.take(8)
 
-  let (p_dir, realPrice) = if (price < 0) then (P_DIR_NO, PRICE_UNIT-price) else (P_DIR_YES, price)
+  let (p_dir, realPrice) = if (flags.takeRight(1).bytesToInt() == 1) then (P_DIR_NO, PRICE_UNIT-price) else (P_DIR_YES, price)
   
   (
     (
@@ -547,19 +547,21 @@ func matchOrders(
     (makerMatcherBytes == matcherPublicKey) || throwErr("maker order matcher bytes does not match"),
     (takerMatcherBytes == matcherPublicKey) || throwErr("taker order matcher bytes does not match"),
     (makerEventId == takerEventId) || throwErr("event Id does not match"),
-    (makerEventId != unit) || throwErr("invalic event id"),
+    (makerEventId != unit) || throwErr("invalid event id"),
     (makerPriceAsset == takerPriceAsset) || throwErr("price asset Id does not match"),
     (makerPrice <= PRICE_UNIT && makerPrice > 0) || throwErr("invalid maker order price"),
     (takerPrice <= PRICE_UNIT && takerPrice > 0) || throwErr("invalid taker order price"),
-    (makerExpiration == 0 || makerExpiration >= CUR_TIMESTAMP) || throwErr("buy order is expired"),
-    (takerExpiration == 0 || takerExpiration >= CUR_TIMESTAMP) || throwErr("sell order is expired"),
-    (makerStatus == O_OPEN) || throwErr("buy order is closed"),
-    (takerStatus == O_OPEN) || throwErr("sell order is closed"),
-    (makerOrderId != takerOrderId) || throwErr("buy order and sell order are the same"),
+    (makerExpiration == 0 || makerExpiration >= CUR_TIMESTAMP) || throwErr("maker order is expired"),
+    (takerExpiration == 0 || takerExpiration >= CUR_TIMESTAMP) || throwErr("taker order is expired"),
+    (makerStatus == O_OPEN) || throwErr("maker order is closed"),
+    (takerStatus == O_OPEN) || throwErr("taker order is closed"),
+    (makerOrderId != takerOrderId) || throwErr("maker order and taker order are the same"),
     (allowedAssets.containsElement(makerPriceAsset.assetIdToString())) || throwErr("price asset not in the allowed list"),
     (makerType == O_PREDICTION) || throwErr("maker order type must be prediction"),
     (takerType == O_PREDICTION) || throwErr("taker order type must be prediction"),
-    !(makerPredDir == takerPredDir && makerDir == takerDir) || throwErr("invalid prediction and order direction")
+    !(makerPredDir == takerPredDir && makerDir == takerDir) || throwErr("invalid prediction and order direction"),
+    (matchPrice <= makerPrice) || throwErr("match price is higher than maker price"),
+    (matchPrice <= takerPrice) || throwErr("match price is higher than taker price")
   ]
 
   let makerSenderAddress = 

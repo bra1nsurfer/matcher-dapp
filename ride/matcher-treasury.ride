@@ -46,6 +46,10 @@ let validatorAddress  = factoryAddress.getString(kValidatorAddress).valueOrElse(
 let kPoolAddress = ["%s", "poolAddress"].makeString(SEP)
 let poolAddress  = factoryAddress.getString(kPoolAddress).valueOrElse("")
 
+let kPredictionAddress = ["%s", "predictionAddress"].makeString(SEP)
+let predictionAddress = factoryAddress.getString(kPredictionAddress).valueOrElse("")
+
+
 func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
 func getUserBalance(user: String, assetId: String) = this.getInteger(kUserBalance(user, assetId)).valueOrElse(0)
 
@@ -105,13 +109,13 @@ func isUserWithDebt(user: String) = {
   (debt > 0)
 }
 
-func changeBalanceHelper(user: String, assetId: String, amount: Int, add: Boolean) = {
+func changeBalanceHelper(user: String, assetId: String, amount: Int, add: Boolean, isPrediction: Boolean) = {
   let oldBalance = getUserBalance(user, assetId)
   let newBalance = if add then oldBalance + amount else oldBalance - amount
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    allowedAssets.containsElement(assetId) || ["(balance) asset is not allowed", assetId].makeString(" ").throwErr(),
+    isPrediction || allowedAssets.containsElement(assetId) || ["(balance) asset is not allowed", assetId].makeString(" ").throwErr(),
     amount >= 0 || throwErr("amount must be greater or equal to 0"),
     newBalance >= 0 || throwErr(["not enough balance", user, assetId].makeString(" "))
   ]
@@ -162,7 +166,7 @@ func loanPaymentHelper(user: String, assetId: String, amount: Int) = {
     pool.invoke("loanPayment", [user], [AttachedPayment(assetId.stringToAssetId(), amount)])
   ]
 
-  let balanceActions = changeBalanceHelper(user, assetId, amount, false)
+  let balanceActions = changeBalanceHelper(user, assetId, amount, false, false)
   let loanActions = changeLoanHelper(user, assetId, amount, false)
 
   balanceActions ++ loanActions
@@ -178,7 +182,7 @@ func loanBorrowHelper(user: String, assetId: String, amount: Int) = {
   # 0.05 from amount (5%)
   let interest = fraction(amount, 500_0000, DEC8)
 
-  let balanceActions = changeBalanceHelper(user, assetId, amount, true)
+  let balanceActions = changeBalanceHelper(user, assetId, amount, true, false)
   let loanActions = changeLoanHelper(user, assetId, amount+interest, true)
 
   balanceActions ++ loanActions
@@ -302,18 +306,21 @@ func matcherUnlockWithdraw(user: String, txId: String) = {
 
 @Callable(i)
 func subBalance(user: String, assetId: String, amount: Int) = {
+  let callerAddress = i.caller.toString()
   strict check = [
-      orderContractList.containsElement(i.caller.toString()) || throwErr("permission denied")
+      orderContractList.containsElement(callerAddress) || throwErr("permission denied")
   ]
-  changeBalanceHelper(user, assetId, amount, false)
+
+  changeBalanceHelper(user, assetId, amount, false, callerAddress == predictionAddress)
 }
 
 @Callable(i)
 func addBalance(user: String, assetId: String, amount: Int) = {
+  let callerAddress = i.caller.toString()
   strict check = [
-      orderContractList.containsElement(i.caller.toString()) || throwErr("permission denied")
+      orderContractList.containsElement(callerAddress) || throwErr("permission denied")
   ]
-  changeBalanceHelper(user, assetId, amount, true)
+  changeBalanceHelper(user, assetId, amount, true, callerAddress == predictionAddress)
 }
 
 @Callable(i)
