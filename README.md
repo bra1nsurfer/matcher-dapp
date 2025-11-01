@@ -17,18 +17,21 @@
       - [Verify Order V1 for Waves Account](#verify-order-v1-for-waves-account)
     - [EIP-712 (Metamask) Order V1](#eip-712-metamask-order-v1)
       - [Signing Order V1 for EIP-712 (Metamask)](#signing-order-v1-for-eip-712-metamask)
-      - [Verify Order V1 EIP-712 (Metamask)](#verify-order-v1-eip-712-metamask)
+      - [Verify Order for V1 EIP-712 (Metamask)](#verify-order-for-v1-eip-712-metamask)
   - [Proof Order V2](#proof-order-v2)
     - [Waves Account Order V2](#waves-account-order-v2)
       - [Signing Order V2 for Waves Account](#signing-order-v2-for-waves-account)
       - [Verify Order V2 for Waves Account](#verify-order-v2-for-waves-account)
     - [EIP-712 (Metamask) Order V2](#eip-712-metamask-order-v2)
       - [Signing Order V2 for EIP-712 (Metamask)](#signing-order-v2-for-eip-712-metamask)
-      - [Verify Order V2 EIP-712 (Metamask)](#verify-order-v2-eip-712-metamask)
+      - [Verify Order for V2 EIP-712 (Metamask)](#verify-order-for-v2-eip-712-metamask)
+  - [User Balance](#user-balance)
   - [Fast Withdraw](#fast-withdraw)
     - [User Invoke](#user-invoke)
     - [Matcher approval](#matcher-approval)
       - [Withdraw Request Bytes](#withdraw-request-bytes)
+  - [Prediction Market](#prediction-market)
+    - [Prediction Order Bytes](#prediction-order-bytes)
 
 ## Matcher Exchange
 
@@ -65,7 +68,7 @@ func validateAndExchange(
 |  7 |      0 or 32 | if amount asset flag is `0` -> 0 bytes (WAVES) else 32 bytes                                    |
 |  8 |            1 | price asset flag                                                                                |
 |  9 |      0 or 32 | if price asset flag is `0` -> 0 bytes (WAVES) else 32 bytes                                     |
-| 10 |            1 | order type (`0` -> spot, `1` -> leverage, `2` -> margin)                                        |
+| 10 |            1 | order type (`0` -> spot, `1` -> leverage, `2` -> margin, `3` -> prediction)                     |
 | 11 |            1 | order direction `0` -> buying, `1` -> selling                                                   |
 | 12 |            8 | amount                                                                                          |
 | 13 |            8 | price (fixed decimals 10^8)                                                                     |
@@ -136,7 +139,7 @@ ProviderMetamask uses EIP-712 and `signTypedData` version 4 function of MetaMask
 }
 ```
 
-#### Verify Order V1 EIP-712 (Metamask)
+#### Verify Order for V1 EIP-712 (Metamask)
 
 1. Extract waves address from `orderBytes` (sender flag (byte #3) must be `1`)
 1. Using signature and message we can recover user eth-address
@@ -452,7 +455,7 @@ type EipOrderTypedData = {
 }
 ```
 
-#### Verify Order V2 EIP-712 (Metamask)
+#### Verify Order for V2 EIP-712 (Metamask)
 
 1. Extract waves address from `orderBytes` (sender flag (byte #3) must be `1`)
 1. Using signature and message we can recover user eth-address
@@ -484,6 +487,29 @@ const recoveredWavesAddress = ethAddress2waves(recoveredEthAddress);
 return (userAddress == recoveredWavesAddress);
 ```
 
+## User Balance
+
+User balance is store in the Treasure state
+
+Key format:
+
+- `%s%s%s__balance__{userAddress}__{asset}`
+
+Possible `asset`:
+
+- `{assetId}` | `WAVES` | `{EventId}-yes` | `{EventId}-no`
+
+Value type is `Integer`.
+
+User Balance Example:
+
+```txt
+%s%s%s__balance__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT
+%s%s%s__balance__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__WAVES
+%s%s%s__balance__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__11111111111111111111111111111112-yes
+%s%s%s__balance__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__11111111111111111111111111111112-no
+```
+
 ## Fast Withdraw
 
 ### User Invoke
@@ -513,10 +539,22 @@ func fastWithdraw(assetId: String, amount: Int, matcherSignature: String)
 |--:|-------------:|---------------------------------------------------------------|
 | 1 |            4 | prefix (always `[255, 255, 255, 1]`)                          |
 | 2 |      0 or 32 | last withdraw transaction id (0 bytes for the first withdraw) |
-| 2 |           26 | user address                                                  |
-| 3 |            1 | asset flag (value: `0` or `1`)                                |
-| 4 |      0 or 32 | if asset flag is `0` -> 0 bytes (WAVES) else 32 bytes         |
-| 5 |            8 | amount                                                        |
+| 3 |           26 | user address                                                  |
+| 4 |            1 | asset flag (value: `0` or `1`)                                |
+| 5 |      0 or 32 | if asset flag is `0` -> 0 bytes (WAVES) else 32 bytes         |
+| 6 |            8 | amount                                                        |
 
 1. Matcher sign withdraw request
 1. Matcher return signature as approval
+
+## Prediction Market
+
+### Prediction Order Bytes
+
+Prediction order bytes structure follows the same structure as [ordinary order](#order-bytes-structure).
+
+1. Order type -> `3`
+1. Event Id is written into Amount asset Id field
+1. Prediction direction is written into Flags last byte
+    - `YES` -> `[xx, xx, xx, xx, xx, xx, xx, 0x00]`
+    - `NO` -> `[xx, xx, xx, xx, xx, xx, xx, 0x01]`
