@@ -244,8 +244,8 @@ func depositHelper(userAddress: String, i: Invocation) = {
 
 func getWithdrawMatcherSignData(lastFastWithdrawTx: String, userAddress: String, assetId: String, amount: Int) = {
   let assetIdBytes = match (assetId.stringToAssetId()) {
-      case b:ByteVector => b
-      case _ => 0.toBytes().take(1)
+      case b:ByteVector => 1.toBytes().takeRight(1) + b
+      case _ => 0.toBytes().takeRight(1)
     }
   # Signer padding 
   # Prefix: [255, 255, 255, 1]
@@ -298,11 +298,11 @@ func fastWithdraw(assetId: String, amount: Int, matcherSignature: String) = {
   let isApproved = sigVerify(signData, matcherSignature.fromBase58String(), matcherPublicKey)
 
   strict check = [
-    lastFastWithdrawTx == "" || isApproved || throwErr("fast withdraw is not approved by matcher")
+    isApproved || throwErr("fast withdraw is not approved by matcher")
   ]
 
   let (kBalance, newBalance) = withdrawHelper(user, assetId, amount)
-  
+
   [
     ScriptTransfer(user.addressFromStringValue(), amount, assetId.stringToAssetId()),
     IntegerEntry(kBalance, newBalance),
