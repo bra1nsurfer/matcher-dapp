@@ -204,6 +204,7 @@
                 <div>
                     <div>Treasury balance</h3>
                         <div class="mono-text out-data small-text clickable" id="maker-balance"></div>
+                        <button id="maker-balance-update">update</button>
                     </div>
                 </div>
                 <div class="output">
@@ -297,7 +298,8 @@
             <div>
                 <div>
                     <div>Treasury balance</h3>
-                        <div class="mono-text out-data small-text clickable" id="taker-balance"></div>
+                        <div class="mono-text out-data small-text" id="taker-balance"></div>
+                        <button id="taker-balance-update">update</button>
                     </div>
                 </div>
                 <div class="output">
@@ -324,34 +326,65 @@
         </div>
     </div>
     <div>
-        <form>
-            <span>
-                <input id="matchingAmount" value="100000000">
-                <label>matching amount</label>
-            </span>
-            <span>
-                <input id="matchingPrice" value="2000000">
-                <label>matching price</label>
-            </span>
-            <span>
-                <input id="matchingMakerFeeAsset" value="WAVES">
-                <label>maker fee asset</label>
-            </span>
-            <span>
-                <input id="matchingMakerFee" value="0">
-                <label>maker fee amount</label>
-            </span>
-            <span>
-                <input id="matchingTakerFeeAsset" value="25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT">
-                <label>taker fee asset</label>
-            </span>
-            <span>
-                <input id="matchingTakerFee" value="0">
-                <label>taker fee amount</label>
-            </span>
-        </form>
-        <div id="exchangeOutput"></div>
-        <button id="signExchangeButton">Sign Exchange + Broadcast </button>
+        <h2>Matcher functions</h2>
+        <h3>Exchange invoke</h3>
+        <div class="order-block">
+            <form>
+                <span>
+                    <input id="matchingAmount" value="100000000">
+                    <label>matching amount</label>
+                </span>
+                <span>
+                    <input id="matchingPrice" value="2000000">
+                    <label>matching price</label>
+                </span>
+                <span>
+                    <input id="matchingMakerFeeAsset" value="WAVES">
+                    <label>maker fee asset</label>
+                </span>
+                <span>
+                    <input id="matchingMakerFee" value="0">
+                    <label>maker fee amount</label>
+                </span>
+                <span>
+                    <input id="matchingTakerFeeAsset" value="25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT">
+                    <label>taker fee asset</label>
+                </span>
+                <span>
+                    <input id="matchingTakerFee" value="0">
+                    <label>taker fee amount</label>
+                </span>
+            </form>
+            <div id="exchangeOutput"></div>
+            <button id="signExchangeButton">Sign Exchange + Broadcast </button>
+        </div>
+        <h3>Fast withdraw</h3>
+        <div class="order-block">
+            <form>
+                <span>
+                    <input id="withdraw-lastWithdrawTx" value="">
+                    <label>user last withdraw txid</label>
+                </span>
+                <span>
+                    <input id="withdraw-userAddress" value="">
+                    <label>user address</label>
+                </span>
+                <span>
+                    <input id="withdraw-assetId" value="WAVES">
+                    <label>withdraw assetId</label>
+                </span>
+                <span>
+                    <input id="withdraw-amount" value="0">
+                    <label>withdraw amount</label>
+                </span>
+            </form>
+            <div id="fastWithdrawOutput"></div>
+            <div class="output">
+                <div>Fast withdraw approve bytes to sign (base64):</div>
+                <div id="withdraw-signData" class="out-data mono-text important-data small-text"></div>
+            </div>
+            <button id="signFastWithdraw">Get bytes</button>
+        </div>
     </div>
     <script src="./main.js" type="module"></script>
 </body>

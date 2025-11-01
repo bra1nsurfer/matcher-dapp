@@ -109,6 +109,7 @@ type Order = {
     flagsElement: HTMLInputElement,
 
     balanceBlock: HTMLDivElement,
+    balanceUpdateButton: HTMLButtonElement,
     orderBytesElement: HTMLDivElement,
     orderIdb58Element: HTMLDivElement,
     orderIdb64Element: HTMLDivElement,
@@ -149,6 +150,7 @@ const maker = {
     expirationElement: document.getElementById("maker-expiration") as HTMLInputElement,
     flagsElement: document.getElementById("maker-flags") as HTMLInputElement,
     balanceBlock: document.getElementById("maker-balance") as HTMLDivElement,
+    balanceUpdateButton: document.getElementById("maker-balance-update") as HTMLButtonElement,
     orderBytesElement: document.getElementById("maker-orderBytes") as HTMLDivElement,
     orderIdb58Element: document.getElementById("maker-orderId-b58") as HTMLDivElement,
     orderIdb64Element: document.getElementById("maker-orderId-b64") as HTMLDivElement,
@@ -180,6 +182,7 @@ const taker = {
     expirationElement: document.getElementById("taker-expiration") as HTMLInputElement,
     flagsElement: document.getElementById("taker-flags") as HTMLInputElement,
     balanceBlock: document.getElementById("taker-balance") as HTMLDivElement,
+    balanceUpdateButton: document.getElementById("taker-balance-update") as HTMLButtonElement,
     orderBytesElement: document.getElementById("taker-orderBytes") as HTMLDivElement,
     orderIdb58Element: document.getElementById("taker-orderId-b58") as HTMLDivElement,
     orderIdb64Element: document.getElementById("taker-orderId-b64") as HTMLDivElement,
@@ -212,6 +215,14 @@ const matchingTakerFeeElement = document.getElementById("matchingTakerFee") as H
 const matchingTakerFeeAssetElement = document.getElementById("matchingTakerFeeAsset") as HTMLInputElement;
 const signExchangeElement = document.getElementById("signExchangeButton") as HTMLButtonElement;
 const exchangeOutputElement = document.getElementById("exchangeOutput") as HTMLDivElement;
+
+const withdrawLastTxElement = document.getElementById("withdraw-lastWithdrawTx") as HTMLInputElement;
+const withdrawUserElement = document.getElementById("withdraw-userAddress") as HTMLInputElement;
+const withdrawAssetIdElement = document.getElementById("withdraw-assetId") as HTMLInputElement;
+const withdrawSignData = document.getElementById("withdraw-signData") as HTMLInputElement;
+const withdrawProof = document.getElementById("withdraw-matcherProof") as HTMLInputElement;
+const withdrawAmountElement = document.getElementById("withdraw-amount") as HTMLInputElement;
+const signWithdrawButton = document.getElementById("signFastWithdraw") as HTMLButtonElement;
 
 const poolUserElement = document.getElementById("poolUserAddress") as HTMLDivElement;
 const poolLoginButton = document.getElementById("poolLogin") as HTMLButtonElement;
@@ -300,6 +311,19 @@ function flattenBytes(data: Uint8Array[]): ArrayBuffer {
         pos += arr.byteLength;
     }
     return buffer;
+}
+
+function getWithdrawMatcherSignData(txId: string, userAddress: string, assetId: string, amount: number) {
+    const oArrayBufferParts: Uint8Array[] = [];
+
+    if (txId) {
+        oArrayBufferParts.push(base58_to_binary(txId));
+    }
+    oArrayBufferParts.push(base58_to_binary(userAddress));
+    convertAssetAndPush(oArrayBufferParts, assetId);
+    oArrayBufferParts.push(numberToBytes(amount))
+
+    return flattenBytes(oArrayBufferParts);
 }
 
 function updateOrder(order: Order) {
@@ -405,6 +429,20 @@ function getContracts() {
         })
 }
 
+function getUserLastWithdrawTx(treasuryAddress: string, userAddress: string) {
+    const headers = {
+        "accept": "application/json",
+        "Content-Type": "application/json",
+    };
+
+    const userKey = `%s%s__lastFastWithdrawTx__${userAddress}`;
+    const postData = { "keys": [userKey] };
+
+    return fetch(NODE_URL + ADDRESS_DATA_END + treasuryAddress, { method: "POST", body: JSON.stringify(postData), headers })
+        .then(res => res.json() as Promise<[any]>)
+        .then(data => data[0] ? data[0].value as string : "");
+}
+
 function getTreasuryBalance(userAddress: string, balanceBlock: HTMLDivElement) {
     const treasuryAddress = treasuryAddressElement.innerText;
 
@@ -432,6 +470,15 @@ function getTreasuryBalance(userAddress: string, balanceBlock: HTMLDivElement) {
                 }
 
                 balanceBlock.replaceChildren(...newChildren);
+                getUserLastWithdrawTx(treasuryAddress, userAddress).then(txId => {
+                    const lastTxIdElement = document.createElement("div");
+                    lastTxIdElement.innerText = `Last Withdraw TXID: ${txId}`
+
+                    balanceBlock.appendChild(lastTxIdElement);
+                    
+                    withdrawLastTxElement.value = txId;
+                });
+                withdrawUserElement.value = userAddress;
             })
     }
 }
@@ -608,7 +655,7 @@ function setupEvents(order: Order) {
         setProviderAndUpdateOrder(order, provider);
     })
 
-    order.balanceBlock.addEventListener("click", () => getTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
+    order.balanceUpdateButton.addEventListener("click", () => getTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
 
     order.signButton.addEventListener("click", () => {
         getProofPromise(order).then(proof => {
@@ -696,6 +743,17 @@ signExchangeElement.addEventListener("click", () => {
             exchangeOutputElement.innerText = err.message.toString();
             console.log(err);
         });
+})
+
+signWithdrawButton.addEventListener("click", () => {
+    const buffer = getWithdrawMatcherSignData(
+        withdrawLastTxElement.value,
+        withdrawUserElement.value,
+        withdrawAssetIdElement.value,
+        Number(withdrawAmountElement.value),
+    );
+    const bytesString = fromByteArray(new Uint8Array(buffer));
+    withdrawSignData.innerText = bytesString;
 })
 
 poolLoginButton.addEventListener("click", () => {
