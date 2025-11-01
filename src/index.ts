@@ -316,6 +316,11 @@ function flattenBytes(data: Uint8Array[]): ArrayBuffer {
 function getWithdrawMatcherSignData(txId: string, userAddress: string, assetId: string, amount: number) {
     const oArrayBufferParts: Uint8Array[] = [];
 
+    // Prefix: [255, 255, 255, 1]
+    const prefix = base58_to_binary("7YXq4t");
+
+    oArrayBufferParts.push(prefix);
+
     if (txId) {
         oArrayBufferParts.push(base58_to_binary(txId));
     }
@@ -475,7 +480,7 @@ function getTreasuryBalance(userAddress: string, balanceBlock: HTMLDivElement) {
                     lastTxIdElement.innerText = `Last Withdraw TXID: ${txId}`
 
                     balanceBlock.appendChild(lastTxIdElement);
-                    
+
                     withdrawLastTxElement.value = txId;
                 });
                 withdrawUserElement.value = userAddress;
@@ -752,7 +757,7 @@ signWithdrawButton.addEventListener("click", () => {
         withdrawAssetIdElement.value,
         Number(withdrawAmountElement.value),
     );
-    const bytesString = fromByteArray(new Uint8Array(buffer));
+    const bytesString = binary_to_base58(new Uint8Array(buffer));
     withdrawSignData.innerText = bytesString;
 })
 
