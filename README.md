@@ -1,11 +1,10 @@
+# Matching Dapp
 
-# Matching Dapp <a name="matching-dapp"></a>
-
-## Demo <a name="demo"></a>
+## Demo
 
 <https://bra1nsurfer.github.io/matcher-dapp/>
 
-## Table of Content <a name="table-of-content"></a>
+## Table of Content
 
 - [Matching Dapp](#matching-dapp)
   - [Demo](#demo)
@@ -26,8 +25,12 @@
     - [EIP-712 (Metamask) Order V2](#eip-712-metamask-order-v2)
       - [Signing Order V2 for EIP-712 (Metamask)](#signing-order-v2-for-eip-712-metamask)
       - [Verify Order V2 EIP-712 (Metamask)](#verify-order-v2-eip-712-metamask)
+  - [Fast Withdraw](#fast-withdraw)
+    - [User Invoke](#user-invoke)
+    - [Matcher approval](#matcher-approval)
+      - [Withdraw Request Bytes](#withdraw-request-bytes)
 
-## Matcher Exchange <a name="matcher-exchange"></a>
+## Matcher Exchange
 
 After matching two orders, matcher should invoke `validateAndExchange()` function to Validator contract
 
@@ -49,7 +52,7 @@ func validateAndExchange(
   )
 ```
 
-## Order Bytes Structure <a name="order-bytes-structure"></a>
+## Order Bytes Structure
 
 |  # | Bytes Length | Value Description                                                                               |
 |---:|-------------:|-------------------------------------------------------------------------------------------------|
@@ -70,21 +73,21 @@ func validateAndExchange(
 | 15 |            8 | expiration (`0` -> indefinite)                                                                  |
 | 16 |            8 | custom flags                                                                                    |
 
-## Proof Order V1 <a name="proof-order-v1"></a>
+## Proof Order V1
 
 1. Calculate sh256 hash from `orderBytes` -> `sha256(orderBytes)`
 1. Convert hash to base58 string -> `sha256(orderBytes).toBase58String()`
 1. Sign string as custom message with [`signMessage(data: string | number)`](https://docs.waves.tech/en/building-apps/waves-api-and-sdk/client-libraries/signer#signmessage) ([Signer library](https://github.com/wavesplatform/signer))
 
-### Waves Account Order V1 <a name="waves-account-order-v1"></a>
+### Waves Account Order V1
 
-#### Signing Order V1 for Waves Account <a name="signing-order-v1-for-waves-account"></a>
+#### Signing Order V1 for Waves Account
 
 1. `orderIdString = sha256(orderBytes).toBase58String()`
 1. Add prefix bytes (`[255, 255, 255, 1]`)
 1. Bytes to sign = `[255, 255, 255, 1, ...stringToBytes(orderIdString)]`
 
-#### Verify Order V1 for Waves Account <a name="verify-order-v1-for-waves-account"></a>
+#### Verify Order V1 for Waves Account
 
 1. We can recover sender public key from `orderBytes` (sender flag (byte #3) must be `0`)
 1. [Verify waves signature](<https://docs.waves.tech/en/blockchain/waves-protocol/cryptographic-practical-details>)
@@ -95,9 +98,9 @@ const crypto = require('@waves/ts-lib-crypto');
 return crypto.verifySignature(userPublicKey, [255, 255, 255, 1, ...crypto.stringToBytes(orderIdString)], signature);
 ```
 
-### EIP-712 (Metamask) Order V1 <a name="eip-712-metamask-order-v1"></a>
+### EIP-712 (Metamask) Order V1
 
-#### Signing Order V1 for EIP-712 (Metamask) <a name="signing-order-v1-for-eip-712-metamask"></a>
+#### Signing Order V1 for EIP-712 (Metamask)
 
 <https://eips.ethereum.org/EIPS/eip-712>
 
@@ -133,7 +136,7 @@ ProviderMetamask uses EIP-712 and `signTypedData` version 4 function of MetaMask
 }
 ```
 
-#### Verify Order V1 EIP-712 (Metamask) <a name="verify-order-v1-eip-712-metamask"></a>
+#### Verify Order V1 EIP-712 (Metamask)
 
 1. Extract waves address from `orderBytes` (sender flag (byte #3) must be `1`)
 1. Using signature and message we can recover user eth-address
@@ -185,7 +188,7 @@ const recoveredWavesAddress = ethAddress2waves(recoveredEthAddress);
 return (userAddress == recoveredWavesAddress);
 ```
 
-## Proof Order V2 <a name="proof-order-v2"></a>
+## Proof Order V2
 
 1. Set version to `2` in `orderBytes`
 1. Use [Signer](https://github.com/wavesplatform/signer#readme) `signTypedData(data: OrderTypedData): Promise<string>;` function
@@ -262,9 +265,9 @@ type OrderTypedData = [
 ]
 ```
 
-### Waves Account Order V2 <a name="waves-account-order-v2"></a>
+### Waves Account Order V2
 
-#### Signing Order V2 for Waves Account <a name="signing-order-v2-for-waves-account"></a>
+#### Signing Order V2 for Waves Account
 
 Data can be serialized with `@waves/waves-transaction` [library](https://github.com/wavesplatform/waves-transactions/blob/df16cb37c6e5167aa2918bf067096168843cab73/src/requests/custom-data.ts#L63)
 
@@ -340,7 +343,7 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 | 13.3 | flags value type              | Byte       | 1                   | `0`                        | `0` for Long type                                                                |
 | 13.4 | flags value                   | Long       | 8                   | `<flags>`                  |                                                                                  |
 
-#### Verify Order V2 for Waves Account <a name="verify-order-v2-for-waves-account"></a>
+#### Verify Order V2 for Waves Account
 
 1. We can recover sender public key from `orderBytes` (sender flag (byte #3) must be `0`)
 1. Construct typed data serialized bytes
@@ -353,9 +356,9 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 return crypto.verifySignature(userPublicKey, ...serializedBytes, signature);
 ```
 
-### EIP-712 (Metamask) Order V2 <a name="eip-712-metamask-order-v2"></a>
+### EIP-712 (Metamask) Order V2
 
-#### Signing Order V2 for EIP-712 (Metamask) <a name="signing-order-v2-for-eip-712-metamask"></a>
+#### Signing Order V2 for EIP-712 (Metamask)
 
 <https://eips.ethereum.org/EIPS/eip-712>
 
@@ -449,7 +452,7 @@ type EipOrderTypedData = {
 }
 ```
 
-#### Verify Order V2 EIP-712 (Metamask) <a name="verify-order-v2-eip-712-metamask"></a>
+#### Verify Order V2 EIP-712 (Metamask)
 
 1. Extract waves address from `orderBytes` (sender flag (byte #3) must be `1`)
 1. Using signature and message we can recover user eth-address
@@ -480,3 +483,40 @@ const recoveredWavesAddress = ethAddress2waves(recoveredEthAddress);
 
 return (userAddress == recoveredWavesAddress);
 ```
+
+## Fast Withdraw
+
+### User Invoke
+
+1. Get Treasury address from Factory
+    - key: `%s__treasuryAddress`
+1. Get last fast withdraw invoke TXID from Treasury state
+    - key: `%s%s__lastFastWithdrawTx__{userAddress}`
+1. Send new withdraw data and last TXID to Matcher for approval
+    - `Last TXID` or empty string (first withdraw)
+    - `User address`
+    - `Asset ID` or `"WAVES"`
+    - `Amount`
+1. Get approval Signature from Matcher
+1. Construct `fastWithdraw` Invoke TX
+
+```js
+@Callable(i)
+func fastWithdraw(assetId: String, amount: Int, matcherSignature: String)
+```
+
+### Matcher approval
+
+#### Withdraw Request Bytes
+
+| # | Bytes Length | Value Description                                             |
+|--:|-------------:|---------------------------------------------------------------|
+| 1 |            4 | prefix (always `[255, 255, 255, 1]`)                          |
+| 2 |      0 or 32 | last withdraw transaction id (0 bytes for the first withdraw) |
+| 2 |           26 | user address                                                  |
+| 3 |            1 | asset flag (value: `0` or `1`)                                |
+| 4 |      0 or 32 | if asset flag is `0` -> 0 bytes (WAVES) else 32 bytes         |
+| 5 |            8 | amount                                                        |
+
+1. Matcher sign withdraw request
+1. Matcher return signature as approval
