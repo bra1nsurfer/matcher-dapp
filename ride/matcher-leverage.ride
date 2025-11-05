@@ -89,85 +89,82 @@ func init(matcherFactory: String) = {
 
 @Callable(i)
 func exchange(
-  buyerAddress  : String,
-  buyerFeeType  : String,
-  buyerFeeAsset : String,
-  buyerFee      : Int,
-  sellerAddress : String,
-  sellerFeeType : String,
-  sellerFeeAsset: String,
-  sellerFee     : Int,
-  asset1Amount  : Int,
-  asset1Id      : String,
-  asset2Amount  : Int,
-  asset2Id      : String,
-  buyerFlags    : ByteVector,
-  sellerFlags   : ByteVector
-  ) = {
+  makerAddress   : String,
+  makerSendAsset : String,
+  makerSendAmount: Int,
+  makerGetAsset  : String,
+  makerGetAmount : Int,
+  makerFlags     : ByteVector,
+  makerFeeAsset  : String,
+  makerFeeAmount : Int,
+  takerAddress   : String,
+  takerSendAsset : String,
+  takerSendAmount: Int,
+  takerGetAsset  : String,
+  takerGetAmount : Int,
+  takerFlags     : ByteVector,
+  takerFeeAsset  : String,
+  takerFeeAmount : Int
+) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
     i.caller.toString() == validatorAddress || throwErr("permission denied"),
-    buyerAddress != sellerAddress || throwErr("buyer and seller is the same")
+    makerAddress != takerAddress || throwErr("maker and taker is the same")
   ]
 
-  # Buyer actions
-  # gives asset2
-  # takes asset1
-  # can borrow asset2
-  # can repay asset1
-  let (isBuyerLoanPayment, buyerLeverage) = (parseOrderFlags(buyerFlags), getUserLeverage(buyerAddress))
-  let buyerNewLoanAmount = calcLoanAmountFromLeverage(asset2Amount, buyerLeverage)
-  let buyerLoanBorrowAction = if (buyerNewLoanAmount > 0) 
-    then [ treasuryAddress.invoke("loanBorrowFor", [buyerAddress, asset2Id, buyerNewLoanAmount], []) ]
+  ### Maker actions
+  # Check if can borrow send asset
+  let (isMakerLoanPayment, makerLeverage) = (parseOrderFlags(makerFlags), getUserLeverage(makerAddress))
+  let makerNewLoanAmount = calcLoanAmountFromLeverage(makerSendAmount, makerLeverage)
+  let makerLoanBorrowAction = if (makerNewLoanAmount > 0) 
+    then [ treasuryAddress.invoke("loanBorrowFor", [makerAddress, makerSendAsset, makerNewLoanAmount], []) ]
     else []
 
-  let buyerAsset1Loan      = getUserLoan(buyerAddress, asset1Id)
-  let buyerLoanCover       = min([asset1Amount, buyerAsset1Loan])
-  let buyerLoanPaymentAction = if (isBuyerLoanPayment && buyerLoanCover > 0)
-    then [ treasuryAddress.invoke("loanPaymentFor", [buyerAddress, asset1Id, buyerLoanCover], []) ]
+  # Check if can repay get asset
+  let makerGetAssetCurrentLoan = getUserLoan(makerAddress, makerGetAsset)
+  let makerLoanCover = min([makerGetAmount, makerGetAssetCurrentLoan])
+  let makerLoanPaymentAction = if (isMakerLoanPayment && makerLoanCover > 0)
+    then [ treasuryAddress.invoke("loanPaymentFor", [makerAddress, makerGetAsset, makerLoanCover], []) ]
     else []
 
-  # Seller actions
-  # gives asset1
-  # takes asset2
-  # can borrow asset1
-  # can repay asset2
-  let (isSellerLoanPayment, sellerLeverage) = (parseOrderFlags(sellerFlags), getUserLeverage(sellerAddress))
-  let sellerNewLoanAmount = calcLoanAmountFromLeverage(asset1Amount, sellerLeverage)
-  let sellerLoanBorrowAction = if (sellerNewLoanAmount > 0) 
-    then [ treasuryAddress.invoke("loanBorrowFor", [sellerAddress, asset1Id, sellerNewLoanAmount], []) ]
+  ### Taker actions
+  # Check if can borrow send asset
+  let (isTakerLoanPayment, takerLeverage) = (parseOrderFlags(takerFlags), getUserLeverage(takerAddress))
+  let takerNewLoanAmount = calcLoanAmountFromLeverage(takerSendAmount, takerLeverage)
+  let takerLoanBorrowAction = if (takerNewLoanAmount > 0) 
+    then [ treasuryAddress.invoke("loanBorrowFor", [takerAddress, takerSendAsset, takerNewLoanAmount], []) ]
     else []
 
-  let sellerAsset2Loan      = getUserLoan(sellerAddress, asset2Id)
-  let sellerLoanCover       = min([asset2Amount, sellerAsset2Loan])
-  let sellerLoanPaymentAction = if (isSellerLoanPayment && sellerLoanCover > 0)
-    then [ treasuryAddress.invoke("loanPaymentFor", [sellerAddress, asset2Id, sellerLoanCover], []) ]
+  # Check if can repay get asset
+  let takerGetAssetCurrentLoan = getUserLoan(takerAddress, takerGetAsset)
+  let takerLoanCover = min([takerGetAmount, takerGetAssetCurrentLoan])
+  let takerLoanPaymentAction = if (isTakerLoanPayment && takerLoanCover > 0)
+    then [ treasuryAddress.invoke("loanPaymentFor", [takerAddress, takerGetAsset, takerLoanCover], []) ]
     else []
 
   # Exchange actions
   let swapActions = [
-      # Swap amountAsset (seller -> buyer)
-      treasuryAddress.invoke("subBalance", [sellerAddress, asset1Id, asset1Amount], []),
-      treasuryAddress.invoke("addBalance", [buyerAddress, asset1Id, asset1Amount], []),
+      treasuryAddress.invoke("subBalance", [makerAddress, makerSendAsset, makerSendAmount], []),
+      treasuryAddress.invoke("addBalance", [makerAddress, makerGetAsset, makerGetAmount], []),
+      treasuryAddress.invoke("subBalance", [makerAddress, makerFeeAsset, makerFeeAmount], []),
 
-      # Swap priceAsset (buyer -> seller)
-      treasuryAddress.invoke("subBalance", [buyerAddress, asset2Id, asset2Amount], []),
-      treasuryAddress.invoke("addBalance", [sellerAddress, asset2Id, asset2Amount], []),
+      # Taker state changes
+      treasuryAddress.invoke("subBalance", [takerAddress, takerSendAsset, takerSendAmount], []),
+      treasuryAddress.invoke("addBalance", [takerAddress, takerGetAsset, takerGetAmount], []),
+      treasuryAddress.invoke("subBalance", [takerAddress, takerFeeAsset, takerFeeAmount], []),
 
       # Transfer fee to Matcher
-      treasuryAddress.invoke("subBalance", [sellerAddress, sellerFeeAsset, sellerFee], []),
-      treasuryAddress.invoke("transferTo", [sMatcherAddress, sellerFeeAsset, sellerFee], []),
-      treasuryAddress.invoke("subBalance", [buyerAddress, buyerFeeAsset, buyerFee], []),
-      treasuryAddress.invoke("transferTo", [sMatcherAddress, buyerFeeAsset, buyerFee], [])
+      treasuryAddress.invoke("transferTo", [sMatcherAddress, makerFeeAsset, makerFeeAmount], []),
+      treasuryAddress.invoke("transferTo", [sMatcherAddress, takerFeeAsset, takerFeeAmount], [])
     ]
 
   # Actions order is important!
   (
     [],
-    buyerLoanBorrowAction ++
-    sellerLoanBorrowAction ++
+    makerLoanBorrowAction ++
+    takerLoanBorrowAction ++
     swapActions ++
-    buyerLoanPaymentAction ++
-    sellerLoanPaymentAction
+    makerLoanPaymentAction ++
+    takerLoanPaymentAction
   )
 }

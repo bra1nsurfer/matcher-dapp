@@ -487,114 +487,122 @@ func matchOrders(
   #   ._11 timestamp (nonce)
   #   ._12 expiration | 0
   #   ._13 flags
-  let o1 = parseOrder(o1Bytes, o1proof)
-  let o2 = parseOrder(o2Bytes, o2proof)
+  let (makerOrder, makerOrderId, makerOrderStatus) = parseOrder(o1Bytes, o1proof)
+  let (takerOrder, takerOrderId, takerOrderStatus) = parseOrder(o2Bytes, o2proof)
 
-  let (bO, bFeeType, bFeeAsset, bFeeAmount, sO, sFeeType, sFeeAsset, sFeeAmount) = 
-    if (o1._1._8 == orderDirBuy) 
-      then (o1, MAKER, makerFeeAsset, makerFeeAmount, o2, TAKER, takerFeeAsset, takerFeeAmount) 
-      else (o2, TAKER, takerFeeAsset, takerFeeAmount, o1, MAKER, makerFeeAsset, makerFeeAmount)
-  let (buyOrder, buyOrderId, buyOrderStatus) = bO
-  let (sellOrder, sellOrderId, sellOrderStatus) = sO
-
-  let buyOrderNetwork      = buyOrder._1
-  let buyOrderPubKeyType   = buyOrder._2
-  let buyOrderSenderBytes  = buyOrder._3
-  let buyOrderMatcherBytes = buyOrder._4
-  let buyOrderAmountAsset  = buyOrder._5
-  let buyOrderPriceAsset   = buyOrder._6
-  let buyOrderType         = buyOrder._7
-  let buyOrderDir          = buyOrder._8
-  let buyOrderFullAmount   = buyOrder._9
-  let buyOrderPrice        = buyOrder._10
-  let buyOrderNonce        = buyOrder._11
-  let buyOrderExpiration   = buyOrder._12
-  let buyOrderFlags        = buyOrder._13
+  let makerOrderNetwork      = makerOrder._1
+  let makerOrderPubKeyType   = makerOrder._2
+  let makerOrderSenderBytes  = makerOrder._3
+  let makerOrderMatcherBytes = makerOrder._4
+  let makerOrderAmountAsset  = makerOrder._5.assetIdToString()
+  let makerOrderPriceAsset   = makerOrder._6.assetIdToString()
+  let makerOrderType         = makerOrder._7
+  let makerOrderDir          = makerOrder._8
+  let makerOrderFullAmount   = makerOrder._9
+  let makerOrderPrice        = makerOrder._10
+  let makerOrderNonce        = makerOrder._11
+  let makerOrderExpiration   = makerOrder._12
+  let makerOrderFlags        = makerOrder._13
   
-  let sellOrderNetwork      = sellOrder._1
-  let sellOrderPubKeyType   = sellOrder._2
-  let sellOrderSenderBytes  = sellOrder._3
-  let sellOrderMatcherBytes = sellOrder._4
-  let sellOrderAmountAsset  = sellOrder._5
-  let sellOrderPriceAsset   = sellOrder._6
-  let sellOrderType         = sellOrder._7
-  let sellOrderDir          = sellOrder._8
-  let sellOrderFullAmount   = sellOrder._9
-  let sellOrderPrice        = sellOrder._10
-  let sellOrderNonce        = sellOrder._11
-  let sellOrderExpiration   = sellOrder._12
-  let sellOrderFlags        = sellOrder._13
+  let takerOrderNetwork      = takerOrder._1
+  let takerOrderPubKeyType   = takerOrder._2
+  let takerOrderSenderBytes  = takerOrder._3
+  let takerOrderMatcherBytes = takerOrder._4
+  let takerOrderAmountAsset  = takerOrder._5.assetIdToString()
+  let takerOrderPriceAsset   = takerOrder._6.assetIdToString()
+  let takerOrderType         = takerOrder._7
+  let takerOrderDir          = takerOrder._8
+  let takerOrderFullAmount   = takerOrder._9
+  let takerOrderPrice        = takerOrder._10
+  let takerOrderNonce        = takerOrder._11
+  let takerOrderExpiration   = takerOrder._12
+  let takerOrderFlags        = takerOrder._13
 
   strict validation = [
-    (buyOrderNetwork == NETWORK && sellOrderNetwork == NETWORK) || throwErr("network byte is not valid"),
-    (buyOrderMatcherBytes == matcherPublicKey) || throwErr("buy order matcher bytes does not match"),
-    (sellOrderMatcherBytes == matcherPublicKey) || throwErr("sell order matcher bytes does not match"),
-    (buyOrderAmountAsset == sellOrderAmountAsset) || throwErr("amount asset Id does not match"),
-    (buyOrderPriceAsset == sellOrderPriceAsset) || throwErr("price asset Id does not match"),
-    (buyOrderType == sellOrderType) || throwErr("order type does not match"),
-    (buyOrderDir == orderDirBuy) || throwErr("buy order direction byte is not valid"),
-    (sellOrderDir == orderDirSell) || throwErr("sell order direction byte is not valid"),
-    (matchPrice <= buyOrderPrice) || throwErr("buy order price error"),
-    (matchPrice >= sellOrderPrice) || throwErr("sell order price error"),
-    (buyOrderExpiration == 0 || buyOrderExpiration >= CUR_TIMESTAMP) || throwErr("buy order is expired"),
-    (sellOrderExpiration == 0 || sellOrderExpiration >= CUR_TIMESTAMP) || throwErr("sell order is expired"),
-    (buyOrderStatus == O_OPEN) || throwErr("buy order is closed"),
-    (sellOrderStatus == O_OPEN) || throwErr("sell order is closed"),
-    (buyOrderId != sellOrderId) || throwErr("buy order and sell order are the same"),
-    (buyOrderAmountAsset != buyOrderPriceAsset) || throwErr("amount asset and price asset are the same"),
-    (allowedAssets.containsElement(buyOrderAmountAsset.assetIdToString())) || throwErr("amount asset not in the allowed list"),
-    (allowedAssets.containsElement(buyOrderPriceAsset.assetIdToString())) || throwErr("price asset not in the allowed list")
+    (makerOrderNetwork == NETWORK && takerOrderNetwork == NETWORK) || throwErr("network byte is not valid"),
+    (makerOrderMatcherBytes == matcherPublicKey) || throwErr("maker order matcher bytes does not match"),
+    (takerOrderMatcherBytes == matcherPublicKey) || throwErr("taker order matcher bytes does not match"),
+    (makerOrderAmountAsset == takerOrderAmountAsset) || throwErr("amount asset Id does not match"),
+    (makerOrderPriceAsset == takerOrderPriceAsset) || throwErr("price asset Id does not match"),
+    (makerOrderType == takerOrderType) || throwErr("order type does not match"),
+    (makerOrderDir != takerOrderDir) || throwErr("order direction bytes is not valid"),
+    (matchPrice <= makerOrderPrice) || throwErr("maker order price error"),
+    (matchPrice >= takerOrderPrice) || throwErr("taker order price error"),
+    (makerOrderExpiration == 0 || makerOrderExpiration >= CUR_TIMESTAMP) || throwErr("maker order is expired"),
+    (takerOrderExpiration == 0 || takerOrderExpiration >= CUR_TIMESTAMP) || throwErr("taker order is expired"),
+    (makerOrderStatus == O_OPEN) || throwErr("maker order is closed"),
+    (takerOrderStatus == O_OPEN) || throwErr("taker order is closed"),
+    (makerOrderId != takerOrderId) || throwErr("maker order and taker order are the same"),
+    (makerOrderAmountAsset != makerOrderPriceAsset) || throwErr("amount asset and price asset are the same"),
+    (allowedAssets.containsElement(makerOrderAmountAsset)) || throwErr("amount asset not in the allowed list"),
+    (allowedAssets.containsElement(makerOrderPriceAsset)) || throwErr("price asset not in the allowed list")
   ]
 
-  let buyOrderSenderAddress = 
-    if(buyOrderPubKeyType == ecdsaSignType) 
-    then Address(buyOrderSenderBytes) 
-    else addressFromPublicKey(buyOrderSenderBytes)
-  let sellOrderSenderAddress = 
-    if(sellOrderPubKeyType == ecdsaSignType) 
-    then Address(sellOrderSenderBytes) 
-    else addressFromPublicKey(sellOrderSenderBytes)
+  let makerOrderSenderAddress = 
+    if(makerOrderPubKeyType == ecdsaSignType) 
+    then Address(makerOrderSenderBytes) 
+    else addressFromPublicKey(makerOrderSenderBytes)
+  let takerOrderSenderAddress = 
+    if(takerOrderPubKeyType == ecdsaSignType) 
+    then Address(takerOrderSenderBytes) 
+    else addressFromPublicKey(takerOrderSenderBytes)
 
-  let (buyRawRemaining, _buyFilled) = getRemainingAmount(buyOrderId, buyOrderFullAmount)
-  let (sellRawRemaining, _sellFilled) = getRemainingAmount(sellOrderId, sellOrderFullAmount)
+  let (makerRawRemaining, _makerFilled) = getRemainingAmount(makerOrderId, makerOrderFullAmount)
+  let (takerRawRemaining, _takerFilled) = getRemainingAmount(takerOrderId, takerOrderFullAmount)
 
   # If order fee asset is the same as order sending asset
   # decrease order amount by fee
-  let buyRemaining = 
-    if (buyOrderPriceAsset.assetIdToString() == bFeeAsset) 
-    then (buyRawRemaining - priceAssetToAmountAsset(bFeeAmount, buyOrderPrice)) 
-    else buyRawRemaining
-  let sellRemaining = 
-    if (sellOrderAmountAsset.assetIdToString() == sFeeAsset)
-    then (sellRawRemaining - sFeeAmount)
-    else sellRawRemaining
+  let makerRemaining = 
+    if (makerOrderAmountAsset == makerFeeAsset)
+      then makerRawRemaining - makerFeeAmount
+      else if (makerOrderPriceAsset == makerFeeAsset) 
+        then (makerRawRemaining - priceAssetToAmountAsset(makerFeeAmount, makerOrderPrice)) 
+        else makerRawRemaining
+
+  let takerRemaining = 
+    if (takerOrderAmountAsset == takerFeeAsset)
+      then takerRawRemaining - takerFeeAmount
+      else if (takerOrderPriceAsset == takerFeeAsset) 
+        then (takerRawRemaining - priceAssetToAmountAsset(takerFeeAmount, takerOrderPrice)) 
+        else takerRawRemaining
 
   # If matchAmount is set to `-1`, match orders with maximum available amount
-  let realMatchAmount = if (matchAmount == -1) then min([buyRemaining, sellRemaining]) else matchAmount
+  let realMatchAmount = if (matchAmount == -1) then min([makerRemaining, takerRemaining]) else matchAmount
 
   strict check2 = [
     realMatchAmount >= 0 || "cannot match negative amount".throwErr(),
-    realMatchAmount <= buyRemaining || ["matched amount exceeds buy order remaining amount (", buyRemaining.toString(), ")"].makeString("").throwErr(),
-    realMatchAmount <= sellRemaining || ["matched amount exceeds sell order remaining amount (", sellRemaining.toString(), ")"].makeString("").throwErr()
+    realMatchAmount <= makerRemaining || ["matched amount exceeds maker order remaining amount (", makerRemaining.toString(), ")"].makeString("").throwErr(),
+    realMatchAmount <= takerRemaining || ["matched amount exceeds taker order remaining amount (", takerRemaining.toString(), ")"].makeString("").throwErr()
   ]
 
   let matchAmountInPriceAsset = amountAssetToPriceAsset(realMatchAmount, matchPrice)
 
-  let newBuyRemaining  = buyRemaining - realMatchAmount
-  let newSellRemaining = sellRemaining - realMatchAmount
+  let newMakerRemaining = makerRemaining - realMatchAmount
+  let newTakerRemaining = takerRemaining - realMatchAmount
 
-  let newBuyFilled  = buyOrderFullAmount - newBuyRemaining
-  let newSellFilled = sellOrderFullAmount - newSellRemaining
+  let newMakerFilled = makerOrderFullAmount - newMakerRemaining
+  let newTakerFilled = takerOrderFullAmount - newTakerRemaining
 
   # Convert remaining amount to price asset at order price
-  let buyPriceAssetRem = amountAssetToPriceAsset(newBuyRemaining, buyOrderPrice)
-  let sellPriceAssetRem = amountAssetToPriceAsset(newSellRemaining, sellOrderPrice)
+  let makerPriceAssetRem = amountAssetToPriceAsset(newMakerRemaining, makerOrderPrice)
+  let takerPriceAssetRem = amountAssetToPriceAsset(newTakerRemaining, takerOrderPrice)
+
+  let (makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount) = 
+    if (makerOrderDir == orderDirBuy)
+    then (makerOrderPriceAsset, matchAmountInPriceAsset, makerOrderAmountAsset, realMatchAmount)
+    else (makerOrderAmountAsset, realMatchAmount, makerOrderPriceAsset, matchAmountInPriceAsset)
+
+  let (takerSendAsset, takerSendAmount, takerGetAsset, takerGetAmount) = 
+    if (takerOrderDir == orderDirBuy)
+    then (takerOrderPriceAsset, matchAmountInPriceAsset, takerOrderAmountAsset, realMatchAmount)
+    else (takerOrderAmountAsset, realMatchAmount, takerOrderPriceAsset, matchAmountInPriceAsset)
 
   (
-    (buyOrderSenderAddress,  realMatchAmount, buyOrderAmountAsset, buyOrderType,  bFeeType, buyOrderFlags),
-    (sellOrderSenderAddress, matchAmountInPriceAsset, sellOrderPriceAsset, sellOrderType, sFeeType, sellOrderFlags),
-    (buyOrderId, newBuyFilled, newBuyRemaining, buyPriceAssetRem), 
-    (sellOrderId, newSellFilled, newSellRemaining, sellPriceAssetRem)
+    makerOrderType,
+    (makerOrderSenderAddress.toString(), makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount, makerOrderFlags),
+    (takerOrderSenderAddress.toString(), takerSendAsset, takerSendAmount, takerGetAsset, takerGetAmount, takerOrderFlags),
+    (makerOrderId, newMakerFilled, newMakerRemaining, makerPriceAssetRem), 
+    (takerOrderId, newTakerFilled, newTakerRemaining, takerPriceAssetRem)
   )
 }
 
@@ -623,7 +631,7 @@ func validateAndExchange(
   takerFeeAmount: Int
   ) = {
   
-  let (buyTransfer, sellTransfer, buyOrderState, sellOrderState) = 
+  let (orderType, makerStateChanges, takerStateChanges, makerOrderState, takerOrderState) = 
     matchOrders(
       o1bytes, 
       o1proof, 
@@ -638,107 +646,105 @@ func validateAndExchange(
     )
 
   # Order state
-  let buyOrderId            = buyOrderState._1
-  let buyOrderFilled        = buyOrderState._2
-  let buyOrderRemaining     = buyOrderState._3
-  let buyOrderPriceAssetRem = buyOrderState._4
+  let makerOrderId            = makerOrderState._1
+  let makerOrderFilled        = makerOrderState._2
+  let makerOrderRemaining     = makerOrderState._3
+  let makerOrderPriceAssetRem = makerOrderState._4
 
-  let sellOrderId            = sellOrderState._1
-  let sellOrderFilled        = sellOrderState._2
-  let sellOrderRemaining     = sellOrderState._3
-  let sellOrderPriceAssetRem = sellOrderState._4
+  let takerOrderId            = takerOrderState._1
+  let takerOrderFilled        = takerOrderState._2
+  let takerOrderRemaining     = takerOrderState._3
+  let takerOrderPriceAssetRem = takerOrderState._4
 
   # Matched values
-  let buyerAddress = buyTransfer._1
-  let asset1Amount = buyTransfer._2
-  let asset1Id     = buyTransfer._3
-  let buyOrderType = buyTransfer._4
-  let buyerFeeType = buyTransfer._5
-  let buyerFlags   = buyTransfer._6
+  let makerAddress    = makerStateChanges._1
+  let makerSendAsset  = makerStateChanges._2
+  let makerSendAmount = makerStateChanges._3
+  let makerGetAsset   = makerStateChanges._4
+  let makerGetAmount  = makerStateChanges._5
+  let makerFlags      = makerStateChanges._6
 
-  let sellerAddress = sellTransfer._1
-  let asset2Amount  = sellTransfer._2
-  let asset2Id      = sellTransfer._3
-  let sellOrderType = sellTransfer._4
-  let sellerFeeType = sellTransfer._5
-  let sellerFlags   = sellTransfer._6
+  let takerAddress    = takerStateChanges._1
+  let takerSendAsset  = takerStateChanges._2
+  let takerSendAmount = takerStateChanges._3
+  let takerGetAsset   = takerStateChanges._4
+  let takerGetAmount  = takerStateChanges._5
+  let takerFlags      = takerStateChanges._6
 
   strict checks = [
     # TODO: Enable after testing
     # i.callerPublicKey == matcherPublicKey || throwErr("permission denied"),
     !forceStop || throwErr("contract is temporary stopped"),
-    asset1Amount > 0 || throwErr("cannot send zero to buyer"),
-    asset2Amount > 0 || throwErr("cannot send zero to seller")
+    makerSendAmount > 0 || throwErr("cannot send zero from maker"),
+    makerGetAmount > 0 || throwErr("cannot get zero to maker"),
+    takerSendAmount > 0 || throwErr("cannot send zero from taker"),
+    takerGetAmount > 0 || throwErr("cannot get zero to taker")
   ]
 
-  let (buyOrderInternalId, buyOrderIdAction) = 
-    if(isDefined(this.getInteger(keyOrderRemaining(buyOrderId))))
+  let (makerOrderInternalId, makerOrderIdAction) = 
+    if(isDefined(this.getInteger(keyOrderRemaining(makerOrderId))))
     then (O_COUNTER, nil)
-    else (O_COUNTER+1, [StringEntry(keyInternalIdToOrderId(O_COUNTER+1), buyOrderId)])
+    else (O_COUNTER+1, [StringEntry(keyInternalIdToOrderId(O_COUNTER+1), makerOrderId)])
 
-  let (sellOrderInternalId, sellOrderIdAction) = 
-    if(isDefined(this.getInteger(keyOrderRemaining(sellOrderId))))
-    then (buyOrderInternalId, nil)
-    else (buyOrderInternalId+1, [StringEntry(keyInternalIdToOrderId(buyOrderInternalId+1), sellOrderId)])
+  let (takerOrderInternalId, takerOrderIdAction) = 
+    if(isDefined(this.getInteger(keyOrderRemaining(takerOrderId))))
+    then (makerOrderInternalId, nil)
+    else (makerOrderInternalId+1, [StringEntry(keyInternalIdToOrderId(makerOrderInternalId+1), takerOrderId)])
 
   let counterAction = 
-    if(O_COUNTER != sellOrderInternalId) 
-    then [IntegerEntry(keyIdCounter, sellOrderInternalId)]
+    if(O_COUNTER != takerOrderInternalId) 
+    then [IntegerEntry(keyIdCounter, takerOrderInternalId)]
     else nil
 
-  let orderTypeContract = getOrderTypeContract(buyOrderType).valueOrErrorMessage("order type contract error")
-  let (buyerFeeAsset, buyerFee, sellerFeeAsset, sellerFee) = 
-    if (buyerFeeType == MAKER) 
-    then (makerFeeAsset, makerFeeAmount, takerFeeAsset, takerFeeAmount) 
-    else (takerFeeAsset, takerFeeAmount, makerFeeAsset, makerFeeAmount)
+  let orderTypeContract = getOrderTypeContract(orderType).valueOrErrorMessage("order type contract error")
 
-  # asset1 (amount asset) goes to buyer
-  # asset2 (price asset) goes to seller
   strict exchange = [
     orderTypeContract.invoke(
       "exchange",
       [
-        buyerAddress.toString(),
-        buyerFeeType,
-        buyerFeeAsset,
-        buyerFee,
-        sellerAddress.toString(),
-        sellerFeeType,
-        sellerFeeAsset,
-        sellerFee,
-        asset1Amount,
-        asset1Id.assetIdToString(),
-        asset2Amount,
-        asset2Id.assetIdToString(),
-        buyerFlags,
-        sellerFlags
+        makerAddress,
+        makerSendAsset,
+        makerSendAmount,
+        makerGetAsset,
+        makerGetAmount,
+        makerFlags,
+        makerFeeAsset,
+        makerFeeAmount,
+        takerAddress,
+        takerSendAsset,
+        takerSendAmount,
+        takerGetAsset,
+        takerGetAmount,
+        takerFlags,
+        takerFeeAsset,
+        takerFeeAmount
       ],
       []
     )
   ]
 
   # Set remaining amount to `0` if it's fully filled
-  let (buyOrderStatusAction, buyOrderRealRemaining) = 
-    if (buyOrderPriceAssetRem <= 0) 
-    then ([IntegerEntry(keyOrderStatus(buyOrderId), O_FILLED)], 0)
-    else (nil, buyOrderRemaining)
+  let (makerOrderStatusAction, makerOrderRealRemaining) = 
+    if (makerOrderPriceAssetRem <= 0) 
+    then ([IntegerEntry(keyOrderStatus(makerOrderId), O_FILLED)], 0)
+    else (nil, makerOrderRemaining)
 
-  let (sellOrderStatusAction, sellOrderRealRemaining) =
-    if (sellOrderPriceAssetRem <= 0) 
-    then ([IntegerEntry(keyOrderStatus(sellOrderId), O_FILLED)], 0) 
-    else (nil, sellOrderRemaining)
+  let (takerOrderStatusAction, takerOrderRealRemaining) =
+    if (takerOrderPriceAssetRem <= 0) 
+    then ([IntegerEntry(keyOrderStatus(takerOrderId), O_FILLED)], 0) 
+    else (nil, takerOrderRemaining)
 
   let updateOrderActions = [
-    IntegerEntry(keyOrderRemaining(buyOrderId), buyOrderRealRemaining),
-    IntegerEntry(keyOrderRemaining(sellOrderId), sellOrderRealRemaining)
+    IntegerEntry(keyOrderRemaining(makerOrderId), makerOrderRealRemaining),
+    IntegerEntry(keyOrderRemaining(takerOrderId), takerOrderRealRemaining)
   ]
 
   updateOrderActions ++ 
-  buyOrderIdAction ++
-  sellOrderIdAction ++
+  makerOrderIdAction ++
+  takerOrderIdAction ++
   counterAction ++
-  buyOrderStatusAction ++
-  sellOrderStatusAction
+  makerOrderStatusAction ++
+  takerOrderStatusAction
 }
 
 @Callable(i)
