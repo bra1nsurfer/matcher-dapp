@@ -41,9 +41,15 @@ let ORDER_DIR_SELL = "sell"
 let P_DIR_YES = "yes"
 let P_DIR_NO  = "no"
 
+# EVENT STATUS
+let E_NOT_FOUND  = -1
+let E_OPEN       = 0
+let E_CLOSED_YES = 1
+let E_CLOSED_NO  = 2
+
 let kFactoryAddress = ["%s", "factoryAddress"].makeString(SEP)
-let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
-let factoryAddress = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
+let sFactoryAddress = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress  = sFactoryAddress.addressFromString().valueOrErrorMessage("invalid factory address")
 
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
@@ -65,7 +71,10 @@ let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
 let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
 let predictionPriceAsset     = factoryAddress.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
 let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
-let PRICE_UNIT = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
+let PREDICTION_PRICE_UNIT    = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
+
+func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
+func getEventStatus(eventId: String) = factoryAddress.getInteger(eventId).valueOrElse(E_NOT_FOUND)
 
 let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
@@ -431,7 +440,7 @@ func parseOrderV1(orderBytes: ByteVector) = {
 
   let flags = data14.take(8)
 
-  let (p_dir, realPrice) = if (flags.takeRight(1).bytesToInt() == 1) then (P_DIR_NO, PRICE_UNIT-price) else (P_DIR_YES, price)
+  let (p_dir, realPrice) = if (flags.takeRight(1).bytesToInt() == 1) then (P_DIR_NO, PREDICTION_PRICE_UNIT-price) else (P_DIR_YES, price)
   
   (
     (
@@ -521,8 +530,8 @@ func matchOrders(
   let makerPubKeyType   = order1._2
   let makerSenderBytes  = order1._3
   let makerMatcherBytes = order1._4
-  let makerEventId      = order1._5
-  let makerPriceAsset   = order1._6
+  let makerEventId      = order1._5.assetIdToString()
+  let makerPriceAsset   = order1._6.assetIdToString()
   let makerType         = order1._7
   let makerDir          = order1._8
   let makerFullAmount   = order1._9
@@ -535,8 +544,8 @@ func matchOrders(
   let takerPubKeyType   = order2._2
   let takerSenderBytes  = order2._3
   let takerMatcherBytes = order2._4
-  let takerEventId      = order2._5
-  let takerPriceAsset   = order2._6
+  let takerEventId      = order2._5.assetIdToString()
+  let takerPriceAsset   = order2._6.assetIdToString()
   let takerType         = order2._7
   let takerDir          = order2._8
   let takerFullAmount   = order2._9
@@ -545,21 +554,26 @@ func matchOrders(
   let takerExpiration   = order2._12
   let takerFlags        = order2._13
 
+  let eventStatus = getEventStatus(makerEventId)
+
   strict validation = [
     (makerNetwork == NETWORK && takerNetwork == NETWORK) || throwErr("network byte is not valid"),
     (makerMatcherBytes == matcherPublicKey) || throwErr("maker order matcher bytes does not match"),
     (takerMatcherBytes == matcherPublicKey) || throwErr("taker order matcher bytes does not match"),
     (makerEventId == takerEventId) || throwErr("event Id does not match"),
-    (makerEventId != unit) || throwErr("invalid event id"),
+    (eventStatus != E_NOT_FOUND) || throwErr("event Id is not found"),
+    (eventStatus == E_OPEN) || throwErr("event is closed"),
+    (makerEventId.stringToAssetId() != unit) || throwErr("invalid event id"),
     (makerPriceAsset == takerPriceAsset) || throwErr("price asset Id does not match"),
-    (makerPrice <= PRICE_UNIT && makerPrice > 0) || throwErr("invalid maker order price"),
-    (takerPrice <= PRICE_UNIT && takerPrice > 0) || throwErr("invalid taker order price"),
+    (makerPriceAsset == predictionPriceAsset) || throwErr("price asset is not allowed"),
+    (makerPrice <= PREDICTION_PRICE_UNIT && makerPrice > 0) || throwErr("invalid maker order price"),
+    (takerPrice <= PREDICTION_PRICE_UNIT && takerPrice > 0) || throwErr("invalid taker order price"),
     (makerExpiration == 0 || makerExpiration >= CUR_TIMESTAMP) || throwErr("maker order is expired"),
     (takerExpiration == 0 || takerExpiration >= CUR_TIMESTAMP) || throwErr("taker order is expired"),
     (makerStatus == O_OPEN) || throwErr("maker order is closed"),
     (takerStatus == O_OPEN) || throwErr("taker order is closed"),
     (makerOrderId != takerOrderId) || throwErr("maker order and taker order are the same"),
-    (allowedAssets.containsElement(makerPriceAsset.assetIdToString())) || throwErr("price asset not in the allowed list"),
+    (allowedAssets.containsElement(makerPriceAsset)) || throwErr("price asset not in the allowed list"),
     (makerType == O_PREDICTION) || throwErr("maker order type must be prediction"),
     (takerType == O_PREDICTION) || throwErr("taker order type must be prediction"),
     !(makerPredDir == takerPredDir && makerDir == takerDir) || throwErr("invalid prediction and order direction"),
@@ -582,11 +596,11 @@ func matchOrders(
   # If order fee asset is the same as order sending asset
   # decrease order amount by fee
   let makerOrderRemaining = 
-    if (makerPriceAsset.assetIdToString() == makerFeeAsset) 
+    if (makerPriceAsset == makerFeeAsset) 
     then (makerRawRemaining - priceAssetToAmountAsset(makerFeeAmount, makerPrice)) 
     else makerRawRemaining
   let takerOrderRemaining = 
-    if (takerPriceAsset.assetIdToString() == takerFeeAsset)
+    if (takerPriceAsset == takerFeeAsset)
     then (takerRawRemaining - priceAssetToAmountAsset(takerFeeAmount, takerPrice))
     else takerRawRemaining
 
@@ -601,25 +615,25 @@ func matchOrders(
 
   let matchAmountInPriceAsset = amountAssetToPriceAsset(realMatchAmount, matchPrice)
 
-  let newMakerRemaining  = makerOrderRemaining - realMatchAmount
+  let newMakerRemaining = makerOrderRemaining - realMatchAmount
   let newTakerRemaining = takerOrderRemaining - realMatchAmount
 
-  let newMakerFilled  = makerFullAmount - newMakerRemaining
+  let newMakerFilled = makerFullAmount - newMakerRemaining
   let newTakerFilled = takerFullAmount - newTakerRemaining
 
   # Convert remaining amount to price asset at order price
   let makerPriceAssetRem = amountAssetToPriceAsset(newMakerRemaining, makerPrice)
   let takerPriceAssetRem = amountAssetToPriceAsset(newTakerRemaining, takerPrice)
 
-  let makerFinalEventId = [makerEventId.assetIdToString(), makerPredDir].makeString("-")
+  let makerFinalEventId = [makerEventId, makerPredDir].makeString("-")
   let makerFinalPriceAmount = if (makerPredDir == P_DIR_YES)
     then matchAmountInPriceAsset
-    else amountAssetToPriceAsset(realMatchAmount, PRICE_UNIT-matchPrice)
+    else amountAssetToPriceAsset(realMatchAmount, PREDICTION_PRICE_UNIT-matchPrice)
 
-  let takerFinalEventId = [takerEventId.assetIdToString(), takerPredDir].makeString("-")
+  let takerFinalEventId = [takerEventId, takerPredDir].makeString("-")
   let takerFinalPriceAmount = if (takerPredDir == P_DIR_YES)
     then matchAmountInPriceAsset
-    else amountAssetToPriceAsset(realMatchAmount, PRICE_UNIT-matchPrice)
+    else amountAssetToPriceAsset(realMatchAmount, PREDICTION_PRICE_UNIT-matchPrice)
 
   (
     (makerSenderAddress, realMatchAmount, makerFinalEventId, makerFinalPriceAmount, makerPriceAsset, makerDir, makerFlags),
@@ -733,7 +747,7 @@ func validateAndExchange(
         makerMatchAmount,
         makerEventId,
         makerPriceAmount,
-        makerPriceAsset.assetIdToString(),
+        makerPriceAsset,
         makerDir,
         makerFlags,
 
@@ -743,7 +757,7 @@ func validateAndExchange(
         takerMatchAmount,
         takerEventId,
         takerPriceAmount,
-        takerPriceAsset.assetIdToString(),
+        takerPriceAsset,
         takerDir,
         takerFlags
       ],

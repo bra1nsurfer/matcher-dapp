@@ -5,6 +5,11 @@
 let SEP = "__"
 let CONTRACT_NAME = "matcher-factory.ride"
 
+# EVENT STATUS
+let E_OPEN       = 0
+let E_CLOSED_YES = 1
+let E_CLOSED_NO  = 2
+
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
 }
@@ -32,6 +37,7 @@ let allowedAssets  = match (this.getString(kAllowedAssets)) {
   }
 
 let kPredictionPriceAsset = ["%s", "predictionPriceAsset"].makeString(SEP)
+func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
 
 let kLeverageValue = ["%s", "maxLeverageValue"].makeString(SEP)
 let maxLeverageValue  = this.getInteger(kLeverageValue).valueOrElse(1)
@@ -190,4 +196,13 @@ func setPredictionPriceAsset(assetId: String) = {
   [
     StringEntry(kPredictionPriceAsset, assetId)
   ]
+}
+
+@Callable(i)
+func setEventStatus(eventId: String, status: Int) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [IntegerEntry(kEventStatus(eventId), status)]
 }
