@@ -36,10 +36,10 @@ let maxLeverageValue  = this.getInteger(kLeverageValue).valueOrElse(1)
 
 func kUserLeverage(user: String) = ["%s%s", "leverage", user].makeString(SEP)
 
-let contractsList = [
+let orderTypeContractsList = [
     this.getString(kSpotAddress).valueOrElse(""),      # spot
     this.getString(kLeverageAddress).valueOrElse(""),  # leverage
-    "",                                                # margin
+    this.getString(kMarginAddress).valueOrElse(""),    # margin
     this.getString(kPredictionAddress).valueOrElse("") # prediction
   ]
 
@@ -101,12 +101,12 @@ func forceStop(value: Boolean) = {
 
 @Callable(i)
 func getOrderTypeContract(orderType: Int) = {
-  ([], contractsList[orderType])
+  ([], orderTypeContractsList[orderType])
 }
 
 @Callable(i)
 func getAllOrderTypeContracts() = {
-  ([], contractsList)
+  ([], orderTypeContractsList)
 }
 
 @Callable(i)
