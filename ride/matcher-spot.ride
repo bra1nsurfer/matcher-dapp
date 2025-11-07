@@ -39,7 +39,8 @@ let sTreasuryAddress  = factoryAddress.getString(kTreasuryAddress).valueOrElse("
 let treasuryAddress   = sTreasuryAddress.addressFromStringValue()
 
 let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
-let matcherPublicKey  = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
+let sMatcherPublicKey = factoryAddress.getString(kMatcherPublicKey).valueOrErrorMessage("matcher public key is not set")
+let matcherPublicKey  = sMatcherPublicKey.fromBase58String()
 let matcherAddress    = matcherPublicKey.addressFromPublicKey()
 let sMatcherAddress   = matcherAddress.toString()
 

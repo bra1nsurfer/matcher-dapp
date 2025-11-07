@@ -29,9 +29,9 @@ func stringToAssetId(s: String) = {
   if (s == WAVES) then unit else s.fromBase58String()
 }
 
-let kFactoryAddress      = ["%s", "factoryAddress"].makeString(SEP)
-let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
-let factoryAddress       = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
+let kFactoryAddress = ["%s", "factoryAddress"].makeString(SEP)
+let sFactoryAddress = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress  = sFactoryAddress.addressFromString().valueOrErrorMessage("invalid factory address")
 
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
@@ -43,7 +43,8 @@ let sTreasuryAddress            = factoryAddress.getString(kTreasuryAddress).val
 let treasuryAddress             = sTreasuryAddress.addressFromStringValue()
 
 let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
-let matcherPublicKey  = factoryAddress.getString(kMatcherPublicKey).valueOrElse("").fromBase58String()
+let sMatcherPublicKey = factoryAddress.getString(kMatcherPublicKey).valueOrErrorMessage("matcher public key is not set")
+let matcherPublicKey  = sMatcherPublicKey.fromBase58String()
 let matcherAddress    = matcherPublicKey.addressFromPublicKey()
 let sMatcherAddress   = matcherAddress.toString()
 
