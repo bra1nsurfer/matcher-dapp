@@ -7,6 +7,16 @@ let CONTRACT_NAME = "matcher-treasury.ride"
 let WAVES = "WAVES"
 let DEC8 = 1_0000_0000
 
+# PREDICTION DIR
+let P_DIR_YES = "yes"
+let P_DIR_NO  = "no"
+
+# EVENT STATUS
+let E_NOT_FOUND  = -1
+let E_OPEN       = 0
+let E_CLOSED_YES = 1
+let E_CLOSED_NO  = 2
+
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
 }
@@ -49,6 +59,14 @@ let poolAddress  = factoryAddress.getString(kPoolAddress).valueOrElse("")
 let kPredictionAddress = ["%s", "predictionAddress"].makeString(SEP)
 let predictionAddress = factoryAddress.getString(kPredictionAddress).valueOrElse("")
 
+let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
+let predictionPriceAsset     = factoryAddress.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
+let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
+let PREDICTION_PRICE_UNIT    = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
+
+func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
+func getEventStatus(eventId: String) = factoryAddress.getInteger(eventId).valueOrElse(E_NOT_FOUND)
+
 func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
 func getUserBalance(user: String, assetId: String) = this.getInteger(kUserBalance(user, assetId)).valueOrElse(0)
 
@@ -57,6 +75,9 @@ func getUserLoan(user: String, assetId: String) = this.getInteger(kUserLoan(user
 
 func kUserLastWithdrawTx(user: String) = ["%s%s", "lastFastWithdrawTx", user].makeString(SEP)
 func getUserLastWithdrawTx(user: String) = this.getString(kUserLastWithdrawTx(user)).valueOrElse("")
+
+func kTotalBalance(assetId: String) = ["%s%s", "totalBalance", assetId].makeString(SEP)
+func getTotalBalance(assetId: String) = this.getInteger(kTotalBalance(assetId)).valueOrElse(0)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
@@ -114,16 +135,19 @@ func isUserWithDebt(user: String) = {
 func changeBalanceHelper(user: String, assetId: String, amount: Int, add: Boolean, isPrediction: Boolean) = {
   let oldBalance = getUserBalance(user, assetId)
   let newBalance = if add then oldBalance + amount else oldBalance - amount
+  let oldTotalBalance = getTotalBalance(assetId)
+  let newTotalBalance = if add then oldTotalBalance + amount else oldTotalBalance - amount
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    isPrediction || allowedAssets.containsElement(assetId) || ["(balance) asset is not allowed", assetId].makeString(" ").throwErr(),
+    isPrediction || allowedAssets.containsElement(assetId) || ["(balance): asset is not allowed", assetId].makeString(" ").throwErr(),
     amount >= 0 || throwErr("amount must be greater or equal to 0"),
-    newBalance >= 0 || throwErr(["not enough balance", user, assetId].makeString(" "))
+    newBalance >= 0 || throwErr(["not enough balance", user, ":", assetId].makeString(" "))
   ]
 
   [
-    IntegerEntry(kUserBalance(user, assetId), newBalance)
+    IntegerEntry(kUserBalance(user, assetId), newBalance),
+    IntegerEntry(kTotalBalance(assetId), newBalance)
   ]
 }
 
@@ -134,7 +158,7 @@ func changeLoanHelper(user: String, assetId: String, amount: Int, add: Boolean) 
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    allowedAssets.containsElement(assetId) || ["(loan) asset is not allowed", assetId].makeString(" ").throwErr(),
+    allowedAssets.containsElement(assetId) || ["(loan): asset is not allowed", assetId].makeString(" ").throwErr(),
     amount > 0 || throwErr("amount must be greater than 0")
   ]
 
@@ -206,21 +230,6 @@ func unlockWithdrawHelper(user: String, txId: String, isMatcher: Boolean) = {
   ]
 }
 
-func withdrawHelper(user: String, assetId: String, amount: Int) = {
-  let kBalance = kUserBalance(user, assetId)
-  let balance = this.getInteger(kBalance).valueOrElse(0)
-  let newBalance = balance - amount
-
-  strict check = [
-    !forceStop || throwErr("contract is temporary stopped"),
-    amount > 0 || throwErr("amount must be greater than 0"),
-    newBalance >= 0 || throwErr(["not enough balance to withdraw", user].makeString(" ")),
-    !isUserWithDebt(user) || throwErr("cannot withdraw with debt")
-  ]
-
-  (kBalance, newBalance)
-}
-
 func depositHelper(userAddress: String, i: Invocation) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -255,6 +264,27 @@ func getWithdrawMatcherSignData(lastFastWithdrawTx: String, userAddress: String,
   prefix + signData
 }
 
+func withdrawPredictionHelper(user: String, eventId: String, amount: Int) = {
+  let eventStatus = getEventStatus(eventId)
+
+  strict check = [
+    eventStatus == E_CLOSED_YES || eventStatus == E_CLOSED_NO || throwErr("event is not closed")
+  ]
+
+  let finalEventId = if (eventStatus == E_CLOSED_YES)
+    then [eventId, P_DIR_YES].makeString("-")
+    else if eventStatus == E_CLOSED_NO
+      then [eventId, P_DIR_NO].makeString("-")
+      else throwErr("invalid event status")
+
+  let priceAssetAmount = amount * PREDICTION_PRICE_UNIT
+  
+  let subEventTokensActions = changeBalanceHelper(user, finalEventId, amount, false, true)
+  let addPriceAssetActions = changeBalanceHelper(user, predictionPriceAsset, priceAssetAmount, true, true)
+
+  subEventTokensActions ++ addPriceAssetActions
+}
+
 @Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
@@ -279,15 +309,20 @@ func depositFor(userAddress: String) = {
 @Callable(i) 
 func userWithdraw(assetId: String, amount: Int) = {
   let user = i.caller.toString()
-  let (kBalance, newBalance) = withdrawHelper(user, assetId, amount)
+  let changeBalanceActions = changeBalanceHelper(user, assetId, amount, false, false)
+
+  strict check = [
+    !isUserWithDebt(user) || throwErr("cannot withdraw with debt")
+  ]
 
   let key = kUserWithdraw(user, i.transactionId.toBase58String())
   let val = vUserWithdraw(assetId, amount, height+withdrawDelay)
 
+
   [
-    StringEntry(key, val),
-    IntegerEntry(kBalance, newBalance)
-  ]
+    StringEntry(key, val)
+  ] ++
+  changeBalanceActions
 }
 
 @Callable(i)
@@ -298,16 +333,17 @@ func fastWithdraw(assetId: String, amount: Int, matcherSignature: String) = {
   let isApproved = sigVerify(signData, matcherSignature.fromBase58String(), matcherPublicKey)
 
   strict check = [
+    !isUserWithDebt(user) || throwErr("cannot withdraw with debt"),
     isApproved || throwErr("fast withdraw is not approved by matcher")
   ]
 
-  let (kBalance, newBalance) = withdrawHelper(user, assetId, amount)
+  let changeBalanceActions = changeBalanceHelper(user, assetId, amount, false, false)
 
   [
     ScriptTransfer(user.addressFromStringValue(), amount, assetId.stringToAssetId()),
-    IntegerEntry(kBalance, newBalance),
     StringEntry(kUserLastWithdrawTx(user), i.transactionId.toBase58String())
-  ]
+  ] ++
+  changeBalanceActions
 }
 
 @Callable(i) 
@@ -383,4 +419,21 @@ func loanPaymentFor(user: String, assetId: String, amount: Int) = {
   ]
 
   loanPaymentHelper(user, assetId, amount)
+}
+
+@Callable(i)
+func withdrawPrediction(eventId: String, amount: Int) = {
+  let userAddress = i.caller.toString()
+
+  withdrawPredictionHelper(userAddress, eventId, amount)
+}
+
+@Callable(i)
+func withdrawPredictionFor(userAddress: String, eventId: String, amount: Int) = {
+  let isMatcher = (i.callerPublicKey == matcherPublicKey)
+  strict check = [
+    isMatcher || throwErr("withdraw prediction permission denied")
+  ]
+
+  withdrawPredictionHelper(userAddress, eventId, amount)
 }
