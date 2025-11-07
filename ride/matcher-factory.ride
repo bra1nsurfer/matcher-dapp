@@ -31,6 +31,8 @@ let allowedAssets  = match (this.getString(kAllowedAssets)) {
     case _ => []
   }
 
+let kPredictionPriceAsset = ["%s", "predictionPriceAsset"].makeString(SEP)
+
 let kLeverageValue = ["%s", "maxLeverageValue"].makeString(SEP)
 let maxLeverageValue  = this.getInteger(kLeverageValue).valueOrElse(1)
 
@@ -176,5 +178,16 @@ func setWithdrawDelay(delay: Int) = {
 
   [
     IntegerEntry(kWithdrawDelay, delay)
+  ]
+}
+
+@Callable(i)
+func setPredictionPriceAsset(assetId: String) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [
+    StringEntry(kPredictionPriceAsset, assetId)
   ]
 }

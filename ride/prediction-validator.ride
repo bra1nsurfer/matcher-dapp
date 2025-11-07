@@ -21,8 +21,6 @@ let ecdsaSignType = "ecdsa-sign"
 let MAKER         = "maker"
 let TAKER         = "taker"
 let DEC8          = 1_0000_0000
-let PRICE_UNIT    = 1_000_000
-
 
 # ORDER STATUS
 let O_OPEN     = 0
@@ -63,6 +61,11 @@ let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
     case s:String => s.split_4C(SEP)
     case _ => []  
   }
+
+let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
+let predictionPriceAsset     = factoryAddress.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
+let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
+let PRICE_UNIT = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
 
 let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
