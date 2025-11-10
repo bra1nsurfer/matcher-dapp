@@ -493,13 +493,15 @@ return (userAddress == recoveredWavesAddress);
 
 ## User Balance
 
-User balance is store in the Treasure state
+1. Get Treasury address from Factory state
+    - key: `%s__treasuryAddress`
+1. User balance is store in the Treasure state
 
 Key format:
 
 - `%s%s%s__balance__{userAddress}__{asset}`
 
-Possible `asset`:
+Possible `asset` values:
 
 - `{assetId}` | `WAVES` | `{EventId}-yes` | `{EventId}-no`
 
@@ -528,14 +530,17 @@ Delay length (in blocks) is stored in Factory state or zero (0)
 
 1. Get Treasury address from Factory state
     - key: `%s__treasuryAddress`
-1. Construct `userWithdraw` Invoke TX
+1. Construct `userWithdraw` Invoke TX to Treasury
 
 ```js
 @Callable(i) 
 func userWithdraw(assetId: String, amount: Int)
 ```
 
-Result in Treasury state: ``
+Result in Treasury state:
+
+- key: `%s%s%s__withdraw__{user}__{txId}`
+- value: `%s%d%d__{assetId}__{amount}__{unlockHeight}`
 
 ### User Withdraw Unlock
 
@@ -545,7 +550,7 @@ Result in Treasury state: ``
     - key: `%s%s%s__withdraw__{user}__{txId}`
 1. Parse values:
     - value: `%s%d%d__{assetId}__{amount}__{unlockHeight}`
-1. Construct `userUnlockWithdraw` or `userUnlockWithdrawFor` Invoke TX
+1. Construct `userUnlockWithdraw` or `userUnlockWithdrawFor` Invoke TX to Treasury
 
 ```js
 @Callable(i) 
@@ -571,7 +576,7 @@ func userUnlockWithdrawFor(userAddress: String, txId: String)
     - `Asset ID` or `"WAVES"`
     - `Amount`
 1. Get approval Signature from Matcher
-1. Construct `fastWithdraw` Invoke TX
+1. Construct `fastWithdraw` Invoke TX to Treasury
 
 ```js
 @Callable(i)
@@ -602,9 +607,9 @@ func fastWithdraw(assetId: String, amount: Int, matcherSignature: String)
     - key: `%s__allowedAssets`
 1. Parse allowed assets list:
     - value: `{asset1}__WAVES__{asset2}__{asset3}`
-1. Construct `deposit` or `depositFor` Invoke TX
+1. Construct `deposit` or `depositFor` Invoke TX to Treasury
 1. Include up to 10 payments
-1. Send Invoke TX
+1. Send Invoke TX to Treasury
 
 ```js
 @Callable(i)
