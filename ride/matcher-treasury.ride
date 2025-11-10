@@ -145,16 +145,20 @@ func changeBalanceHelper(user: String, assetId: String, amount: Int, add: Boolea
     newBalance >= 0 || throwErr(["not enough balance", user, ":", assetId].makeString(" "))
   ]
 
+  let userBalanceActions = if (newBalance == 0) 
+    then [DeleteEntry(kUserBalance(user, assetId))]
+    else [IntegerEntry(kUserBalance(user, assetId), newBalance)]
+
   [
-    IntegerEntry(kUserBalance(user, assetId), newBalance),
     IntegerEntry(kTotalBalance(assetId), newTotalBalance)
-  ]
+  ] ++
+  userBalanceActions
 }
 
 func changeLoanHelper(user: String, assetId: String, amount: Int, add: Boolean) = {
   let oldLoan = getUserLoan(user, assetId)
   let newRawLoan = if add then oldLoan + amount else oldLoan - amount
-  let newLoan = max([0, newRawLoan])
+  let newLoanAmount = max([0, newRawLoan])
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -162,9 +166,11 @@ func changeLoanHelper(user: String, assetId: String, amount: Int, add: Boolean) 
     amount > 0 || throwErr("amount must be greater than 0")
   ]
 
-  [
-    IntegerEntry(kUserLoan(user, assetId), newLoan)
-  ]
+  let userLoanActions = if (newLoanAmount == 0)
+    then [DeleteEntry(kUserLoan(user, assetId))]
+    else [IntegerEntry(kUserLoan(user, assetId), newLoanAmount)]
+  
+  userLoanActions
 }
 
 func getAllUserInfo(user: String) = {
