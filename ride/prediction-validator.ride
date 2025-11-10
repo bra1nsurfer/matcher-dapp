@@ -74,7 +74,7 @@ let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()
 let PREDICTION_PRICE_UNIT    = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
 
 func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
-func getEventStatus(eventId: String) = factoryAddress.getInteger(eventId).valueOrElse(E_NOT_FOUND)
+func getEventStatus(eventId: String) = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
 
 let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)

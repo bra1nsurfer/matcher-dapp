@@ -65,7 +65,7 @@ let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()
 let PREDICTION_PRICE_UNIT    = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
 
 func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
-func getEventStatus(eventId: String) = factoryAddress.getInteger(eventId).valueOrElse(E_NOT_FOUND)
+func getEventStatus(eventId: String) = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
 
 func kUserBalance(user: String, assetId: String) = ["%s%s%s", "balance", user, assetId].makeString(SEP)
 func getUserBalance(user: String, assetId: String) = this.getInteger(kUserBalance(user, assetId)).valueOrElse(0)
@@ -147,7 +147,7 @@ func changeBalanceHelper(user: String, assetId: String, amount: Int, add: Boolea
 
   [
     IntegerEntry(kUserBalance(user, assetId), newBalance),
-    IntegerEntry(kTotalBalance(assetId), newBalance)
+    IntegerEntry(kTotalBalance(assetId), newTotalBalance)
   ]
 }
 
@@ -278,7 +278,7 @@ func withdrawPredictionHelper(user: String, eventId: String, amount: Int) = {
       else throwErr("invalid event status")
 
   let priceAssetAmount = amount * PREDICTION_PRICE_UNIT
-  
+
   let subEventTokensActions = changeBalanceHelper(user, finalEventId, amount, false, true)
   let addPriceAssetActions = changeBalanceHelper(user, predictionPriceAsset, priceAssetAmount, true, true)
 
