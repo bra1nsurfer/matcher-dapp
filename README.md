@@ -26,10 +26,14 @@
       - [Signing Order V2 for EIP-712 (Metamask)](#signing-order-v2-for-eip-712-metamask)
       - [Verify Order for V2 EIP-712 (Metamask)](#verify-order-for-v2-eip-712-metamask)
   - [User Balance](#user-balance)
+  - [Delayed Withdraw](#delayed-withdraw)
+    - [User Withdraw Request](#user-withdraw-request)
+    - [User Withdraw Unlock](#user-withdraw-unlock)
   - [Fast Withdraw](#fast-withdraw)
-    - [User Invoke](#user-invoke)
+    - [User Invoke (fast withdraw)](#user-invoke-fast-withdraw)
     - [Matcher approval](#matcher-approval)
       - [Withdraw Request Bytes](#withdraw-request-bytes)
+  - [Deposit](#deposit)
   - [Prediction Market](#prediction-market)
     - [Prediction Order Bytes](#prediction-order-bytes)
 
@@ -510,9 +514,52 @@ User Balance Example:
 %s%s%s__balance__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__11111111111111111111111111111112-no
 ```
 
+## Delayed Withdraw
+
+Withdraw have two steps
+
+1. Withdraw request
+1. Unlock withdraw request
+
+Delay length (in blocks) is stored in Factory state or zero (0)
+    - key: `%s__withdrawDelay`
+
+### User Withdraw Request
+
+1. Get Treasury address from Factory state
+    - key: `%s__treasuryAddress`
+1. Construct `userWithdraw` Invoke TX
+
+```js
+@Callable(i) 
+func userWithdraw(assetId: String, amount: Int)
+```
+
+Result in Treasury state: ``
+
+### User Withdraw Unlock
+
+1. Get Treasury address from Factory
+    - key: `%s__treasuryAddress`
+1. Get withdraw request data
+    - key: `%s%s%s__withdraw__{user}__{txId}`
+1. Parse values:
+    - value: `%s%d%d__{assetId}__{amount}__{unlockHeight}`
+1. Construct `userUnlockWithdraw` or `userUnlockWithdrawFor` Invoke TX
+
+```js
+@Callable(i) 
+func userUnlockWithdraw(txId: String)
+```
+
+```js
+@Callable(i) 
+func userUnlockWithdrawFor(userAddress: String, txId: String)
+```
+
 ## Fast Withdraw
 
-### User Invoke
+### User Invoke (fast withdraw)
 
 1. Get Treasury address from Factory
     - key: `%s__treasuryAddress`
@@ -546,6 +593,30 @@ func fastWithdraw(assetId: String, amount: Int, matcherSignature: String)
 
 1. Matcher sign withdraw request
 1. Matcher return signature as approval
+
+## Deposit
+
+1. Get Treasury address from Factory
+    - key: `%s__treasuryAddress`
+1. Get allowed assets list from Treasury state
+    - key: `%s__allowedAssets`
+1. Parse allowed assets list:
+    - value: `{asset1}__WAVES__{asset2}__{asset3}`
+1. Construct `deposit` or `depositFor` Invoke TX
+1. Include up to 10 payments
+1. Send Invoke TX
+
+```js
+@Callable(i)
+func deposit()
+```
+
+or
+
+```js
+@Callable(i)
+func depositFor(userAddress: String)
+```
 
 ## Prediction Market
 
