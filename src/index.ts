@@ -448,26 +448,45 @@ function getUserLastWithdrawTx(treasuryAddress: string, userAddress: string) {
         .then(data => data[0] ? data[0].value as string : "");
 }
 
-function getTreasuryBalance(userAddress: string, balanceBlock: HTMLDivElement) {
+function getUserBalance(treasuryAddress: string, userAddress: string) {
+    const headers = {
+        "accept": "application/json",
+        "Content-Type": "application/json",
+    };
+
+    const userKey = `?matches=%s%s%s__(balance|loan)__${userAddress}__.*`;
+    const uri = NODE_URL + ADDRESS_DATA_END + treasuryAddress + userKey
+
+    return fetch(encodeURI(uri), { method: "GET", headers })
+        .then(res => res.json() as Promise<[any]>)
+        .then(data => {
+            let balanceMap: Record<string, number> = {};
+            let loanMap: Record<string, number> = {};
+            for (const r of data) {
+                const assetId = r.key.split("__")[3] as string
+                if ((r.key as string).includes("balance")) {
+                    balanceMap[assetId] = r.value
+                } else {
+                    loanMap[assetId] = r.value
+                }
+            }
+
+            return { balanceMap, loanMap };
+        });
+}
+
+function drawTreasuryBalance(userAddress: string, balanceBlock: HTMLDivElement) {
     const treasuryAddress = treasuryAddressElement.innerText;
 
     if (treasuryAddress != "" && userAddress != "") {
         balanceBlock.replaceChildren();
 
-        const getInfoEval = { "expr": `getAllUserInfo("${userAddress}")` };
-        const headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-        }
-
-        fetch(NODE_URL + EVAL_END + treasuryAddress, { method: "POST", body: JSON.stringify(getInfoEval), headers })
-            .then(res => res.json() as Promise<EvalResult>)
-            .then(state => {
+        getUserBalance(treasuryAddress, userAddress)
+            .then(data => {
                 const newChildren: HTMLElement[] = [];
-                for (const el of state.result.value) {
-                    const assetId = el.value._1.value;
-                    const balance = el.value._2.value
-                    const loan = el.value._3.value
+                for (const assetId of Object.keys(data.balanceMap)) {
+                    const balance = data.balanceMap[assetId]
+                    const loan = data.loanMap[assetId] | 0
                     const assetBalanceElement = document.createElement("div");
 
                     assetBalanceElement.innerText = `${assetId} -> ${balance} (${loan})`;
@@ -632,7 +651,7 @@ function setupEvents(order: Order) {
             }
 
             updateOrder(order);
-            getTreasuryBalance(user.address, order.balanceBlock);
+            drawTreasuryBalance(user.address, order.balanceBlock);
         });
     }
 
@@ -660,7 +679,7 @@ function setupEvents(order: Order) {
         setProviderAndUpdateOrder(order, provider);
     })
 
-    order.balanceUpdateButton.addEventListener("click", () => getTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
+    order.balanceUpdateButton.addEventListener("click", () => drawTreasuryBalance(order.addressElement.innerText, order.balanceBlock));
 
     order.signButton.addEventListener("click", () => {
         getProofPromise(order).then(proof => {

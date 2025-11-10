@@ -138,7 +138,7 @@
             <h2>Order 1 (Maker)</h2>
             <form>
                 <span>
-                    <input id="maker-version" value="1">
+                    <input id="maker-version" value="2">
                     <label>version</label>
                 </span>
                 <span>
@@ -202,7 +202,7 @@
             </div>
             <div>
                 <div>
-                    <div>Treasury balance</h3>
+                    <div>Treasury balance (loan)</h3>
                         <div class="mono-text out-data small-text" id="maker-balance"></div>
                         <button id="maker-balance-update">update</button>
                     </div>
@@ -233,7 +233,7 @@
             <h2>Order 2 (Taker)</h2>
             <form>
                 <span>
-                    <input id="taker-version" value="1">
+                    <input id="taker-version" value="2">
                     <label>version</label>
                 </span>
                 <span>
@@ -297,7 +297,7 @@
             </div>
             <div>
                 <div>
-                    <div>Treasury balance</h3>
+                    <div>Treasury balance (loan)</h3>
                         <div class="mono-text out-data small-text" id="taker-balance"></div>
                         <button id="taker-balance-update">update</button>
                     </div>
@@ -331,8 +331,8 @@
         <div class="order-block">
             <form>
                 <span>
-                    <input id="matchingAmount" value="100000000">
-                    <label>matching amount</label>
+                    <input id="matchingAmount" value="-1">
+                    <label>matching amount (-1 for maximum possible)</label>
                 </span>
                 <span>
                     <input id="matchingPrice" value="2000000">
