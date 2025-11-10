@@ -352,6 +352,11 @@ func userUnlockWithdraw(txId: String) = {
 }
 
 @Callable(i) 
+func userUnlockWithdrawFor(userAddress: String, txId: String) = {
+  unlockWithdrawHelper(userAddress, txId, false)
+}
+
+@Callable(i) 
 func matcherUnlockWithdraw(user: String, txId: String) = {
   let isMatcher = (i.callerPublicKey == matcherPublicKey)
   strict check = [
