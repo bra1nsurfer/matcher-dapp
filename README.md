@@ -564,6 +564,8 @@ func userUnlockWithdrawFor(userAddress: String, txId: String)
 
 ## Fast Withdraw
 
+Withdraw in one step can be performed with Matcher approval
+
 ### User Invoke (fast withdraw)
 
 1. Get Treasury address from Factory
@@ -630,6 +632,7 @@ func depositFor(userAddress: String)
 Prediction order bytes structure follows the same structure as [ordinary order](#order-bytes-structure).
 
 1. Order type -> `3`
+1. Event Id is 32 bytes
 1. Event Id is written into Amount asset Id field
 1. Prediction direction is written into Flags last byte
     - `YES` -> `[xx, xx, xx, xx, xx, xx, xx, 0x00]`
