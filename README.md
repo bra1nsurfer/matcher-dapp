@@ -238,7 +238,7 @@ type OrderTypedData = [
     {
         key: "orderType",
         type: "integer",
-        value: number, // 0 -> spot, 1 -> leverage, 2 -> margin
+        value: number, // 0 -> spot, 1 -> leverage, 2 -> margin, 3 -> prediction
     },
     {
         key: "orderDirection",
@@ -324,7 +324,7 @@ const serializedBytes = serializeCustomData(data: OrderTypedData);
 |  7.1 | orderType key length          | Short      | 2                   | `9`                        |                                                                                  |
 |  7.2 | orderType key value           | String     | 9                   | `"orderType"`              |                                                                                  |
 |  7.3 | orderType value type          | Byte       | 1                   | `0`                        | `0` for Long type                                                                |
-|  7.4 | orderType value               | Long       | 8                   | `0` or `1` or `2`          | `0` - spot<br> `1` - leverage<br> `2` - margin                                   |
+|  7.4 | orderType value               | Long       | 8                   | `0` or `1` or `2`          | `0` - spot<br> `1` - leverage<br> `2` - margin<br> `3` - prediction              |
 |  8.1 | orderDirection key length     | Short      | 2                   | `14`                       |                                                                                  |
 |  8.2 | orderDirection key value      | String     | 14                  | `"orderDirection"`         |                                                                                  |
 |  8.3 | orderDirection value type     | Byte       | 1                   | `3`                        | `3` for String type                                                              |
@@ -449,7 +449,7 @@ type EipOrderTypedData = {
         "matcherPublicKey": string,             // Base58 string
         "amountAssetId"   : "WAVES" | string,   // Base58 string
         "priceAssetId"    : "WAVES" | string,   // Base58 string
-        "orderType"       : number,             // 0 -> spot, 1 -> leverage, 2 -> margin
+        "orderType"       : number,             // 0 -> spot, 1 -> leverage, 2 -> margin, 3 -> prediction
         "orderDirection"  : "buy" | "sell",
         "amount"          : number,
         "price"           : number,
@@ -475,8 +475,6 @@ type EipOrderTypedData = {
 const { recoverTypedSignature } = require('@metamask/eth-sig-util');
 const { ethAddress2waves } = require("@waves/node-api-js");
 
-const orderIdString = sha256(orderBytes).toBase58String();
-
 const msg: eipOrderTypedData =  {
    ...
 };
@@ -496,7 +494,7 @@ return (userAddress == recoveredWavesAddress);
 
 1. Get Treasury address from Factory state
     - key: `%s__treasuryAddress`
-1. User balance is store in the Treasure state
+1. User balance is stored in the Treasury state
 
 Key format:
 
@@ -538,6 +536,8 @@ Delay length (in blocks) is stored in Factory state or zero (0)
 func userWithdraw(assetId: String, amount: Int)
 ```
 
+Result: Created withdraw request, assets removed from user balance
+
 Result in Treasury state:
 
 - key: `%s%s%s__withdraw__{user}__{txId}`
@@ -549,8 +549,10 @@ Result in Treasury state:
     - key: `%s__treasuryAddress`
 1. Get withdraw request data
     - key: `%s%s%s__withdraw__{user}__{txId}`
+1. Get `txId` from key
 1. Parse values:
     - value: `%s%d%d__{assetId}__{amount}__{unlockHeight}`
+1. Compare `{unlockHeight}` with current `height`
 1. Construct `userUnlockWithdraw` or `userUnlockWithdrawFor` Invoke TX to Treasury
 
 ```js
@@ -563,14 +565,15 @@ func userUnlockWithdraw(txId: String)
 func userUnlockWithdrawFor(userAddress: String, txId: String)
 ```
 
+Result: Assets is transferred to user address
+
 ### Cancel Withdraw Request
 
 1. Get Treasury address from Factory
     - key: `%s__treasuryAddress`
 1. Get withdraw request data
     - key: `%s%s%s__withdraw__{user}__{txId}`
-1. Parse values:
-    - value: `%s%d%d__{assetId}__{amount}__{unlockHeight}`
+1. Get `txId` from key
 1. Construct `cancelWithdraw` or `matcherCancelWithdraw` Invoke TX to Treasury
 
 ```js
@@ -585,6 +588,8 @@ or
 func matcherCancelWithdraw(user: String, txId: String)
 ```
 
+Result: Withdraw request is removed, assets is returned to user balance
+
 ## Fast Withdraw
 
 Withdraw in one step can be performed with Matcher approval
@@ -595,7 +600,7 @@ Withdraw in one step can be performed with Matcher approval
     - key: `%s__treasuryAddress`
 1. Get last fast withdraw invoke TXID from Treasury state
     - key: `%s%s__lastFastWithdrawTx__{userAddress}`
-1. Send new withdraw data and last TXID to Matcher for approval
+1. Send new withdraw data and last fast withdraw TXID to Matcher for approval
     - `Last TXID` or empty string (first withdraw)
     - `User address`
     - `Asset ID` or `"WAVES"`
@@ -607,6 +612,8 @@ Withdraw in one step can be performed with Matcher approval
 @Callable(i)
 func fastWithdraw(assetId: String, amount: Int, matcherSignature: String)
 ```
+
+Result: Assets is transferred to user address
 
 ### Matcher approval
 
@@ -647,6 +654,8 @@ or
 @Callable(i)
 func depositFor(userAddress: String)
 ```
+
+Result: Assets is transferred to Treasury, user balance is updated
 
 ## Prediction Market
 
