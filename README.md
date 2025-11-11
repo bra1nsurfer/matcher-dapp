@@ -29,6 +29,7 @@
   - [Delayed Withdraw](#delayed-withdraw)
     - [User Withdraw Request](#user-withdraw-request)
     - [User Withdraw Unlock](#user-withdraw-unlock)
+    - [Cancel Withdraw Request](#cancel-withdraw-request)
   - [Fast Withdraw](#fast-withdraw)
     - [User Invoke (fast withdraw)](#user-invoke-fast-withdraw)
     - [Matcher approval](#matcher-approval)
@@ -560,6 +561,28 @@ func userUnlockWithdraw(txId: String)
 ```js
 @Callable(i) 
 func userUnlockWithdrawFor(userAddress: String, txId: String)
+```
+
+### Cancel Withdraw Request
+
+1. Get Treasury address from Factory
+    - key: `%s__treasuryAddress`
+1. Get withdraw request data
+    - key: `%s%s%s__withdraw__{user}__{txId}`
+1. Parse values:
+    - value: `%s%d%d__{assetId}__{amount}__{unlockHeight}`
+1. Construct `cancelWithdraw` or `matcherCancelWithdraw` Invoke TX to Treasury
+
+```js
+@Callable(i)
+func cancelWithdraw(txId: String)
+```
+
+or
+
+```js
+@Callable(i)
+func matcherCancelWithdraw(user: String, txId: String)
 ```
 
 ## Fast Withdraw

@@ -236,6 +236,23 @@ func unlockWithdrawHelper(user: String, txId: String, isMatcher: Boolean) = {
   ]
 }
 
+func cancelWithdrawHelper(user: String, txId: String) = {
+  let withdrawKey = kUserWithdraw(user, txId)
+  let withdrawValueString = this.getString(withdrawKey).valueOrErrorMessage("withdraw request not found")
+  let (assetId, amount, unlockHeight) = parseWithdraw(withdrawValueString)
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped")
+  ]
+
+  let addBalanceActions = changeBalanceHelper(user, assetId, amount, false, false)
+
+  [
+    DeleteEntry(withdrawKey)
+  ] ++
+  addBalanceActions
+}
+
 func depositHelper(userAddress: String, i: Invocation) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -366,10 +383,24 @@ func userUnlockWithdrawFor(userAddress: String, txId: String) = {
 func matcherUnlockWithdraw(user: String, txId: String) = {
   let isMatcher = (i.callerPublicKey == matcherPublicKey)
   strict check = [
-    isMatcher || throwErr("unlock permission denied")
+    isMatcher || throwErr("unlock: permission denied")
   ]
 
   unlockWithdrawHelper(user, txId, isMatcher)
+}
+
+@Callable(i)
+func cancelWithdraw(txId: String) = {
+  cancelWithdrawHelper(i.caller.toString(), txId)
+}
+
+@Callable(i)
+func matcherCancelWithdraw(user: String, txId: String) = {
+  let isMatcher = (i.callerPublicKey == matcherPublicKey)
+  strict check = [
+    isMatcher || throwErr("cancel withdraw: permission denied")
+  ]
+  cancelWithdrawHelper(user, txId)
 }
 
 @Callable(i)
