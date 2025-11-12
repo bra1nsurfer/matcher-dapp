@@ -633,12 +633,12 @@ Result: Assets is transferred to user address
 
 ## Deposit
 
-1. Get Treasury address from Factory
-    - key: `%s__treasuryAddress`
-1. Get allowed assets list from Treasury state
+1. Get allowed assets list from Factory state
     - key: `%s__allowedAssets`
 1. Parse allowed assets list:
     - value: `{asset1}__WAVES__{asset2}__{asset3}`
+1. Get Treasury address from Factory state
+    - key: `%s__treasuryAddress`
 1. Construct `deposit` or `depositFor` Invoke TX to Treasury
 1. Include up to 10 payments
 1. Send Invoke TX to Treasury
