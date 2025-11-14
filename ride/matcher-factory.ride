@@ -6,9 +6,11 @@ let SEP = "__"
 let CONTRACT_NAME = "matcher-factory.ride"
 
 # EVENT STATUS
+let E_NOT_FOUND  = -1
 let E_OPEN       = 0
 let E_CLOSED_YES = 1
 let E_CLOSED_NO  = 2
+let E_STOPPED    = 3
 
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
