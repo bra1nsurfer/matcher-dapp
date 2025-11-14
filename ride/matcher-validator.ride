@@ -526,8 +526,8 @@ func matchOrders(
     (makerOrderPriceAsset == takerOrderPriceAsset) || throwErr("price asset Id does not match"),
     (makerOrderType == takerOrderType) || throwErr("order type does not match"),
     (makerOrderDir != takerOrderDir) || throwErr("order direction bytes is not valid"),
-    (matchPrice <= makerOrderPrice) || throwErr("maker order price error"),
-    (matchPrice >= takerOrderPrice) || throwErr("taker order price error"),
+    (makerOrderDir == orderDirBuy && matchPrice <= makerOrderPrice) || (makerOrderDir == orderDirSell && matchPrice >= makerOrderPrice) || throwErr("maker order price error"),
+    (takerOrderDir == orderDirBuy && matchPrice <= takerOrderPrice) || (takerOrderDir == orderDirSell && matchPrice >= takerOrderPrice) || throwErr("taker order price error"),
     (makerOrderExpiration == 0 || makerOrderExpiration >= CUR_TIMESTAMP) || throwErr("maker order is expired"),
     (takerOrderExpiration == 0 || takerOrderExpiration >= CUR_TIMESTAMP) || throwErr("taker order is expired"),
     (makerOrderStatus == O_OPEN) || throwErr("maker order is closed"),
@@ -553,16 +553,16 @@ func matchOrders(
   # If order fee asset is the same as order sending asset
   # decrease order amount by fee
   let makerRemaining = 
-    if (makerOrderAmountAsset == makerFeeAsset)
+    if (makerOrderDir == orderDirSell && makerOrderAmountAsset == makerFeeAsset)
       then makerRawRemaining - makerFeeAmount
-      else if (makerOrderPriceAsset == makerFeeAsset) 
+      else if (makerOrderDir == orderDirBuy && makerOrderPriceAsset == makerFeeAsset) 
         then (makerRawRemaining - priceAssetToAmountAsset(makerFeeAmount, makerOrderPrice)) 
         else makerRawRemaining
 
   let takerRemaining = 
-    if (takerOrderAmountAsset == takerFeeAsset)
+    if (takerOrderDir == orderDirSell && takerOrderAmountAsset == takerFeeAsset)
       then takerRawRemaining - takerFeeAmount
-      else if (takerOrderPriceAsset == takerFeeAsset) 
+      else if (takerOrderDir == orderDirBuy && takerOrderPriceAsset == takerFeeAsset) 
         then (takerRawRemaining - priceAssetToAmountAsset(takerFeeAmount, takerOrderPrice)) 
         else takerRawRemaining
 
