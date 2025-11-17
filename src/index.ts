@@ -122,6 +122,8 @@ type Order = {
     loginMetamaskButton: HTMLButtonElement,
     loginWebButton: HTMLButtonElement,
     loginEmailButton: HTMLButtonElement,
+
+    predictionStatusElement: HTMLHeadingElement;
 }
 
 const FACTORY_ADDRESS = "3My9nqNjUMmVzeybGf1nmVW2ZAGTUihShWm";
@@ -162,6 +164,7 @@ const maker = {
     loginMetamaskButton: document.getElementById("maker-loginMetamaskButton") as HTMLButtonElement,
     loginWebButton: document.getElementById("maker-loginWebButton") as HTMLButtonElement,
     loginEmailButton: document.getElementById("maker-loginEmailButton") as HTMLButtonElement,
+    predictionStatusElement: document.getElementById("maker-prediction-status") as HTMLHeadingElement,
 } as Order;
 
 const taker = {
@@ -194,6 +197,7 @@ const taker = {
     loginMetamaskButton: document.getElementById("taker-loginMetamaskButton") as HTMLButtonElement,
     loginWebButton: document.getElementById("taker-loginWebButton") as HTMLButtonElement,
     loginEmailButton: document.getElementById("taker-loginEmailButton") as HTMLButtonElement,
+    predictionStatusElement: document.getElementById("taker-prediction-status") as HTMLHeadingElement,
 } as Order;
 
 const factoryAddressElement = document.getElementById("factoryAddress") as HTMLSpanElement;
@@ -337,8 +341,12 @@ function updateOrder(order: Order) {
     if (order.orderTypeElement.value == "3") {
         PREDICTION_MODE = true;
         priceMul = 1;
+        order.predictionStatusElement.hidden = false;
+        const flags = Number(order.flagsElement.value)
+        order.predictionStatusElement.innerText = `Prediction: ${(flags & 0xFF) == 1 ? "NO" : "YES"}`;
     } else {
         PREDICTION_MODE = false;
+        order.predictionStatusElement.hidden = true;
         priceMul = 1_0000_0000;
     }
 
