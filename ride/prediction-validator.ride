@@ -18,6 +18,8 @@ let PENDING       = "PENDING"
 let WAVES         = "WAVES"
 let wavesSignType = "waves-sign"
 let ecdsaSignType = "ecdsa-sign"
+let orderDirBuy   = "buy"
+let orderDirSell  = "sell"
 let MAKER         = "maker"
 let TAKER         = "taker"
 let DEC8          = 1_0000_0000
@@ -586,7 +588,7 @@ func matchOrders(
   let makerEventId      = order1._5.assetIdToString()
   let makerPriceAsset   = order1._6.assetIdToString()
   let makerType         = order1._7
-  let makerDir          = order1._8
+  let makerOrderDir     = order1._8
   let makerFullAmount   = order1._9
   let makerPrice        = makerRealPrice
   let makerNonce        = order1._11
@@ -600,7 +602,7 @@ func matchOrders(
   let takerEventId      = order2._5.assetIdToString()
   let takerPriceAsset   = order2._6.assetIdToString()
   let takerType         = order2._7
-  let takerDir          = order2._8
+  let takerOrderDir     = order2._8
   let takerFullAmount   = order2._9
   let takerPrice        = takerRealPrice
   let takerNonce        = order2._11
@@ -608,7 +610,15 @@ func matchOrders(
   let takerFlags        = order2._13
 
   let eventStatus = getEventStatus(makerEventId)
-  let isExchangeValid = isValidOrderPrices(matchPrice, makerPrice, makerDir, makerPredDir, takerPrice, takerDir, takerPredDir)
+  let isExchangeValid = isValidOrderPrices(
+    matchPrice, 
+    makerPrice, 
+    makerOrderDir, 
+    makerPredDir, 
+    takerPrice, 
+    takerOrderDir, 
+    takerPredDir
+  )
 
   strict validation = [
     (makerNetwork == NETWORK && takerNetwork == NETWORK) || throwErr("network byte is not valid"),
@@ -628,6 +638,8 @@ func matchOrders(
     (takerStatus == O_OPEN) || throwErr("taker order is closed"),
     (makerOrderId != takerOrderId) || throwErr("maker order and taker order are the same"),
     (allowedAssets.containsElement(makerPriceAsset)) || throwErr("price asset not in the allowed list"),
+    (makerOrderDir == orderDirBuy && matchPrice <= makerPrice) || (makerOrderDir == orderDirSell && matchPrice >= makerPrice) || throwErr("maker order price error"),
+    (takerOrderDir == orderDirBuy && matchPrice <= takerPrice) || (takerOrderDir == orderDirSell && matchPrice >= takerPrice) || throwErr("taker order price error"),
     (makerType == O_PREDICTION) || throwErr("maker order type must be prediction"),
     (takerType == O_PREDICTION) || throwErr("taker order type must be prediction"),
     isExchangeValid || throwErr("price or direction mismatch, exchange is not valid")
@@ -648,11 +660,11 @@ func matchOrders(
   # If order fee asset is the same as order sending asset
   # decrease order amount by fee
   let makerOrderRemaining = 
-    if (makerPriceAsset == makerFeeAsset) 
+    if (makerOrderDir == orderDirBuy && makerPriceAsset == makerFeeAsset) 
     then (makerRawRemaining - priceAssetToAmountAsset(makerFeeAmount, makerPrice)) 
     else makerRawRemaining
   let takerOrderRemaining = 
-    if (takerPriceAsset == takerFeeAsset)
+    if (takerOrderDir == orderDirBuy && takerPriceAsset == takerFeeAsset)
     then (takerRawRemaining - priceAssetToAmountAsset(takerFeeAmount, takerPrice))
     else takerRawRemaining
 
@@ -688,8 +700,8 @@ func matchOrders(
     else amountAssetToPriceAsset(realMatchAmount, PREDICTION_PRICE_UNIT-matchPrice)
 
   (
-    (makerSenderAddress, realMatchAmount, makerFinalEventId, makerFinalPriceAmount, makerPriceAsset, makerDir, makerFlags),
-    (takerSenderAddress, realMatchAmount, takerFinalEventId, takerFinalPriceAmount, takerPriceAsset, takerDir, takerFlags),
+    (makerSenderAddress, realMatchAmount, makerFinalEventId, makerFinalPriceAmount, makerPriceAsset, makerOrderDir, makerFlags),
+    (takerSenderAddress, realMatchAmount, takerFinalEventId, takerFinalPriceAmount, takerPriceAsset, takerOrderDir, takerFlags),
     (makerOrderId, newMakerFilled, newMakerRemaining, makerPriceAssetRem), 
     (takerOrderId, newTakerFilled, newTakerRemaining, takerPriceAssetRem)
   )
