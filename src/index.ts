@@ -101,7 +101,6 @@ type Order = {
     amountAssetIdElement: HTMLInputElement,
     priceElement: HTMLInputElement,
     priceElementAssetId: HTMLInputElement,
-    getAmountElement: HTMLInputElement,
     orderTypeElement: HTMLInputElement,
     buyingElement: HTMLInputElement,
     timestampElement: HTMLInputElement,
@@ -145,7 +144,6 @@ const maker = {
     amountAssetIdElement: document.getElementById("maker-amountAssetId") as HTMLInputElement,
     priceElement: document.getElementById("maker-price") as HTMLInputElement,
     priceElementAssetId: document.getElementById("maker-priceAssetId") as HTMLInputElement,
-    getAmountElement: document.getElementById("maker-getAmount") as HTMLInputElement,
     orderTypeElement: document.getElementById("maker-orderType") as HTMLInputElement,
     buyingElement: document.getElementById("maker-buying") as HTMLInputElement,
     timestampElement: document.getElementById("maker-timestamp") as HTMLInputElement,
@@ -178,7 +176,6 @@ const taker = {
     amountAssetIdElement: document.getElementById("taker-amountAssetId") as HTMLInputElement,
     priceElement: document.getElementById("taker-price") as HTMLInputElement,
     priceElementAssetId: document.getElementById("taker-priceAssetId") as HTMLInputElement,
-    getAmountElement: document.getElementById("taker-getAmount") as HTMLInputElement,
     orderTypeElement: document.getElementById("taker-orderType") as HTMLInputElement,
     buyingElement: document.getElementById("taker-buying") as HTMLInputElement,
     timestampElement: document.getElementById("taker-timestamp") as HTMLInputElement,
@@ -336,18 +333,14 @@ function getWithdrawMatcherSignData(txId: string, userAddress: string, assetId: 
 }
 
 function updateOrder(order: Order) {
-    var priceMul;
-
     if (order.orderTypeElement.value == "3") {
         PREDICTION_MODE = true;
-        priceMul = 1;
         order.predictionStatusElement.hidden = false;
         const flags = Number(order.flagsElement.value)
         order.predictionStatusElement.innerText = `Prediction: ${(flags & 0xFF) == 1 ? "NO" : "YES"}`;
     } else {
         PREDICTION_MODE = false;
         order.predictionStatusElement.hidden = true;
-        priceMul = 1_0000_0000;
     }
 
     if (Number(order.timestampElement.value) == 0) {
@@ -357,8 +350,6 @@ function updateOrder(order: Order) {
     if (!order.matcherElement.value && factoryMatcherPubKeyElement.innerText) {
         order.matcherElement.value = factoryMatcherPubKeyElement.innerText;
     }
-
-    order.getAmountElement.value = (Number(order.amountElement.value) * Number(order.priceElement.value) / priceMul).toString();
 
     const buffer = encodeOrder(
         order.signerType,

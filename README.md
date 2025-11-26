@@ -79,7 +79,7 @@ func validateAndExchange(
 | 10 |            1 | order type (`0` -> spot, `1` -> leverage, `2` -> margin, `3` -> prediction)                     |
 | 11 |            1 | order direction `0` -> buying, `1` -> selling                                                   |
 | 12 |            8 | amount                                                                                          |
-| 13 |            8 | price (fixed decimals 10^8)                                                                     |
+| 13 |            8 | price                                                                                           |
 | 14 |            8 | nonce (timestamp)                                                                               |
 | 15 |            8 | expiration (`0` -> indefinite)                                                                  |
 | 16 |            8 | custom flags                                                                                    |
@@ -664,7 +664,7 @@ Result: Assets is transferred to Treasury, user balance is updated
 
 ### Prediction Market base price asset
 
-1. Get prediction price asset from Factiry state
+1. Get prediction price asset from Factory state
     - `%s__predictionPriceAsset`
 
 ### Prediction Order Bytes
