@@ -133,6 +133,13 @@ const EVAL_END = "/utils/script/evaluate/";
 
 var PREDICTION_MODE = false;
 
+const EVENT_STATUS = [
+    "OPEN",
+    "CLOSED_YES",
+    "CLOSED_NO",
+    "STOPPED",
+]
+
 const maker = {
     signer: new Signer({ NODE_URL }),
     signerType: {},
@@ -207,6 +214,7 @@ const predictionAddressElement = document.getElementById("predictionAddress") as
 const treasuryAddressElement = document.getElementById("treasuryAddress") as HTMLSpanElement;
 const poolAddressElement = document.getElementById("poolAddress") as HTMLSpanElement;
 const depositBlockElement = document.getElementById("depositBlock") as HTMLDivElement;
+const eventStatusesBlockElement = document.getElementById("event-statuses") as HTMLDivElement;
 
 const matchingAmountElement = document.getElementById("matchingAmount") as HTMLInputElement;
 const matchingPriceElement = document.getElementById("matchingPrice") as HTMLInputElement;
@@ -221,7 +229,6 @@ const withdrawLastTxElement = document.getElementById("withdraw-lastWithdrawTx")
 const withdrawUserElement = document.getElementById("withdraw-userAddress") as HTMLInputElement;
 const withdrawAssetIdElement = document.getElementById("withdraw-assetId") as HTMLInputElement;
 const withdrawSignData = document.getElementById("withdraw-signData") as HTMLInputElement;
-const withdrawProof = document.getElementById("withdraw-matcherProof") as HTMLInputElement;
 const withdrawAmountElement = document.getElementById("withdraw-amount") as HTMLInputElement;
 const signWithdrawButton = document.getElementById("signFastWithdraw") as HTMLButtonElement;
 
@@ -390,6 +397,22 @@ function getFromState(state: ContractState, key: string) {
     return ""
 }
 
+function getEventsFromState(state: ContractState) {
+    let allEvents: { eventId: string, status: string }[] = [];
+    const events = state.filter((val) => val.key.includes("eventStatus"));
+    for (const ev of events) {
+        const eventId = ev.key.split("__")[2];
+        var status = "INVALID";
+        if (typeof (ev.value) == "number") {
+            status = EVENT_STATUS[ev.value]
+        }
+
+        allEvents.push({ eventId, status });
+    }
+
+    return allEvents;
+}
+
 function getContracts() {
     factoryAddressElement.innerText = FACTORY_ADDRESS;
 
@@ -422,6 +445,12 @@ function getContracts() {
             spotAddressElement.innerText = getFromState(state, kSpotAddress).toString();
             leverageAddressElement.innerText = getFromState(state, kLeverageAddress).toString();
             predictionAddressElement.innerText = getFromState(state, kPredictionAddress).toString();
+
+            for (const ev of getEventsFromState(state)) {
+                const eventElement = document.createElement("div");
+                eventElement.innerText = `${ev.eventId} -> ${ev.status}`;
+                eventStatusesBlockElement.appendChild(eventElement);
+            }
 
             const depositLinkElement = document.createElement("a");
             const depositUrl = `https://waves-dapp.com/${getFromState(state, kTreasuryAddress).toString()}#deposit`;
