@@ -74,8 +74,7 @@ func exchange(
 ) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    i.caller.toString() == validatorAddress || throwErr("permission denied"),
-    makerAddress != takerAddress || throwErr("maker and taker is the same")
+    i.caller.toString() == validatorAddress || throwErr("permission denied")
   ]
 
   (

@@ -80,8 +80,7 @@ func exchange(
   ) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    i.caller.toString() == predictionValidatorAddress || throwErr("permission denied"),
-    makerAddress != takerAddress || throwErr("buyer and seller is the same")
+    i.caller.toString() == predictionValidatorAddress || throwErr("permission denied")
   ]
 
   let (makerAmountBalanceAction, makerPriceBalanceAction) = if (makerDir == ORDER_DIR_BUY)
