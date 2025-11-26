@@ -62,12 +62,12 @@ func keyInternalIdToOrderId(internalId: Int) = ["%s%d", "internalId", internalId
 func keyOrderRemaining(orderId: String)      = ["%s%s", "orderRemaining", orderId].makeString(SEP)
 func keyOrderStatus(orderId: String)         = ["%s%s", "orderStatus", orderId].makeString(SEP)
 
-func amountAssetToPriceAsset(amount: Int, price: Int) = {
-  fraction(amount, price, dec8, DOWN)
+func amountAssetToPriceAsset(amount: Int, price: Int, amountDecimals: Int) = {
+  fraction(amount, price, pow(10, 0, amountDecimals, 0, 0, DOWN), DOWN)
 }
 
-func priceAssetToAmountAsset(priceAssetAmount: Int, price: Int) = {
-  fraction(priceAssetAmount, dec8, price, CEILING)
+func priceAssetToAmountAsset(priceAssetAmount: Int, price: Int, amountDecimals: Int) = {
+  fraction(priceAssetAmount, pow(10, 0, amountDecimals, 0, 0, DOWN), price, CEILING)
 }
 
 func assetIdToString(assetId: ByteVector|Unit) = {
@@ -100,6 +100,18 @@ func toUint256(n: ByteVector) = {
 func toShort(val: ByteVector) = (0.toBytes() + val).takeRight(2)
 func getLenAsShort(val: ByteVector) = val.size().toBytes().takeRight(2)
 func getBytesWithLen(val: ByteVector) = (val.getLenAsShort() + val)
+
+func getAssetDecimals(assetId: String) = {
+  match (assetId.stringToAssetId()) {
+    case b:ByteVector => {
+      match (assetInfo(b)) {
+        case a:Asset => a.decimals
+        case _ => 0
+      }
+    }
+    case _ => 8
+  }
+}
 
 func getEipOrderDataHashV1(orderId: String) = {
   ### EIP-712
@@ -550,20 +562,22 @@ func matchOrders(
   let (makerRawRemaining, _makerFilled) = getRemainingAmount(makerOrderId, makerOrderFullAmount)
   let (takerRawRemaining, _takerFilled) = getRemainingAmount(takerOrderId, takerOrderFullAmount)
 
+  let amountAssetDecimals = getAssetDecimals(makerOrderAmountAsset)
+
   # If order fee asset is the same as order sending asset
   # decrease order amount by fee
   let makerRemaining = 
     if (makerOrderDir == orderDirSell && makerOrderAmountAsset == makerFeeAsset)
       then makerRawRemaining - makerFeeAmount
       else if (makerOrderDir == orderDirBuy && makerOrderPriceAsset == makerFeeAsset) 
-        then (makerRawRemaining - priceAssetToAmountAsset(makerFeeAmount, makerOrderPrice)) 
+        then (makerRawRemaining - priceAssetToAmountAsset(makerFeeAmount, makerOrderPrice, amountAssetDecimals)) 
         else makerRawRemaining
 
   let takerRemaining = 
     if (takerOrderDir == orderDirSell && takerOrderAmountAsset == takerFeeAsset)
       then takerRawRemaining - takerFeeAmount
       else if (takerOrderDir == orderDirBuy && takerOrderPriceAsset == takerFeeAsset) 
-        then (takerRawRemaining - priceAssetToAmountAsset(takerFeeAmount, takerOrderPrice)) 
+        then (takerRawRemaining - priceAssetToAmountAsset(takerFeeAmount, takerOrderPrice, amountAssetDecimals)) 
         else takerRawRemaining
 
   # If matchAmount is set to `-1`, match orders with maximum available amount
@@ -575,7 +589,7 @@ func matchOrders(
     realMatchAmount <= takerRemaining || ["matched amount exceeds taker order remaining amount (", takerRemaining.toString(), ")"].makeString("").throwErr()
   ]
 
-  let matchAmountInPriceAsset = amountAssetToPriceAsset(realMatchAmount, matchPrice)
+  let matchAmountInPriceAsset = amountAssetToPriceAsset(realMatchAmount, matchPrice, amountAssetDecimals)
 
   let newMakerRemaining = makerRemaining - realMatchAmount
   let newTakerRemaining = takerRemaining - realMatchAmount
@@ -584,8 +598,8 @@ func matchOrders(
   let newTakerFilled = takerOrderFullAmount - newTakerRemaining
 
   # Convert remaining amount to price asset at order price
-  let makerPriceAssetRem = amountAssetToPriceAsset(newMakerRemaining, makerOrderPrice)
-  let takerPriceAssetRem = amountAssetToPriceAsset(newTakerRemaining, takerOrderPrice)
+  let makerPriceAssetRem = amountAssetToPriceAsset(newMakerRemaining, makerOrderPrice, amountAssetDecimals)
+  let takerPriceAssetRem = amountAssetToPriceAsset(newTakerRemaining, takerOrderPrice, amountAssetDecimals)
 
   let (makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount) = 
     if (makerOrderDir == orderDirBuy)
