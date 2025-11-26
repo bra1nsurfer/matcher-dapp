@@ -36,7 +36,10 @@
       - [Withdraw Request Bytes](#withdraw-request-bytes)
   - [Deposit](#deposit)
   - [Prediction Market](#prediction-market)
+    - [Prediction Market base price asset](#prediction-market-base-price-asset)
     - [Prediction Order Bytes](#prediction-order-bytes)
+    - [Event Id](#event-id)
+    - [Withdraw from Closed Event](#withdraw-from-closed-event)
 
 ## Matcher Exchange
 
@@ -659,6 +662,11 @@ Result: Assets is transferred to Treasury, user balance is updated
 
 ## Prediction Market
 
+### Prediction Market base price asset
+
+1. Get prediction price asset from Factiry state
+    - `%s__predictionPriceAsset`
+
 ### Prediction Order Bytes
 
 Prediction order bytes structure follows the same structure as [ordinary order](#order-bytes-structure).
@@ -669,3 +677,35 @@ Prediction order bytes structure follows the same structure as [ordinary order](
 1. Prediction direction is written into Flags last byte
     - `YES` -> `[xx, xx, xx, xx, xx, xx, xx, 0x00]`
     - `NO` -> `[xx, xx, xx, xx, xx, xx, xx, 0x01]`
+
+### Event Id
+
+`EventID` is 32 bytes, like asset id
+
+Event Id status is stored in Factory state.
+
+1. Get event status from Factory state
+    - key: `%s%s__eventStatus__{base58:eventId}`
+1. Value is `Integer` type
+1. Possible values:
+    - `0` - Open
+    - `1` - Closed with YES
+    - `2` - Closed with NO
+    - `3` - Stopped (closed without result)
+
+If event status key is not found, `EventId` is not valid.
+
+### Withdraw from Closed Event
+
+If event status id closed with YES (`1`) or NO (`2`), user can exchange event tokens for price asset.
+
+1. Get Treasury address from Factory state
+    - key: `%s__treasuryAddress`
+1. Construct `withdrawPrediction` Invoke TX to Treasury
+
+```js
+@Callable(i)
+func withdrawPrediction(eventId: String, amount: Int)
+```
+
+Result: Resulting event token is exchange to price asset (1.0 TOKEN == 1.0 PRICE ASSET)
