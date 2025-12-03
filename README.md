@@ -10,6 +10,9 @@
   - [Demo](#demo)
   - [Table of Content](#table-of-content)
   - [Matcher Exchange](#matcher-exchange)
+    - [Spot/Leverage/Margin Validator](#spotleveragemargin-validator)
+    - [Prediction Validator](#prediction-validator)
+    - [Exchange invoke tx](#exchange-invoke-tx)
   - [Order Bytes Structure](#order-bytes-structure)
   - [Proof Order V1](#proof-order-v1)
     - [Waves Account Order V1](#waves-account-order-v1)
@@ -43,7 +46,29 @@
 
 ## Matcher Exchange
 
+### Spot/Leverage/Margin Validator
+
+Spot/Leverage/Margin Validator address is stored in the Factory state.
+
+- key: `%s__validatorAddress`
+
+### Prediction Validator
+
+Prediction market has a different Validator.
+
+Validator address is stored in the Factory state.
+
+- key: `%s__predictionValidatorAddress`
+
+### Exchange invoke tx
+
 After matching two orders, matcher should invoke `validateAndExchange()` function to Validator contract
+
+1. Get Validator address from Factory state
+    - key: `%s__validatorAddress` or
+    - key: `%s__predictionValidatorAddress`
+1. Matcher prepares exchange InvokeTx
+1. Matcher broadcast exchange InvokeTx
 
 ```js
 # o1 - Maker
@@ -73,11 +98,11 @@ func validateAndExchange(
 |  4 |     32 or 26 | sender public key OR waves address (32 bytes if Waves signature, 26 bytes if EIP-712 signature) |
 |  5 |           32 | matcher public key                                                                              |
 |  6 |            1 | amount asset flag                                                                               |
-|  7 |      0 or 32 | if amount asset flag is `0` -> 0 bytes (WAVES) else 32 bytes                                    |
+|  7 |      0 or 32 | if amount asset flag is `0` then 0 bytes (WAVES) else 32 bytes                                  |
 |  8 |            1 | price asset flag                                                                                |
-|  9 |      0 or 32 | if price asset flag is `0` -> 0 bytes (WAVES) else 32 bytes                                     |
+|  9 |      0 or 32 | if price asset flag is `0` then 0 bytes (WAVES) else 32 bytes                                   |
 | 10 |            1 | order type (`0` -> spot, `1` -> leverage, `2` -> margin, `3` -> prediction)                     |
-| 11 |            1 | order direction `0` -> buying, `1` -> selling                                                   |
+| 11 |            1 | order direction (`0` -> buying, `1` -> selling)                                                 |
 | 12 |            8 | amount                                                                                          |
 | 13 |            8 | price                                                                                           |
 | 14 |            8 | nonce (timestamp)                                                                               |
@@ -662,6 +687,8 @@ Result: Assets is transferred to Treasury, user balance is updated
 
 ## Prediction Market
 
+(!) Prediction market uses a different [Validator](#prediction-validator)
+
 ### Prediction Market base price asset
 
 1. Get prediction price asset from Factory state
@@ -702,6 +729,7 @@ If event status id closed with YES (`1`) or NO (`2`), user can exchange event to
 1. Get Treasury address from Factory state
     - key: `%s__treasuryAddress`
 1. Construct `withdrawPrediction` Invoke TX to Treasury
+1. Withdraw price assets from Treasury
 
 ```js
 @Callable(i)
