@@ -30,7 +30,10 @@ let kSpotAddress                = ["%s", "spotAddress"].makeString(SEP)
 let kLeverageAddress            = ["%s", "leverageAddress"].makeString(SEP)
 let kMarginAddress              = ["%s", "marginAddress"].makeString(SEP)
 let kPredictionAddress          = ["%s", "predictionAddress"].makeString(SEP)
+let kEventManagerAddress        = ["%s", "eventManagerAddress"].makeString(SEP)
 let kWithdrawDelay              = ["%s", "withdrawDelay"].makeString(SEP)
+
+let eventManagerAddress = this.getString(kEventManagerAddress).valueOrElse("NULL")
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (this.getString(kAllowedAssets)) {
@@ -38,6 +41,7 @@ let allowedAssets  = match (this.getString(kAllowedAssets)) {
     case _ => []
   }
 
+let kEventCreationFeeAmount = ["%s", "eventCreationFeeAmount"].makeString(SEP)
 let kPredictionPriceAsset = ["%s", "predictionPriceAsset"].makeString(SEP)
 func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
 
@@ -73,7 +77,8 @@ func init(
     spotAddress               : String,
     leverageAddress           : String,
     marginAddress             : String,
-    predictionAddress         : String
+    predictionAddress         : String,
+    eventManagerAddress       : String
   ) = {
   strict check = [
     i.caller == this || throwErr("permission denied")
@@ -88,6 +93,7 @@ func init(
   let leverage            = if (leverageAddress            == "") then [] else [StringEntry(kLeverageAddress, leverageAddress)]
   let margin              = if (marginAddress              == "") then [] else [StringEntry(kMarginAddress, marginAddress)]
   let prediction          = if (predictionAddress          == "") then [] else [StringEntry(kPredictionAddress, predictionAddress)]
+  let eventManager        = if (eventManagerAddress        == "") then [] else [StringEntry(kEventManagerAddress, eventManagerAddress)]
 
   pubKey ++ 
   validator ++ 
@@ -97,7 +103,8 @@ func init(
   pool ++ 
   leverage ++ 
   margin ++ 
-  prediction
+  prediction ++
+  eventManager
 }
 
 @Callable(i)
@@ -203,8 +210,17 @@ func setPredictionPriceAsset(assetId: String) = {
 @Callable(i)
 func setEventStatus(eventId: String, status: Int) = {
   strict check = [
-    i.caller == this || throwErr("permission denied")
+    i.caller == this || i.caller.toString() == eventManagerAddress || throwErr("permission denied")
   ]
 
   [IntegerEntry(kEventStatus(eventId), status)]
+}
+
+@Callable(i)
+func setEventCreationFeeAmount(amount: Int) = {
+  strict check = [
+    i.caller == this || throwErr("permission denied")
+  ]
+
+  [IntegerEntry(kEventCreationFeeAmount, amount)]
 }

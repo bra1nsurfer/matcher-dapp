@@ -1,0 +1,121 @@
+{-# STDLIB_VERSION 7 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let SEP           = "__"
+let CONTRACT_NAME = "matcher-eventmanager.ride"
+let WAVES         = "WAVES"
+
+# EVENT STATUS
+let E_NOT_FOUND  = -1
+let E_OPEN       = 0
+let E_CLOSED_YES = 1
+let E_CLOSED_NO  = 2
+let E_STOPPED    = 3
+
+func wrapErr(s: String) = {
+  CONTRACT_NAME + ": " + s
+}
+
+func throwErr(s: String) = {
+  throw(wrapErr(s))
+}
+
+func assetIdToString(assetId: ByteVector|Unit) = {
+  match assetId {
+    case b: ByteVector => b.toBase58String()
+    case _: Unit => WAVES
+  }
+}
+
+func stringToAssetId(s: String) = {
+  if (s == WAVES) then unit else s.fromBase58String()
+}
+
+let kFactoryAddress = ["%s", "factoryAddress"].makeString(SEP)
+let sFactoryAddress = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress  = sFactoryAddress.addressFromString().valueOrErrorMessage("invalid factory address")
+
+let kForceStop = ["%s", "forceStop"].makeString(SEP)
+let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
+
+let kEventCreationFeeAmount = ["%s", "eventCreationFeeAmount"].makeString(SEP)
+let eventCreationFeeAmount  = factoryAddress.getInteger(kEventCreationFeeAmount).valueOrElse(0)
+let kPredictionPriceAsset   = ["%s", "predictionPriceAsset"].makeString(SEP)
+let predictionPriceAsset    = factoryAddress.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
+
+let kLastEventIndex = ["%s", "lastEventIndex"].makeString(SEP)
+let lastEventIndex  = this.getInteger(kLastEventIndex).valueOrElse(0)
+
+let kEventAdminList = ["%s", "eventAdminList"].makeString(SEP)
+let eventAdminList  = this.getString(kEventAdminList).valueOrElse("").split(SEP)
+
+let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
+let sMatcherPublicKey = factoryAddress.getString(kMatcherPublicKey).valueOrErrorMessage("matcher public key is not set")
+let matcherPublicKey  = sMatcherPublicKey.fromBase58String()
+let matcherAddress    = matcherPublicKey.addressFromPublicKey()
+
+func kEventName(eventId: String) = ["%s%s", eventId, "name"].makeString(SEP)
+func kEventDesc(eventId: String) = ["%s%s", eventId, "description"].makeString(SEP)
+
+func kEventStatus(eventId: String)   = ["%s%s", "eventStatus", eventId].makeString(SEP)
+func getEventStatus(eventId: String) = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
+
+func toUint256(n: ByteVector) = {
+  # 32 zeroes
+  let z = base58'11111111111111111111111111111111'
+  let pad = z.drop(n.size())
+  (pad + n)
+}
+
+func intToEventId(eventIndex: Int) = {
+  toUint256(eventIndex.toBytes())
+}
+
+func isAdmin(callerAddress: String) = {
+  callerAddress == this.toString() || eventAdminList.containsElement(callerAddress)
+}
+
+@Callable(i)
+func init(matcherFactory: String) = {
+  strict check = [
+    i.caller == this || throwErr("init: permission denied")
+  ]
+
+  [StringEntry(kFactoryAddress, matcherFactory)]
+}
+
+@Callable(i)
+func newEvent(name: String, description: String) = {
+  let newEventIndex = lastEventIndex + 1
+  let eventId = intToEventId(newEventIndex).assetIdToString()
+
+  strict check = [
+    eventCreationFeeAmount == 0 || i.payments.size() > 0 || throwErr("payment not found"),
+    eventCreationFeeAmount == 0 || i.payments[0].assetId.assetIdToString() == predictionPriceAsset || throwErr("wrong creation fee asset"),
+    eventCreationFeeAmount == 0 || i.payments[0].amount >= eventCreationFeeAmount || throwErr("not enough creation fee amount")
+  ]
+
+  let sendFeeActions = if(eventCreationFeeAmount == 0) 
+    then []
+    else [ScriptTransfer(matcherAddress, i.payments[0].amount, i.payments[0].assetId)]
+
+  [
+    StringEntry(kEventName(eventId), name),
+    StringEntry(kEventDesc(eventId), description),
+    IntegerEntry(kLastEventIndex, newEventIndex)
+  ] ++ sendFeeActions
+}
+
+@Callable(i)
+func approveEvent(eventId: String) = {
+  strict check = [
+    isAdmin(i.caller.toString()) || throwErr("approve event: permission denied"),
+    this.getString(kEventName(eventId)).valueOrElse("").size() > 0 || throwErr("eventId is not found"),
+    getEventStatus(eventId) == E_NOT_FOUND || throwErr("event already approved")
+  ]
+
+  strict inv = factoryAddress.invoke("setEventStatus", [eventId, E_OPEN], [])
+
+  []
+}
