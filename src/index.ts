@@ -211,6 +211,7 @@ const predictionValidatorAddressElement = document.getElementById("predictionVal
 const spotAddressElement = document.getElementById("spotAddress") as HTMLSpanElement;
 const leverageAddressElement = document.getElementById("leverageAddress") as HTMLSpanElement;
 const predictionAddressElement = document.getElementById("predictionAddress") as HTMLSpanElement;
+const eventManagerAddressElement = document.getElementById("eventManagerAddress") as HTMLSpanElement;
 const treasuryAddressElement = document.getElementById("treasuryAddress") as HTMLSpanElement;
 const poolAddressElement = document.getElementById("poolAddress") as HTMLSpanElement;
 const depositBlockElement = document.getElementById("depositBlock") as HTMLDivElement;
@@ -424,6 +425,7 @@ function getContracts() {
     const kSpotAddress = "%s__spotAddress";
     const kLeverageAddress = "%s__leverageAddress";
     const kPredictionAddress = "%s__predictionAddress";
+    const kEventManagerAddress = "%s__eventManagerAddress";
 
     factoryMatcherPubKeyElement.innerText = "LOADING...";
     validatorAddressElement.innerText = "LOADING...";
@@ -433,6 +435,7 @@ function getContracts() {
     spotAddressElement.innerText = "LOADING...";
     leverageAddressElement.innerText = "LOADING...";
     predictionAddressElement.innerText = "LOADING...";
+    eventManagerAddressElement.innerText = "LOADING...";
 
     fetch(NODE_URL + ADDRESS_DATA_END + FACTORY_ADDRESS)
         .then(res => res.json() as Promise<ContractState>)
@@ -445,6 +448,7 @@ function getContracts() {
             spotAddressElement.innerText = getFromState(state, kSpotAddress).toString();
             leverageAddressElement.innerText = getFromState(state, kLeverageAddress).toString();
             predictionAddressElement.innerText = getFromState(state, kPredictionAddress).toString();
+            eventManagerAddressElement.innerText = getFromState(state, kEventManagerAddress).toString();
 
             for (const ev of getEventsFromState(state)) {
                 const eventElement = document.createElement("div");
