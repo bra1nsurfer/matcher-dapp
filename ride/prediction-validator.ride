@@ -78,6 +78,8 @@ let PREDICTION_PRICE_UNIT    = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 
 
 func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
 func getEventStatus(eventId: String) = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
+func kEventEndDatetime(eventId: String) = ["%s%s", "eventEndDatetime", eventId].makeString(SEP)
+func getEventEndDatetime(eventId: String) = factoryAddress.getInteger(kEventEndDatetime(eventId)).valueOrElse(0)
 
 let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
@@ -610,6 +612,7 @@ func matchOrders(
   let takerFlags        = order2._13
 
   let eventStatus = getEventStatus(makerEventId)
+  let eventEndDatetime = getEventEndDatetime(makerEventId)
   let isExchangeValid = isValidOrderPrices(
     matchPrice, 
     makerPrice, 
@@ -640,7 +643,8 @@ func matchOrders(
     (allowedAssets.containsElement(makerPriceAsset)) || throwErr("price asset not in the allowed list"),
     (makerType == O_PREDICTION) || throwErr("maker order type must be prediction"),
     (takerType == O_PREDICTION) || throwErr("taker order type must be prediction"),
-    isExchangeValid || throwErr("price or direction mismatch, exchange is not valid")
+    isExchangeValid || throwErr("price or direction mismatch, exchange is not valid"),
+    (eventEndDatetime == 0 || eventEndDatetime >= CUR_TIMESTAMP) || throwErr("event is expired")
   ]
 
   let makerSenderAddress = 

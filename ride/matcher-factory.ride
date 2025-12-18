@@ -41,9 +41,10 @@ let allowedAssets  = match (this.getString(kAllowedAssets)) {
     case _ => []
   }
 
-let kEventCreationFeeAmount = ["%s", "eventCreationFeeAmount"].makeString(SEP)
-let kPredictionPriceAsset = ["%s", "predictionPriceAsset"].makeString(SEP)
-func kEventStatus(eventId: String) = ["%s%s", "eventStatus", eventId].makeString(SEP)
+let  kEventCreationFeeAmount            = ["%s", "eventCreationFeeAmount"].makeString(SEP)
+let  kPredictionPriceAsset              = ["%s", "predictionPriceAsset"].makeString(SEP)
+func kEventStatus(eventId: String)      = ["%s%s", "eventStatus", eventId].makeString(SEP)
+func kEventEndDatetime(eventId: String) = ["%s%s", "eventEndDatetime", eventId].makeString(SEP)
 
 let kLeverageValue = ["%s", "maxLeverageValue"].makeString(SEP)
 let maxLeverageValue  = this.getInteger(kLeverageValue).valueOrElse(1)
@@ -210,10 +211,19 @@ func setPredictionPriceAsset(assetId: String) = {
 @Callable(i)
 func setEventStatus(eventId: String, status: Int) = {
   strict check = [
-    i.caller == this || i.caller.toString() == eventManagerAddress || throwErr("permission denied")
+    i.caller == this || i.caller.toString() == eventManagerAddress || throwErr("setEventStatus: permission denied")
   ]
 
   [IntegerEntry(kEventStatus(eventId), status)]
+}
+
+@Callable(i)
+func setEventEndDatetime(eventId: String, endDatetime: Int) = {
+  strict check = [
+    i.caller == this || i.caller.toString() == eventManagerAddress || throwErr("setEndDatetime: permission denied")
+  ]
+
+  [IntegerEntry(kEventEndDatetime(eventId), endDatetime)]
 }
 
 @Callable(i)

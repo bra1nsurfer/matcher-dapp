@@ -55,11 +55,16 @@ let sMatcherPublicKey = factoryAddress.getString(kMatcherPublicKey).valueOrError
 let matcherPublicKey  = sMatcherPublicKey.fromBase58String()
 let matcherAddress    = matcherPublicKey.addressFromPublicKey()
 
-func kEventName(eventId: String) = ["%s%s", eventId, "name"].makeString(SEP)
-func kEventDesc(eventId: String) = ["%s%s", eventId, "description"].makeString(SEP)
+func kEventName(eventId: String)        = ["%s%s", "name", eventId].makeString(SEP)
+func kEventDesc(eventId: String)        = ["%s%s", "description", eventId].makeString(SEP)
+func kEventEndDatetime(eventId: String) = ["%s%s", "eventEndDatetime", eventId].makeString(SEP)
+func kEventStatus(eventId: String)      = ["%s%s", "eventStatus", eventId].makeString(SEP)
+func getEventStatus(eventId: String)    = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
 
-func kEventStatus(eventId: String)   = ["%s%s", "eventStatus", eventId].makeString(SEP)
-func getEventStatus(eventId: String) = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
+let currentDatetime = match (blockInfoByHeight(height)) {
+    case bi:BlockInfo => bi.timestamp
+    case _ => 0
+  }
 
 func toUint256(n: ByteVector) = {
   # 32 zeroes
@@ -86,14 +91,17 @@ func init(matcherFactory: String) = {
 }
 
 @Callable(i)
-func newEvent(name: String, description: String) = {
+func newEvent(name: String, description: String, endDatetime: Int) = {
   let newEventIndex = lastEventIndex + 1
   let eventId = intToEventId(newEventIndex).assetIdToString()
 
   strict check = [
     eventCreationFeeAmount == 0 || i.payments.size() > 0 || throwErr("payment not found"),
     eventCreationFeeAmount == 0 || i.payments[0].assetId.assetIdToString() == predictionPriceAsset || throwErr("wrong creation fee asset"),
-    eventCreationFeeAmount == 0 || i.payments[0].amount >= eventCreationFeeAmount || throwErr("not enough creation fee amount")
+    eventCreationFeeAmount == 0 || i.payments[0].amount >= eventCreationFeeAmount || throwErr("not enough creation fee amount"),
+    name.size() > 0 || throwErr("name cannot be empty"),
+    description.size() > 0 || throwErr("description cannot be empty"),
+    endDatetime == 0 || endDatetime > currentDatetime || throwErr("wrong end date")
   ]
 
   let sendFeeActions = if(eventCreationFeeAmount == 0) 
@@ -103,6 +111,7 @@ func newEvent(name: String, description: String) = {
   [
     StringEntry(kEventName(eventId), name),
     StringEntry(kEventDesc(eventId), description),
+    IntegerEntry(kEventEndDatetime(eventId), endDatetime),
     IntegerEntry(kLastEventIndex, newEventIndex)
   ] ++ sendFeeActions
 }
@@ -115,7 +124,12 @@ func approveEvent(eventId: String) = {
     getEventStatus(eventId) == E_NOT_FOUND || throwErr("event already approved")
   ]
 
-  strict inv = factoryAddress.invoke("setEventStatus", [eventId, E_OPEN], [])
+  let endDatetime = this.getInteger(kEventEndDatetime(eventId)).valueOrElse(0)
+
+  strict inv = [
+    factoryAddress.invoke("setEventStatus", [eventId, E_OPEN], []),
+    factoryAddress.invoke("setEventEndDatetime", [eventId, endDatetime], [])
+  ]
 
   []
 }
