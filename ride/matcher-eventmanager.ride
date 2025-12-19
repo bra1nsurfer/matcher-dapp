@@ -101,7 +101,7 @@ func newEvent(name: String, description: String, endDatetime: Int) = {
     eventCreationFeeAmount == 0 || i.payments[0].amount >= eventCreationFeeAmount || throwErr("not enough creation fee amount"),
     name.size() > 0 || throwErr("name cannot be empty"),
     description.size() > 0 || throwErr("description cannot be empty"),
-    endDatetime == 0 || endDatetime > currentDatetime || throwErr("wrong end date")
+    endDatetime == 0 || endDatetime > currentDatetime || throwErr(["wrong end date. Now:", currentDatetime.toString()].makeString(" "))
   ]
 
   let sendFeeActions = if(eventCreationFeeAmount == 0) 

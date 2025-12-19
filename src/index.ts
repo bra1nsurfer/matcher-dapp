@@ -399,16 +399,19 @@ function getFromState(state: ContractState, key: string) {
 }
 
 function getEventsFromState(state: ContractState) {
-    let allEvents: { eventId: string, status: string }[] = [];
+    let allEvents: { eventId: string, status: string, endDatetime: number}[] = [];
     const events = state.filter((val) => val.key.includes("eventStatus"));
+
     for (const ev of events) {
         const eventId = ev.key.split("__")[2];
         var status = "INVALID";
         if (typeof (ev.value) == "number") {
             status = EVENT_STATUS[ev.value]
         }
-
-        allEvents.push({ eventId, status });
+        const endKey = state.filter((val) => val.key.includes(`eventEndDatetime__${eventId}`));
+        const endDatetime = endKey.length > 0 ? endKey[0].value as number : 0
+        
+        allEvents.push({ eventId, status, endDatetime });
     }
 
     return allEvents;
@@ -452,7 +455,8 @@ function getContracts() {
 
             for (const ev of getEventsFromState(state)) {
                 const eventElement = document.createElement("div");
-                eventElement.innerText = `${ev.eventId} -> ${ev.status}`;
+                const isExpired = ev.endDatetime < Date.now() && ev.endDatetime != 0;
+                eventElement.innerText = `${ev.eventId} -> (${ev.endDatetime}) -> ${(isExpired && ev.status == "OPEN") ? "EXPIRED" : ev.status}`;
                 eventStatusesBlockElement.appendChild(eventElement);
             }
 
