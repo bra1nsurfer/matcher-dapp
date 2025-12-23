@@ -204,8 +204,8 @@ Example 1:
 - `%s__mintFeeRate` == `1000000` (1% or 0.01 * 10^8)
 - Give Payment1 == 2.0 USDT
 - Give Payment2 == 0.02 USDT
-- Get 2 YES token
-- Get 2 NO token
+- Get: 2 YES token
+- Get: 2 NO token
 
 Example 2:
 
@@ -225,8 +225,8 @@ Example 4:
 - `%s__mintFeeRate` == `1000000` (1% or 0.01 * 10^8)
 - Give Payment1 == 2.99 USDT
 - Give Payment2 == 0.0299 USDT
-- Get 2 YES token
-- Get 2 NO token
+- Get: 2 YES token
+- Get: 2 NO token
 
 ### Merge Tokens
 
@@ -238,6 +238,7 @@ Payment 1: YES/NO token
 Payment 2: NO/YES token
 ```
 
+- Can be called by anyone
 - YES and NO token amount should be equal
 - Merge rate `(1 YES + 1 NO) == 1.0 Price token`
 
@@ -245,13 +246,13 @@ Example 1:
 
 - Give Payment 1: 3 YES token
 - Give Payment 2: 3 NO token
-- Get 3.0 USDT
+- Get: 3.0 USDT
 
 Example 2:
 
 - Give Payment 1: 3 NO token
 - Give Payment 2: 3 YES token
-- Get 3.0 USDT
+- Get: 3.0 USDT
 
 Example 3:
 
@@ -263,3 +264,65 @@ Example 4:
 
 - Give Payment 1: 3 YES token
 - Get: Error
+
+### Withdraw Tokens
+
+```js
+@Callable(i)
+func withdrawTokens(eventId: String)
+
+Payment 1: YES/NO token
+```
+
+- Can be called by anyone
+- Only if event status `E_CLOSED_YES` (`1`) or `E_CLOSED_NO` (`2`)
+- Withdraw rate `1 YES/NO token == 1.0 Price token`
+
+Example 1:
+
+- `%s%s%d__event__status__{eventId}`: `1` (`E_CLOSED_YES`)
+- Give: 4 YES token
+- Get: 4.0 USDT
+
+Example 2:
+
+- `%s%s%d__event__status__{eventId}`: `2` (`E_CLOSED_NO`)
+- Give: 4 NO token
+- Get: 4.0 USDT
+
+Example 3:
+
+- `%s%s%d__event__status__{eventId}`: `1` (`E_CLOSED_YES`)
+- Give: 4 NO token
+- Get: Error
+
+Example 4:
+
+- `%s%s%d__event__status__{eventId}`: `0` (`E_OPEN`)
+- Give: 4 NO token
+- Get: Error
+
+Example 5:
+
+- `%s%s%d__event__status__{eventId}`: `3` (`E_STOPPED`)
+- Give: 4 YES token
+- Get: Error
+
+### Set Event Status
+
+```js
+@Callable(i)
+func setEventStatus(eventId: String, status: Int)
+```
+
+```txt
+# EVENT STATUS
+E_NOT_FOUND  = -1
+E_OPEN       = 0
+E_CLOSED_YES = 1
+E_CLOSED_NO  = 2
+E_STOPPED    = 3
+E_EXPIRED    = 4
+```
+
+- Can be called only by event admin
