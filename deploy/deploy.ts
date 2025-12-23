@@ -98,6 +98,11 @@ const eventManager: Account = {
     address: e.EVENTMANAGER_ADDRESS ? e.EVENTMANAGER_ADDRESS : "",
 }
 
+const legacyPrediction: Account = {
+    seed: e.LEGACYPREDICTION_SEED ? e.LEGACYPREDICTION_SEED : "",
+    address: e.LEGACYPREDICTION_ADDRESS ? e.LEGACYPREDICTION_ADDRESS : "",
+}
+
 const deployPromises = [
     broadcastNewScript('./ride/matcher-validator.ride', validator),
     broadcastNewScript('./ride/matcher-factory.ride', factory),
@@ -108,6 +113,7 @@ const deployPromises = [
     broadcastNewScript('./ride/matcher-prediction.ride', prediction),
     broadcastNewScript('./ride/prediction-validator.ride', predictionValidator),
     broadcastNewScript('./ride/matcher-eventmanager.ride', eventManager),
+    broadcastNewScript('./ride/legacy-prediction/legacy-prediction.ride', legacyPrediction),
 ]
 
 Promise.all(deployPromises)
