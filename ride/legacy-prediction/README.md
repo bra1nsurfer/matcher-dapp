@@ -1,6 +1,6 @@
 # Legacy prediction
 
-Testnet dApp: `3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG`
+Testnet dApp: `3Mt472nizh8hsEWBzuiGJSmtbHUinHEA6Kh`
 
 ## Config
 
