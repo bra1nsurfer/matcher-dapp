@@ -8,11 +8,11 @@ Keys:
 
 |                          Key |    Type | Example                                                                   | Value Description                                                                                         |
 |-----------------------------:|--------:|---------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-|   `%s__predictionPriceAsset` |  String | `"25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"`                          | Base price asset id                                                                                       |
-| `%s__eventCreationFeeAmount` | Integer | `1000000`                                                                 | Event creation fee (example: 1.0 USDT)                                                                    |
-| `%s__groupCreationFeeAmount` | Integer | `500000`                                                                  | Group creation fee (example: 0.5 USDT)                                                                    |
 |            `%s__mintFeeRate` | Integer | `1000000`                                                                 | Yes/No token mint fee rate (example: 1% or 0.01 * 10^8. If user mint for 2.0 USDT fee is equal 0.02 USDT) |
+| `%s__groupCreationFeeAmount` | Integer | `500000`                                                                  | Group creation fee (example: 0.5 USDT)                                                                    |
+| `%s__eventCreationFeeAmount` | Integer | `1000000`                                                                 | Event creation fee (example: 1.0 USDT)                                                                    |
 |         `%s__eventAdminList` |  String | `N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB` | Event admin list. Admin can set event status, edit event/group info                                       |
+|   `%s__predictionPriceAsset` |  String | `"25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"`                          | Base price asset id                                                                                       |
 
 ## Group keys
 
@@ -68,7 +68,6 @@ Example:
 |:-----------------------------------------|--------:|---------------------------|
 | `%s%s%d__event__name__{eventId}`         |  String | Event name                |
 | `%s%s%d__event__groupId__{eventId}`      |  String | Event group Id            |
-| `%s%s%d__event__description__{eventId}`  |  String | Event description         |
 | `%s%s%d__event__yesAssetId__{eventId}`   |  String | Event YES token asset id  |
 | `%s%s%d__event__noAssetId__{eventId}`    |  String | Event NO token asset id   |
 | `%s%s%d__event__creator__{eventId}`      |  String | Event creator             |
@@ -90,11 +89,6 @@ Example:
 
 ```json
 [
-  {
-    "key": "%s%s%d__event__description__2",
-    "type": "string",
-    "value": "Event 2 description"
-  },
   {
     "key": "%s%s%d__event__endDatetime__2",
     "type": "integer",
@@ -158,7 +152,7 @@ if (groupCreationFeeAmount > 0) then include payment
 
 ```js
 @Callable(i)
-func newEvent(groupId: String, name: String, description: String, endDatetime: Int)
+func newEvent(groupId: Int, name: String, description: String, endDatetime: Int)
 
 txFee must include 2.0 Waves for YES/NO token issue
 
@@ -171,11 +165,36 @@ if (eventCreationFeeAmount > 0) then include payment
 - If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee
 - Fee assetId is `%s__predictionPriceAsset`
 
+### New Events mass creation
+
+```js
+@Callable(i)
+func massNewEvent(
+  gName        : String,
+  gDescription : String,
+  gImgSrc      : String,
+  gSource      : String,
+  eNames       : String,
+  eEndDatetimes: String
+)
+```
+
+- Can be called by anyone
+- All arguments is required
+- `eNames` is a list of Event names separated with `__`
+- `eEndDatetimes` is a list of Event end timestamps separated with `__`
+- Amount of elements in `eNames` and `eEndDatetimes` lists must be equal
+- Up to 6 events can be created with single invoke
+- TX Fee must include 2.0 WAVES for YES/NO Token Issue for every event (3 Events * 2.0 = 6.0 WAVES)
+- If `%s__groupCreationFeeAmount` is NOT zero, must include payment with fee
+- If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee for every event
+- Fee assetId is `%s__predictionPriceAsset`
+
 ### Mint Tokens
 
 ```js
 @Callable(i)
-func mintTokens(eventId: String)
+func mintTokens(eventId: Int)
 
 Payment 1: Prices asset amount
 Payment 2: Mint fee in price asset
@@ -196,12 +215,14 @@ Example 1:
 - Get: 2 NO token
 
 Example 2:
+Fee payment is not attached
 
 - `%s__mintFeeRate` == `1000000` (1% or 0.01 * 10^8)
 - Give Payment1 == 2.0 USDT
 - Get: Error
 
 Example 3:
+Attached fee amount is not enough
 
 - `%s__mintFeeRate` == `1000000` (1% or 0.01 * 10^8)
 - Give Payment1 == 2.0 USDT
@@ -209,6 +230,7 @@ Example 3:
 - Get: Error
 
 Example 4:
+Get amount is rounded DOWN
 
 - `%s__mintFeeRate` == `1000000` (1% or 0.01 * 10^8)
 - Give Payment1 == 2.99 USDT
@@ -220,7 +242,7 @@ Example 4:
 
 ```js
 @Callable(i)
-func mergeTokens(eventId: String)
+func mergeTokens(eventId: Int)
 
 Payment 1: YES/NO token
 Payment 2: NO/YES token
@@ -243,12 +265,14 @@ Example 2:
 - Get: 3.0 USDT
 
 Example 3:
+Tokens amount is not equal
 
 - Give Payment 1: 3 NO token
 - Give Payment 2: 2 YES token
 - Get: Error
 
 Example 4:
+Counter token is not attached
 
 - Give Payment 1: 3 YES token
 - Get: Error
@@ -257,7 +281,7 @@ Example 4:
 
 ```js
 @Callable(i)
-func withdrawTokens(eventId: String)
+func withdrawTokens(eventId: Int)
 
 Payment 1: YES/NO token
 ```
@@ -279,18 +303,21 @@ Example 2:
 - Get: 4.0 USDT
 
 Example 3:
+Wrong token is attached
 
 - `%s%s%d__event__status__{eventId}`: `1` (`E_CLOSED_YES`)
 - Give: 4 NO token
 - Get: Error
 
 Example 4:
+Event is not closed
 
 - `%s%s%d__event__status__{eventId}`: `0` (`E_OPEN`)
 - Give: 4 NO token
 - Get: Error
 
 Example 5:
+Event is stopped without resolution
 
 - `%s%s%d__event__status__{eventId}`: `3` (`E_STOPPED`)
 - Give: 4 YES token
@@ -300,7 +327,7 @@ Example 5:
 
 ```js
 @Callable(i)
-func setEventStatus(eventId: String, status: Int)
+func setEventStatus(eventId: Int, status: Int)
 ```
 
 ```txt
@@ -311,6 +338,24 @@ E_CLOSED_YES = 1
 E_CLOSED_NO  = 2
 E_STOPPED    = 3
 E_EXPIRED    = 4
+```
+
+- Can be called only by event admin
+
+### Edit group info
+
+```js
+@Callable(i)
+func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, maker: String)
+```
+
+- Can be called only by event admin
+
+### Edit event info
+
+```js
+@Callable(i)
+func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, maker: String)
 ```
 
 - Can be called only by event admin
