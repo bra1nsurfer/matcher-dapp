@@ -1,6 +1,7 @@
 import { nodeInteraction, setScript } from "@waves/waves-transactions";
 import { readFileSync } from 'node:fs';
 import { create } from "@waves/node-api-js";
+import Bottleneck from "bottleneck";
 import 'dotenv/config'
 
 type Account = {
@@ -115,7 +116,9 @@ const deployPromises = [
     broadcastNewScript('./ride/matcher-eventmanager.ride', eventManager),
     broadcastNewScript('./ride/legacy-prediction/legacy-prediction.ride', legacyPrediction),
 ]
+const limiter = new Bottleneck({ maxConcurrent: 4 });
+const tasks = deployPromises.map(p => limiter.schedule(() => p));
 
-Promise.all(deployPromises)
+Promise.all(tasks)
     .then(res => console.log(res))
     .catch(e => console.error(e));
