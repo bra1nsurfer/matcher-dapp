@@ -412,35 +412,6 @@ func removeEventAdmin(address: String) = {
 }
 
 @Callable(i)
-func newGroup(name: String, description: String, imgSrc: String, source: String) = {
-  let newGroupIndex = lastGroupIndex + 1
-  let groupId = newGroupIndex.toString()
-  let creator = i.caller.toString()
-
-  strict check = [
-    !forceStop || throwErr("contract is temporary stopped"),
-    groupCreationFeeAmount == 0 || i.payments.size() > 0 || throwErr("payment not found"),
-    groupCreationFeeAmount == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
-    groupCreationFeeAmount == 0 || i.payments[0].amount >= groupCreationFeeAmount || throwErr("not enough creation fee amount"),
-    name.size() > 0 || throwErr("name cannot be empty"),
-    description.size() > 0 || throwErr("description cannot be empty"),
-    imgSrc.size() > 0 || throwErr("imgSrc cannot be empty"),
-    source.size() > 0 || throwErr("source cannot be empty")
-  ]
-
-  let transferFeeAction = if(groupCreationFeeAmount == 0) 
-    then []
-    else [ScriptTransfer(feeGetter, i.payments[0].amount, i.payments[0].assetId)]
-
-  ( 
-    editGroupHelper(groupId, name, description, imgSrc, source, creator) ++ 
-    [IntegerEntry(kLastGroupIndex, newGroupIndex)] ++
-    transferFeeAction,
-    groupId
-  )
-}
-
-@Callable(i)
 func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, creator: String) = {
   let sGroupId = groupId.toString()
   strict check = [

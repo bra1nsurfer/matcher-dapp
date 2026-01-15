@@ -134,20 +134,6 @@ Example:
 
 ## Functions
 
-### New Group
-
-```js
-@Callable(i)
-func newGroup(name: String, description: String, imgSrc: String, source: String)
-
-if (groupCreationFeeAmount > 0) then include payment
-```
-
-- Can be called by anyone
-- All arguments is required
-- If `%s__groupCreationFeeAmount` is NOT zero, must include payment with fee
-- Fee assetId is `%s__predictionPriceAsset`
-
 ### New Event
 
 ```js
