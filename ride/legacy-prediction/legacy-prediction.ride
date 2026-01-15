@@ -139,25 +139,25 @@ func isEventAdmin(callerAddress: String) = {
   isAdmin(callerAddress) || eventAdminList.containsElement(callerAddress)
 }
 
-func editGroupHelper(groupId: String, name: String, description: String, imgSrc: String, source: String, maker: String) = {
-  let nameEntry   = if(name.size() > 0)        then [StringEntry(kGroupName(groupId), name)] else []
-  let descEntry   = if(description.size() > 0) then [StringEntry(kGroupDesc(groupId), description)] else []
-  let imgEntry    = if(imgSrc.size() > 0)      then [StringEntry(kGroupImgSrc(groupId), imgSrc)] else []
-  let sourceEntry = if(source.size() > 0)      then [StringEntry(kGroupSource(groupId), source)] else []
-  let makerEntry  = if(maker.size() > 0)       then [StringEntry(kGroupCreator(groupId), maker)] else []
+func editGroupHelper(groupId: String, name: String, description: String, imgSrc: String, source: String, creator: String) = {
+  let nameEntry    = if(name.size() > 0)        then [StringEntry(kGroupName(groupId), name)] else []
+  let descEntry    = if(description.size() > 0) then [StringEntry(kGroupDesc(groupId), description)] else []
+  let imgEntry     = if(imgSrc.size() > 0)      then [StringEntry(kGroupImgSrc(groupId), imgSrc)] else []
+  let sourceEntry  = if(source.size() > 0)      then [StringEntry(kGroupSource(groupId), source)] else []
+  let creatorEntry = if(creator.size() > 0)       then [StringEntry(kGroupCreator(groupId), creator)] else []
 
-  nameEntry ++ descEntry ++ imgEntry ++ sourceEntry ++ makerEntry
+  nameEntry ++ descEntry ++ imgEntry ++ sourceEntry ++ creatorEntry
 }
 
-func editEventInfoHelper(eventId: String, groupId: String, name: String, endDatetime: Int, maker: String) = {
+func editEventInfoHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
   let nameEntry  = if(name.size() > 0)        then [StringEntry(kEventName(eventId), name)] else []
   let endEntry   = if(endDatetime != 0)       then [IntegerEntry(kEventEndDatetime(eventId), endDatetime)] else []
   let groupEntry = if(groupId.size() > 0)     then [StringEntry(kEventGroupId(eventId), groupId)] else []
-  let makerEntry = if(maker.size() > 0)       then [StringEntry(kEventCreator(eventId), maker)] else []
+  let creatorEntry = if(creator.size() > 0)       then [StringEntry(kEventCreator(eventId), creator)] else []
 
   nameEntry ++ 
   endEntry ++ 
-  makerEntry ++
+  creatorEntry ++
   groupEntry
 }
 
@@ -187,8 +187,8 @@ func eventGroupIdHelper(eventId: String, groupId: String) = {
   prevGroupActions ++ nextGroupActions
 }
 
-func editEventHelper(eventId: String, groupId: String, name: String, endDatetime: Int, maker: String) = {
-  let infoActions = editEventInfoHelper(eventId, groupId, name, endDatetime, maker)
+func editEventHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
+  let infoActions = editEventInfoHelper(eventId, groupId, name, endDatetime, creator)
   let groupIdActions = eventGroupIdHelper(eventId, groupId)
 
   infoActions ++ groupIdActions
@@ -234,7 +234,7 @@ func init(feeGetter: String, basePriceAsset: String, eventCreationFeeAmount: Int
 func newEvent(groupId: Int, name: String, endDatetime: Int) = {
   let newEventIndex = lastEventIndex + 1
   let eventId = newEventIndex.toString()
-  let maker = i.caller.toString()
+  let creator = i.caller.toString()
   let sGroupId = groupId.toString()
 
   strict check = [
@@ -252,7 +252,7 @@ func newEvent(groupId: Int, name: String, endDatetime: Int) = {
     else [ScriptTransfer(feeGetter, i.payments[0].amount, i.payments[0].assetId)]
 
   let tokenIssueActions = eventTokensActions(eventId)
-  let eventInfoActions = editEventHelper(eventId, sGroupId, name, endDatetime, maker)
+  let eventInfoActions = editEventHelper(eventId, sGroupId, name, endDatetime, creator)
 
   (
     [IntegerEntry(kLastEventIndex, newEventIndex)] ++ 
@@ -368,7 +368,7 @@ func withdrawTokens(eventId: Int) = {
 @Callable(i)
 func setEventStatus(eventId: Int, status: Int) = {
   let sEventId = eventId.toString()
-  
+
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("setEventStatus: permission denied"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
@@ -415,7 +415,7 @@ func removeEventAdmin(address: String) = {
 func newGroup(name: String, description: String, imgSrc: String, source: String) = {
   let newGroupIndex = lastGroupIndex + 1
   let groupId = newGroupIndex.toString()
-  let maker = i.caller.toString()
+  let creator = i.caller.toString()
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -433,7 +433,7 @@ func newGroup(name: String, description: String, imgSrc: String, source: String)
     else [ScriptTransfer(feeGetter, i.payments[0].amount, i.payments[0].assetId)]
 
   ( 
-    editGroupHelper(groupId, name, description, imgSrc, source, maker) ++ 
+    editGroupHelper(groupId, name, description, imgSrc, source, creator) ++ 
     [IntegerEntry(kLastGroupIndex, newGroupIndex)] ++
     transferFeeAction,
     groupId
@@ -441,18 +441,18 @@ func newGroup(name: String, description: String, imgSrc: String, source: String)
 }
 
 @Callable(i)
-func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, maker: String) = {
+func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, creator: String) = {
   let sGroupId = groupId.toString()
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("editGroup: permission denied"),
     this.getString(kGroupName(sGroupId)).valueOrErrorMessage(wrapErr("groupId is not found"))
   ]
 
-  editGroupHelper(sGroupId, name, description, imgSrc, source, maker)
+  editGroupHelper(sGroupId, name, description, imgSrc, source, creator)
 }
 
 @Callable(i)
-func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, maker: String) = {
+func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creator: String) = {
   let sEventId = eventId.toString()
   let sGroupId = groupId.toString()
   strict check = [
@@ -460,7 +460,7 @@ func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, maker
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
   ]
   
-  editEventHelper(sEventId, sGroupId, name, endDatetime, maker)
+  editEventHelper(sEventId, sGroupId, name, endDatetime, creator)
 }
 
 @Callable(i)
@@ -480,8 +480,8 @@ func massNewEvent(
   let newGroupIndex = lastGroupIndex + 1
   let groupId = newGroupIndex.toString()
 
-  let maker = i.caller.toString()
-  let groupActions = editGroupHelper(groupId, gName, gDescription, gImgSrc, gSource, maker) ++ 
+  let creator = i.caller.toString()
+  let groupActions = editGroupHelper(groupId, gName, gDescription, gImgSrc, gSource, creator) ++ 
     [IntegerEntry(kLastGroupIndex, newGroupIndex)]
 
   let eNamesList = eNames.split_51C(SEP)
@@ -512,7 +512,7 @@ func massNewEvent(
         endDatetime > currentDatetime || throwErr(["wrong end date. Now:", currentDatetime.toString()].makeString(" "))
       ]
 
-      let infoActions = editEventInfoHelper(localEventId, groupId, eNamesList[arrInd], endDatetime, maker)
+      let infoActions = editEventInfoHelper(localEventId, groupId, eNamesList[arrInd], endDatetime, creator)
       let tokensActions = eventTokensActions(localEventId)
 
       (

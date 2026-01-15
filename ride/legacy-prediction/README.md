@@ -152,7 +152,7 @@ if (groupCreationFeeAmount > 0) then include payment
 
 ```js
 @Callable(i)
-func newEvent(groupId: Int, name: String, description: String, endDatetime: Int)
+func newEvent(groupId: Int, name: String, endDatetime: Int)
 
 txFee must include 2.0 Waves for YES/NO token issue
 
@@ -346,7 +346,7 @@ E_EXPIRED    = 4
 
 ```js
 @Callable(i)
-func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, maker: String)
+func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, creator: String)
 ```
 
 - Can be called only by event admin
@@ -355,7 +355,7 @@ func editGroup(groupId: Int, name: String, description: String, imgSrc: String, 
 
 ```js
 @Callable(i)
-func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, maker: String)
+func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creator: String)
 ```
 
 - Can be called only by event admin
