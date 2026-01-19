@@ -134,28 +134,11 @@ Example:
 
 ## Functions
 
-### New Event
+### New Group with Events
 
 ```js
 @Callable(i)
-func newEvent(groupId: Int, name: String, endDatetime: Int)
-
-txFee must include 2.0 Waves for YES/NO token issue
-
-if (eventCreationFeeAmount > 0) then include payment
-```
-
-- Can be called by anyone
-- All arguments is required
-- TX Fee must include 2.0 WAVES for YES/NO Token Issue
-- If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee
-- Fee assetId is `%s__predictionPriceAsset`
-
-### New Events mass creation
-
-```js
-@Callable(i)
-func massNewEvent(
+func newGroupAndEvents(
   gName        : String,
   gDescription : String,
   gImgSrc      : String,
@@ -176,7 +159,108 @@ func massNewEvent(
 - If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee for every event
 - Fee assetId is `%s__predictionPriceAsset`
 
-### Mint Tokens
+Example:
+
+```json
+{
+    "type": 16,
+    "fee": 2000500000,
+    "feeAssetId": null,
+    "version": 2,
+    "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+    "dApp": "3Mt472nizh8hsEWBzuiGJSmtbHUinHEA6Kh",
+    "payment": [
+        {
+            "amount": 10500000,
+            "assetId": "25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"
+        }
+    ],
+    "call": {
+        "function": "newGroupAndEvents",
+        "args": [
+            {
+                "type": "string",
+                "value": "NEW GROUP!"
+            },
+            {
+                "type": "string",
+                "value": "Lorem ipsum"
+            },
+            {
+                "type": "string",
+                "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp"
+            },
+            {
+                "type": "string",
+                "value": "https://google.com"
+            },
+            {
+                "type": "string",
+                "value": "Event 01 from group__Event 02 from group__Event 03 from group__Event 04 from group__Event 05 from group__Event 06 from group__Event 07 from group__Event 08 from group__Event 09 from group__Event 10 from group"
+            },
+            {
+                "type": "string",
+                "value": "1772323200000__1772496000000__1773100800000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000"
+            }
+        ]
+    }
+}
+```
+
+### Add new Events to existing Group
+
+```js
+@Callable(i)
+func newEvents(
+  groupId      : Int,
+  eNames       : String,
+  eEndDatetimes: String
+)
+```
+
+- Can be called by anyone
+- All arguments is required
+- TX Fee must include 2.0 WAVES for YES/NO Token Issue every event (3 Events * 2.0 = 6.0 WAVES)
+- If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee
+- Fee assetId is `%s__predictionPriceAsset`
+
+Example:
+
+```json
+{
+    "type": 16,
+    "fee": 2000500000,
+    "feeAssetId": null,
+    "version": 2,
+    "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+    "dApp": "3Mt472nizh8hsEWBzuiGJSmtbHUinHEA6Kh",
+    "payment": [
+        {
+            "amount": 10000000,
+            "assetId": "25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"
+        }
+    ],
+    "call": {
+        "function": "newGroupAndEvents",
+        "args": [
+            {
+                "type": "integer",
+                "value": 4
+            },
+            {
+                "type": "string",
+                "value": "Event 01 from group__Event 02 from group__Event 03 from group__Event 04 from group__Event 05 from group__Event 06 from group__Event 07 from group__Event 08 from group__Event 09 from group__Event 10 from group"
+            },
+            {
+                "type": "string",
+                "value": "1772323200000__1772496000000__1773100800000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000"
+            }
+        ]
+    }
+}
+```
+
+### Mint Tokens from Event
 
 ```js
 @Callable(i)
@@ -224,7 +308,7 @@ Get amount is rounded DOWN
 - Get: 2 YES token
 - Get: 2 NO token
 
-### Merge Tokens
+### Merge Tokens from Event
 
 ```js
 @Callable(i)
@@ -263,7 +347,7 @@ Counter token is not attached
 - Give Payment 1: 3 YES token
 - Get: Error
 
-### Withdraw Tokens
+### Withdraw Tokens from Event
 
 ```js
 @Callable(i)

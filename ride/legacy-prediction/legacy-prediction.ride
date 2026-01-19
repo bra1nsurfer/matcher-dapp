@@ -15,6 +15,10 @@ let E_CLOSED_NO  = 2
 let E_STOPPED    = 3
 let E_EXPIRED    = 4
 
+  ### Do not forget to update `FOLD<>` in mass creation functions
+  let INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  let MAX_EVENTS = INDEXES.size()
+
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
 }
@@ -214,6 +218,76 @@ func eventTokensActions(eventId: String) = {
   ]
 }
 
+func massEventHelper(
+    acc: (
+      (
+        String,
+        String,
+        Int,
+        List[String],
+        List[String]
+      ),
+      List[String],
+      List[StringEntry|IntegerEntry],
+      Int
+    ), 
+    arrInd: Int
+  ) = {
+  let (CONST_DATA, eventIds, actions, localLastIndex) = acc
+  let (groupId, creator, eNamesCount, eNamesList, eEndList) = CONST_DATA
+
+  if (arrInd < eNamesCount) then {
+    let localEventIdInt = localLastIndex + 1
+    let localEventId = localEventIdInt.toString()
+    let endDatetime = eEndList[arrInd].parseInt().valueOrErrorMessage("massAddEvent: cannot parse timestamp")
+
+    strict localCheck = [
+      endDatetime > currentDatetime || throwErr(["wrong end date. Now:", currentDatetime.toString()].makeString(" "))
+    ]
+
+    let infoActions = editEventInfoHelper(localEventId, groupId, eNamesList[arrInd], endDatetime, creator)
+    let tokensActions = eventTokensActions(localEventId)
+
+    (
+      CONST_DATA,
+      eventIds :+ localEventId,
+      actions ++ infoActions ++ tokensActions, 
+      localEventIdInt
+    )
+  }
+  else acc
+}
+
+func massNewEventsHelper(
+  creator      : String,
+  groupId      : String,
+  eNames       : String,
+  eEndDatetimes: String
+) = {
+  let eNamesList = eNames.split_51C(SEP)
+  let eNamesCount = eNamesList.size()
+  let eEndList = eEndDatetimes.split_51C(SEP)
+  let eEndCount = eEndList.size()
+
+  let eTotalFee = eventCreationFeeAmount * eNamesCount
+
+  strict check = [
+    eNamesCount <= MAX_EVENTS || throwErr("too many events"),
+    eNamesCount == eEndCount || throwErr("invalid events end datetime amount")
+  ]
+
+  ### Main `FOLD<>`
+  let CONST_DATA = (groupId, creator, eNamesCount, eNamesList, eEndList)
+  let (_a, groupEventIds, allEventsActions, newLastEventIndex) = FOLD<10>(INDEXES, (CONST_DATA, [], [], lastEventIndex), massEventHelper)
+  ###
+
+  let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString(SEP))] 
+  
+  ( groupEventIds,
+    eTotalFee,
+    allEventsActions ++ [IntegerEntry(kLastEventIndex, newLastEventIndex)]
+  )
+}
 
 @Callable(i)
 func init(feeGetter: String, basePriceAsset: String, eventCreationFeeAmount: Int, groupCreationFeeAmount: Int, mintFeeRate: Int) = {
@@ -228,40 +302,6 @@ func init(feeGetter: String, basePriceAsset: String, eventCreationFeeAmount: Int
     IntegerEntry(kGroupCreationFeeAmount, groupCreationFeeAmount),
     IntegerEntry(kEventMinFeeRate, mintFeeRate)
   ]
-}
-
-@Callable(i)
-func newEvent(groupId: Int, name: String, endDatetime: Int) = {
-  let newEventIndex = lastEventIndex + 1
-  let eventId = newEventIndex.toString()
-  let creator = i.caller.toString()
-  let sGroupId = groupId.toString()
-
-  strict check = [
-    !forceStop || throwErr("contract is temporary stopped"),
-    eventCreationFeeAmount == 0 || i.payments.size() > 0 || throwErr("payment not found"),
-    eventCreationFeeAmount == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
-    eventCreationFeeAmount == 0 || i.payments[0].amount >= eventCreationFeeAmount || throwErr("not enough creation fee amount"),
-    this.getString(kGroupName(sGroupId)).valueOrErrorMessage(wrapErr("groupId is not found")),
-    name.size() > 0 || throwErr("name cannot be empty"),
-    endDatetime == 0 || endDatetime > currentDatetime || throwErr(["wrong end date. Now:", currentDatetime.toString()].makeString(" "))
-  ]
-
-  let transferFeeAction = if(eventCreationFeeAmount == 0) 
-    then []
-    else [ScriptTransfer(feeGetter, i.payments[0].amount, i.payments[0].assetId)]
-
-  let tokenIssueActions = eventTokensActions(eventId)
-  let eventInfoActions = editEventHelper(eventId, sGroupId, name, endDatetime, creator)
-
-  (
-    [IntegerEntry(kLastEventIndex, newEventIndex)] ++ 
-    tokenIssueActions ++
-    eventInfoActions ++
-    transferFeeAction,
-
-    eventId
-  )
 }
 
 @Callable(i)
@@ -435,7 +475,7 @@ func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creat
 }
 
 @Callable(i)
-func massNewEvent(
+func newGroupAndEvents(
   gName        : String,
   gDescription : String,
   gImgSrc      : String,
@@ -443,11 +483,6 @@ func massNewEvent(
   eNames       : String,
   eEndDatetimes: String
 ) = {
-
-  ### Do not forget to update `FOLD<>` below
-  let INDEXES = [0, 1, 2, 3, 4, 5]
-  let MAX_EVENTS = INDEXES.size()
-
   let newGroupIndex = lastGroupIndex + 1
   let groupId = newGroupIndex.toString()
 
@@ -455,60 +490,56 @@ func massNewEvent(
   let groupActions = editGroupHelper(groupId, gName, gDescription, gImgSrc, gSource, creator) ++ 
     [IntegerEntry(kLastGroupIndex, newGroupIndex)]
 
-  let eNamesList = eNames.split_51C(SEP)
-  let eNamesCount = eNamesList.size()
-  let eEndList = eEndDatetimes.split_51C(SEP)
-  let eEndCount = eEndList.size()
-
-  let eTotalFee = eventCreationFeeAmount * eNamesCount
+  let (groupEventIds, eTotalFee, eventsActions) = massNewEventsHelper(creator, groupId, eNames, eEndDatetimes)
   let totalFee = groupCreationFeeAmount + eTotalFee
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    eNamesCount <= MAX_EVENTS || throwErr("too many events"),
-    eNamesCount == eEndCount || throwErr("invalid events end datetime amount"),
     totalFee == 0 || i.payments.size() > 0 || throwErr("payment not found"),
     totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
     totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
   ]
 
-  func eventHelper(acc: (List[String], List[StringEntry|IntegerEntry], Int), arrInd: Int) = {
-    let (eventIds, actions, localLastIndex) = acc
-    if (arrInd < eNamesCount) then {
-      let localEventIdInt = localLastIndex + 1
-      let localEventId = localEventIdInt.toString()
-      let endDatetime = eEndList[arrInd].parseInt().valueOrErrorMessage("massAddEvent: cannot parse timestamp")
-
-      strict localCheck = [
-        endDatetime > currentDatetime || throwErr(["wrong end date. Now:", currentDatetime.toString()].makeString(" "))
-      ]
-
-      let infoActions = editEventInfoHelper(localEventId, groupId, eNamesList[arrInd], endDatetime, creator)
-      let tokensActions = eventTokensActions(localEventId)
-
-      (
-        eventIds :+ localEventId,
-        actions ++ infoActions ++ tokensActions, 
-        localEventIdInt
-      )
-    }
-    else acc
-  }
-
-  ### Main `FOLD<>`
-  let (groupEventIds, allEventsActions, newLastEventIndex) = FOLD<6>(INDEXES, ([], [], lastEventIndex), eventHelper)
-  ###
-
   let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString(SEP))] 
-  
   let transferFeeAction = if(totalFee == 0) 
     then []
     else [ScriptTransfer(feeGetter, i.payments[0].amount, i.payments[0].assetId)]
 
   groupActions ++
   groupEventIdsActions ++
-  allEventsActions ++
-  [IntegerEntry(kLastEventIndex, newLastEventIndex)] ++
+  eventsActions ++
+  transferFeeAction
+}
+
+@Callable(i)
+func newEvents(
+  groupId      : Int,
+  eNames       : String,
+  eEndDatetimes: String
+) = {
+  let sGroupId = groupId.toString()
+  let creator = i.caller.toString()
+
+  let (newGroupEventIds, totalFee, eventsActions) = massNewEventsHelper(creator, sGroupId, eNames, eEndDatetimes)
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    totalFee == 0 || i.payments.size() > 0 || throwErr("payment not found"),
+    totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
+    totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
+  ]
+
+  let oldGroupEventIds = getGroupEvents(sGroupId)
+  let groupEventIdsActions = if (oldGroupEventIds.size() + newGroupEventIds.size() < 1000) 
+    then [StringEntry(kGroupEvents(sGroupId), (oldGroupEventIds ++ newGroupEventIds).makeString(SEP))] 
+    else throwErr("max 1000 events in group")
+
+  let transferFeeAction = if(totalFee == 0) 
+    then []
+    else [ScriptTransfer(feeGetter, i.payments[0].amount, i.payments[0].assetId)]
+
+  groupEventIdsActions ++
+  eventsActions ++
   transferFeeAction
 }
 
