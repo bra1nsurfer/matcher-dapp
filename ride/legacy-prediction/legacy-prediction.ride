@@ -148,16 +148,16 @@ func editGroupHelper(groupId: String, name: String, description: String, imgSrc:
   let descEntry    = if(description.size() > 0) then [StringEntry(kGroupDesc(groupId), description)] else []
   let imgEntry     = if(imgSrc.size() > 0)      then [StringEntry(kGroupImgSrc(groupId), imgSrc)] else []
   let sourceEntry  = if(source.size() > 0)      then [StringEntry(kGroupSource(groupId), source)] else []
-  let creatorEntry = if(creator.size() > 0)       then [StringEntry(kGroupCreator(groupId), creator)] else []
+  let creatorEntry = if(creator.size() > 0)     then [StringEntry(kGroupCreator(groupId), creator)] else []
 
   nameEntry ++ descEntry ++ imgEntry ++ sourceEntry ++ creatorEntry
 }
 
 func editEventInfoHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
-  let nameEntry  = if(name.size() > 0)        then [StringEntry(kEventName(eventId), name)] else []
-  let endEntry   = if(endDatetime != 0)       then [IntegerEntry(kEventEndDatetime(eventId), endDatetime)] else []
-  let groupEntry = if(groupId.size() > 0)     then [StringEntry(kEventGroupId(eventId), groupId)] else []
-  let creatorEntry = if(creator.size() > 0)       then [StringEntry(kEventCreator(eventId), creator)] else []
+  let nameEntry    = if(name.size() > 0)    then [StringEntry(kEventName(eventId), name)] else []
+  let endEntry     = if(endDatetime != 0)   then [IntegerEntry(kEventEndDatetime(eventId), endDatetime)] else []
+  let groupEntry   = if(groupId.size() > 0) then [StringEntry(kEventGroupId(eventId), groupId)] else []
+  let creatorEntry = if(creator.size() > 0) then [StringEntry(kEventCreator(eventId), creator)] else []
 
   nameEntry ++ 
   endEntry ++ 
@@ -465,7 +465,7 @@ func editGroup(groupId: Int, name: String, description: String, imgSrc: String, 
 @Callable(i)
 func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creator: String) = {
   let sEventId = eventId.toString()
-  let sGroupId = groupId.toString()
+  let sGroupId = if (groupId > 0) then groupId.toString() else ""
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("editEvent: permission denied"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
