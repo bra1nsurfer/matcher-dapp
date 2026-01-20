@@ -12,6 +12,7 @@
     "base64-js": "^1.5.1",
     "bottleneck": "^2.19.5",
     "dotenv": "^16.5.0",
+    "expect": "^30.2.0",
     "tslib": "^2.8.1",
     "typescript": "^5.8.3",
     "util": "^0.12.5",
@@ -23,7 +24,8 @@
   "scripts": {
     "build": "tsc & webpack",
     "deploy": "tsc & node ./deploy/deploy.js",
-    "deploy-testnet": "tsc & dotenvx run -f ./.env.testnet -- node ./deploy/deploy.js"
+    "deploy-testnet": "tsc & dotenvx run -f ./.env.testnet -- node ./deploy/deploy.js",
+    "test": "tsc & dotenvx run -f ./.env.testnet -- node ./tests/index.js"
   },
   "author": "",
   "license": "ISC",
