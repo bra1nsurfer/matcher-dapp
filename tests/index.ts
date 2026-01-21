@@ -1423,6 +1423,112 @@ function test13(config: PredictionConfig) {
     )
 }
 
+// Merge YES and NO tokens from different event, expect error
+function test14(config: PredictionConfig) {
+    const expectedErrorMsg = "assets and event mismatch";
+    const sendTokenAmount = 3;
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": sendTokenAmount,
+                "assetId": config.closedEvent.yesToken
+            },
+            {
+                "amount": sendTokenAmount,
+                "assetId": config.closedEvent.noToken
+            }
+        ],
+        "call": {
+            "function": "mergeTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.openEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                        [config.closedEvent.yesToken]: 10,
+                        [config.closedEvent.noToken]: 10,
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: merge YES and NO tokens from different event, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
+// Set status by not an admin, expect error
+function test15(config: PredictionConfig) {
+    const expectedErrorMsg = "setEventStatus: permission denied";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG",
+        "senderPublicKey": "3aqUacmd2bha76PwRqnuJNDQzTyS8KZvEX5mxCaX6656",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "setEventStatus",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.openEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": 0
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                        [config.closedEvent.yesToken]: 10,
+                        [config.closedEvent.noToken]: 10,
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: not an admin set event status",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -1443,13 +1549,19 @@ function main() {
             test11(config),
             test12(config),
             test13(config),
+            test14(config),
+            test15(config),
         ]
         const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));
 
         Promise.all(testTasks)
             .then(() => {
+                console.log("===========================");
                 console.log(`Total tests: ${totalTests}, Passed: ${totalTests - failedTests}, Failed: ${failedTests}`);
+                console.log("===========================");
+
+                if (failedTests != 0) process.exit(1);
             });
     });
 };
