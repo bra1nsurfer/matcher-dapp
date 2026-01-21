@@ -170,7 +170,7 @@ func newGroupAndEvents(
 - `eNames` is a list of Event names separated with `__`
 - `eEndDatetimes` is a list of Event end timestamps separated with `__`
 - Amount of elements in `eNames` and `eEndDatetimes` lists must be equal
-- Up to 6 events can be created with single invoke
+- Up to 10 events can be created with single invoke
 - TX Fee must include 2.0 WAVES for YES/NO Token Issue for every event (3 Events * 2.0 = 6.0 WAVES)
 - If `%s__groupCreationFeeAmount` is NOT zero, must include payment with fee
 - If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee for every event
@@ -237,6 +237,7 @@ func newEvents(
 
 - Can be called by anyone
 - All arguments is required
+- Up to 10 events can be created with single invoke
 - TX Fee must include 2.0 WAVES for YES/NO Token Issue every event (3 Events * 2.0 = 6.0 WAVES)
 - If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee
 - Fee assetId is `%s__predictionPriceAsset`
