@@ -33,7 +33,7 @@ type PredictionConfig = {
 type StateData = {
     key: string,
     type: string,
-    value: string | number,
+    value?: string | number,
 };
 
 type StateTransfer = {
@@ -43,7 +43,7 @@ type StateTransfer = {
 };
 
 type StateIssue = {
-    assetId: string,
+    assetId?: string,
     name: string,
     description: string,
     quantity: number,
@@ -110,7 +110,7 @@ function evaluateTx(dapp: string, tx: string): Promise<EvaluateResult> {
 
 function getFromState(state: StateData[], key: string) {
     for (const x of state) {
-        if (x.key == key)
+        if (x.key == key && x.value)
             return x.value
     }
     return ""
@@ -186,6 +186,48 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
             process.exit(1);
         });
 };
+
+function evaluateTest(evalText: string, testDescription: string, expectedResult: EvaluateResult) {
+    return evaluateTx(prediction.address, evalText)
+        .then(val => {
+            console.log(testDescription);
+            return val;
+        })
+        .then(val => {
+            if (expectedResult.type == ResultType.SUCCESS) {
+                if (val.type == ResultType.SUCCESS) {
+                    try {
+                        totalTests++;
+                        expect(val.result).toMatchObject(expectedResult.result);
+                    } catch (err) {
+                        failedTests++;
+                        console.error(err);
+                    }
+                } else {
+                    totalTests++;
+                    failedTests++;
+                    console.error(" Expected result, got error");
+                    console.error(" " + val.result);
+                }
+            }
+            else {
+                if (val.type == ResultType.ERROR) {
+                    try {
+                        totalTests++;
+                        expect(val.result).toContain(expectedResult.result);
+                    } catch (err) {
+                        failedTests++;
+                        console.error(err);
+                    }
+                } else {
+                    totalTests++;
+                    failedTests++;
+                    console.error(" Expected error, got result");
+                    console.error(" " + val.result);
+                }
+            }
+        });
+}
 
 // New event to existing group
 function test01(config: PredictionConfig) {
@@ -307,46 +349,18 @@ function test01(config: PredictionConfig) {
         }
     ]
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: new event to existing group");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.SUCCESS) {
-                try {
-                    totalTests++;
-                    expect(val.result.data).toMatchObject(expectedData);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.transfers).toMatchObject(expectedTransfers);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.issues).toMatchObject(expectedIssues);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected result, got error");
-                console.error(" " + val.result);
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: new event to existing group",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: expectedIssues,
+                transfers: expectedTransfers,
             }
-        });
+        })
 }
-
 
 // New group and single event
 function test02(config: PredictionConfig) {
@@ -512,44 +526,17 @@ function test02(config: PredictionConfig) {
         }
     ]
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: new group and one event");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.SUCCESS) {
-                try {
-                    totalTests++;
-                    expect(val.result.data).toMatchObject(expectedData);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.transfers).toMatchObject(expectedTransfers);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.issues).toMatchObject(expectedIssues);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected result, got error");
-                console.error(" " + val.result);
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: new group and one event",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: expectedIssues,
+                transfers: expectedTransfers,
             }
-        });
+        })
 }
 
 // New group and multiple events
@@ -818,44 +805,17 @@ function test03(config: PredictionConfig) {
         },
     ]
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: new group and multiple events");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.SUCCESS) {
-                try {
-                    totalTests++;
-                    expect(val.result.data).toMatchObject(expectedData);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.transfers).toMatchObject(expectedTransfers);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.issues).toMatchObject(expectedIssues);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected result, got error");
-                console.error(" " + val.result);
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: new group and multiple events",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: expectedIssues,
+                transfers: expectedTransfers,
             }
-        });
+        })
 }
 
 // Mint tokens
@@ -929,35 +889,17 @@ function test04(config: PredictionConfig) {
         }
     ];
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: mint tokens");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.SUCCESS) {
-                try {
-                    totalTests++;
-                    expect(val.result.data).toMatchObject(expectedData);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.transfers).toMatchObject(expectedTransfers);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected result, got error");
-                console.error(" " + val.result);
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: [],
+                transfers: expectedTransfers,
             }
-        });
+        })
 }
 
 // Merge tokens
@@ -1022,35 +964,17 @@ function test05(config: PredictionConfig) {
         }
     ];
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: merge tokens");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.SUCCESS) {
-                try {
-                    totalTests++;
-                    expect(val.result.data).toMatchObject(expectedData);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.transfers).toMatchObject(expectedTransfers);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected result, got error");
-                console.error(" " + val.result);
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: merge tokens",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: [],
+                transfers: expectedTransfers,
             }
-        });
+        })
 }
 
 // Withdraw tokens (CLOSED_NO)
@@ -1103,35 +1027,17 @@ function test06(config: PredictionConfig) {
         }
     ];
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: withdraw tokens");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.SUCCESS) {
-                try {
-                    totalTests++;
-                    expect(val.result.data).toMatchObject([]);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-
-                try {
-                    totalTests++;
-                    expect(val.result.transfers).toMatchObject(expectedTransfers);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected result, got error");
-                console.error(" " + val.result);
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: withdraw tokens",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: [],
+                issues: [],
+                transfers: expectedTransfers,
             }
-        });
+        })
 }
 
 // Withdraw tokens (CLOSED_NO), wrong token
@@ -1176,27 +1082,14 @@ function test07(config: PredictionConfig) {
         }
     };
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: withdraw wrong tokens, expect error");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.ERROR) {
-                try {
-                    totalTests++;
-                    expect(val.result).toContain(expectedErrorMsg);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected error, got result");
-                console.error(" " + val.result);
-            }
-        });
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: withdraw wrong tokens, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
 }
 
 // Mint tokens, event closed, expect error
@@ -1244,27 +1137,14 @@ function test08(config: PredictionConfig) {
         }
     };
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: mint tokens on closed event, expect error");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.ERROR) {
-                try {
-                    totalTests++;
-                    expect(val.result).toContain(expectedErrorMsg);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected error, got result");
-                console.error(" " + val.result);
-            }
-        });
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens on closed event, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
 }
 
 // Mint tokens with not enough fee, expect error
@@ -1312,27 +1192,14 @@ function test09(config: PredictionConfig) {
         }
     };
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: mint tokens with not enough fee, expect error");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.ERROR) {
-                try {
-                    totalTests++;
-                    expect(val.result).toContain(expectedErrorMsg);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected error, got result");
-                console.error(" " + val.result);
-            }
-        });
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens with not enough fee, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
 }
 
 // Merge different amount of YES and NO tokens
@@ -1380,30 +1247,18 @@ function test10(config: PredictionConfig) {
             }
         }
     };
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: merge different amount of YES and NO tokens, expect error");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.ERROR) {
-                try {
-                    totalTests++;
-                    expect(val.result).toContain(expectedErrorMsg);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected error, got result");
-                console.error(" " + val.result);
-            }
-        });
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: merge different amount of YES and NO tokens, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
 }
 
-// Mint tokens for expired Event, expect error
+// Mint tokens for the expired Event, expect error
 function test11(config: PredictionConfig) {
     const mintSendAmount = 3000000;
     const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
@@ -1448,30 +1303,17 @@ function test11(config: PredictionConfig) {
         }
     };
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: mint tokens for expired event, expect error");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.ERROR) {
-                try {
-                    totalTests++;
-                    expect(val.result).toContain(expectedErrorMsg);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected error, got result");
-                console.error(" " + val.result);
-            }
-        });
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens for the expired event, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
 }
 
-// Mint tokens for stopped Event, expect error
+// Mint tokens for the stopped Event, expect error
 function test12(config: PredictionConfig) {
     const mintSendAmount = 3000000;
     const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
@@ -1516,32 +1358,76 @@ function test12(config: PredictionConfig) {
         }
     };
 
-    return evaluateTx(prediction.address, JSON.stringify(testEval))
-        .then(val => {
-            console.log("testing: mint tokens for expired event, expect error");
-            return val;
-        })
-        .then(val => {
-            if (val.type == ResultType.ERROR) {
-                try {
-                    totalTests++;
-                    expect(val.result).toContain(expectedErrorMsg);
-                } catch (err) {
-                    failedTests++;
-                    console.error(err);
-                }
-            } else {
-                totalTests++;
-                failedTests++;
-                console.error(" Expected error, got result");
-                console.error(" " + val.result);
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens for the stopped event, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
+// Mint tokens for the closed Event, expect error
+function test13(config: PredictionConfig) {
+    const mintSendAmount = 3000000;
+    const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
+    const expectedErrorMsg = "event is closed";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": mintSendAmount,
+                "assetId": config.priceAsset
+            },
+            {
+                "amount": mintFee,
+                "assetId": config.priceAsset
             }
-        });
+        ],
+        "call": {
+            "function": "mintTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.closedEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens for the closed event, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
 }
 
 function main() {
     getConfig(prediction).then(config => {
+        console.log("======dApp config======");
         console.log(config);
+        console.log("=======================");
 
         const testPromises = [
             test01(config),
@@ -1556,6 +1442,7 @@ function main() {
             test10(config),
             test11(config),
             test12(config),
+            test13(config),
         ]
         const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));
