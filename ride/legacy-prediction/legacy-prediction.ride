@@ -289,6 +289,19 @@ func massNewEventsHelper(
   )
 }
 
+func isEventOpen(eventId: String) = {
+  let eventStatus = getEventStatus(eventId)
+
+  strict check = [ 
+    eventStatus != E_NOT_FOUND || throwErr("event is not approved"),
+    eventStatus != E_EXPIRED || throwErr("event is expired"),
+    eventStatus != E_STOPPED || throwErr("event is stopped"),
+    (eventStatus != E_CLOSED_NO && eventStatus != E_CLOSED_YES) || throwErr("event is closed")
+  ]
+
+  eventStatus == E_OPEN
+}
+
 @Callable(i)
 func init(feeGetter: String, basePriceAsset: String, eventCreationFeeAmount: Int, groupCreationFeeAmount: Int, mintFeeRate: Int) = {
   strict check = [
@@ -307,10 +320,11 @@ func init(feeGetter: String, basePriceAsset: String, eventCreationFeeAmount: Int
 @Callable(i)
 func mintTokens(eventId: Int) = {
   let sEventId = eventId.toString()
+
   strict check1 = [
     !forceStop || throwErr("contract is temporary stopped"),
     this.getString(kEventName(sEventId)).valueOrElse("").size() > 0 || throwErr("eventId is not found"),
-    getEventStatus(sEventId) == E_OPEN || throwErr("event is closed, stopped or expired"),
+    isEventOpen(sEventId) || throwErr("invalid event status"),
     i.payments.size() >= 2 || throwErr("must be with 2 payments"),
     i.payments[0].assetId == predictionPriceAsset || throwErr("wrong price asset"),
     i.payments[1].assetId == predictionPriceAsset || throwErr("wrong mint fee price asset")
