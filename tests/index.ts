@@ -13,7 +13,7 @@ type EventConfig = {
     yesToken: string,
     noToken: string,
     mintedAmount: number,
-}
+};
 
 type PredictionConfig = {
     address: string,
@@ -26,19 +26,19 @@ type PredictionConfig = {
     priceAsset: string,
     openEvent: EventConfig,
     closedEvent: EventConfig,
-}
+};
 
 type StateData = {
     key: string,
     type: string,
     value: string | number,
-}
+};
 
 type StateTransfer = {
     address: string,
     asset: string,
     amount: number,
-}
+};
 
 type StateIssue = {
     assetId: string,
@@ -49,15 +49,13 @@ type StateIssue = {
     isReissuable: boolean,
     compiledScript: string | null,
     nonce: number,
-}
+};
 
 type StateChanges = {
     data: StateData[],
     transfers: StateTransfer[],
     issues: StateIssue[],
-}
-
-type ContractState = StateData[];
+};
 
 enum ResultType {
     SUCCESS,
@@ -65,8 +63,11 @@ enum ResultType {
 };
 
 type EvaluateResult = {
-    type: ResultType,
-    result: string | StateChanges,
+    type: ResultType.SUCCESS,
+    result: StateChanges,
+} | {
+    type: ResultType.ERROR,
+    result: string,
 };
 
 const e = process.env;
@@ -103,7 +104,7 @@ function evaluateTx(dapp: string, tx: string): Promise<EvaluateResult> {
         })
 }
 
-function getFromState(state: ContractState, key: string) {
+function getFromState(state: StateData[], key: string) {
     for (const x of state) {
         if (x.key == key)
             return x.value
@@ -113,7 +114,7 @@ function getFromState(state: ContractState, key: string) {
 
 function getConfig(dapp: Account): Promise<PredictionConfig> {
     return api.addresses.data(dapp.address)
-        .then(data => data as ContractState)
+        .then(data => data as StateData[])
         .then(state => {
             const lastEventId = Number(getFromState(state, "%s__lastEventIndex"));
             const lastGroupId = Number(getFromState(state, "%s__lastGroupIndex"));
@@ -288,7 +289,7 @@ function test01(config: PredictionConfig) {
             return val;
         })
         .then(val => {
-            if (typeof val.result != "string") {
+            if (val.type == ResultType.SUCCESS) {
                 try {
                     totalTests++;
                     expect(val.result.data).toMatchObject(expectedData);
@@ -316,8 +317,8 @@ function test01(config: PredictionConfig) {
             } else {
                 totalTests++;
                 failedTests++;
-                console.error("Expected result, got error");
-                console.error(val.result);
+                console.error(" Expected result, got error");
+                console.error(" " + val.result);
             }
         });
 }
@@ -493,7 +494,7 @@ function test02(config: PredictionConfig) {
             return val;
         })
         .then(val => {
-            if (typeof val.result != "string") {
+            if (val.type == ResultType.SUCCESS) {
                 try {
                     totalTests++;
                     expect(val.result.data).toMatchObject(expectedData);
@@ -521,8 +522,8 @@ function test02(config: PredictionConfig) {
             } else {
                 totalTests++;
                 failedTests++;
-                console.error("Expected result, got error");
-                console.error(val.result);
+                console.error(" Expected result, got error");
+                console.error(" " + val.result);
             }
         });
 }
@@ -799,7 +800,7 @@ function test03(config: PredictionConfig) {
             return val;
         })
         .then(val => {
-            if (typeof val.result != "string") {
+            if (val.type == ResultType.SUCCESS) {
                 try {
                     totalTests++;
                     expect(val.result.data).toMatchObject(expectedData);
@@ -833,11 +834,10 @@ function test03(config: PredictionConfig) {
         });
 }
 
-
 // Mint tokens
 function test04(config: PredictionConfig) {
     const mintSendAmount = 3000000;
-    const mintFee = Math.round(config.mintFeeRate * mintSendAmount)
+    const mintFee = Math.round(config.mintFeeRate * mintSendAmount);
     const expectedTokensAmount = 3;
 
     const testEval = {
@@ -863,7 +863,7 @@ function test04(config: PredictionConfig) {
             "args": [
                 {
                     "type": "integer",
-                    "value": 1
+                    "value": config.openEvent.id
                 },
             ]
         },
@@ -911,7 +911,7 @@ function test04(config: PredictionConfig) {
             return val;
         })
         .then(val => {
-            if (typeof val.result != "string") {
+            if (val.type == ResultType.SUCCESS) {
                 try {
                     totalTests++;
                     expect(val.result.data).toMatchObject(expectedData);
@@ -964,7 +964,7 @@ function test05(config: PredictionConfig) {
             "args": [
                 {
                     "type": "integer",
-                    "value": 1
+                    "value": config.openEvent.id
                 },
             ]
         },
@@ -1004,7 +1004,7 @@ function test05(config: PredictionConfig) {
             return val;
         })
         .then(val => {
-            if (typeof val.result != "string") {
+            if (val.type == ResultType.SUCCESS) {
                 try {
                     totalTests++;
                     expect(val.result.data).toMatchObject(expectedData);
@@ -1053,7 +1053,7 @@ function test06(config: PredictionConfig) {
             "args": [
                 {
                     "type": "integer",
-                    "value": 2
+                    "value": config.closedEvent.id
                 },
             ]
         },
@@ -1085,7 +1085,7 @@ function test06(config: PredictionConfig) {
             return val;
         })
         .then(val => {
-            if (typeof val.result != "string") {
+            if (val.type == ResultType.SUCCESS) {
                 try {
                     totalTests++;
                     expect(val.result.data).toMatchObject([]);
@@ -1110,6 +1110,275 @@ function test06(config: PredictionConfig) {
         });
 }
 
+// Withdraw tokens (CLOSED_NO), wrong token
+function test07(config: PredictionConfig) {
+    const sendTokenAmount = 3;
+    const expectedErrorMsg = "invalid asset in payment";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": sendTokenAmount,
+                "assetId": config.closedEvent.yesToken
+            }
+        ],
+        "call": {
+            "function": "withdrawTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.closedEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                        [config.closedEvent.yesToken]: 10,
+                        [config.closedEvent.noToken]: 10,
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTx(prediction.address, JSON.stringify(testEval))
+        .then(val => {
+            console.log("testing: withdraw wrong tokens, expect error");
+            return val;
+        })
+        .then(val => {
+            if (val.type == ResultType.ERROR) {
+                try {
+                    totalTests++;
+                    expect(val.result).toContain(expectedErrorMsg);
+                } catch (err) {
+                    failedTests++;
+                    console.error(err);
+                }
+            } else {
+                totalTests++;
+                failedTests++;
+                console.error(" Expected error, got result");
+                console.error(" " + val.result);
+            }
+        });
+}
+
+// Mint tokens, event closed, expect error
+function test08(config: PredictionConfig) {
+    const mintSendAmount = 3000000;
+    const mintFee = Math.round(config.mintFeeRate * mintSendAmount);
+    const expectedErrorMsg = "event is closed, stopped or expired";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": mintSendAmount,
+                "assetId": config.priceAsset
+            },
+            {
+                "amount": mintFee,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "mintTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.closedEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTx(prediction.address, JSON.stringify(testEval))
+        .then(val => {
+            console.log("testing: mint tokens on closed event, expect error");
+            return val;
+        })
+        .then(val => {
+            if (val.type == ResultType.ERROR) {
+                try {
+                    totalTests++;
+                    expect(val.result).toContain(expectedErrorMsg);
+                } catch (err) {
+                    failedTests++;
+                    console.error(err);
+                }
+            } else {
+                totalTests++;
+                failedTests++;
+                console.error(" Expected error, got result");
+                console.error(" " + val.result);
+            }
+        });
+}
+
+// Mint tokens with not enough fee, expect error
+function test09(config: PredictionConfig) {
+    const mintSendAmount = 3000000;
+    const mintFee = 1;
+    const expectedErrorMsg = "mint fee amount is not enough";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": mintSendAmount,
+                "assetId": config.priceAsset
+            },
+            {
+                "amount": mintFee,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "mintTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.openEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTx(prediction.address, JSON.stringify(testEval))
+        .then(val => {
+            console.log("testing: mint tokens with not enough fee, expect error");
+            return val;
+        })
+        .then(val => {
+            if (val.type == ResultType.ERROR) {
+                try {
+                    totalTests++;
+                    expect(val.result).toContain(expectedErrorMsg);
+                } catch (err) {
+                    failedTests++;
+                    console.error(err);
+                }
+            } else {
+                totalTests++;
+                failedTests++;
+                console.error(" Expected error, got result");
+                console.error(" " + val.result);
+            }
+        });
+}
+
+// Merge different amount of YES and NO tokens
+function test10(config: PredictionConfig) {
+    const expectedErrorMsg = "payment amounts must be equal";
+    const sendTokenAmount = 3;
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": sendTokenAmount,
+                "assetId": config.openEvent.yesToken
+            },
+            {
+                "amount": sendTokenAmount + 1,
+                "assetId": config.openEvent.noToken
+            }
+        ],
+        "call": {
+            "function": "mergeTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.openEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                        [config.openEvent.yesToken]: 10,
+                        [config.openEvent.noToken]: 10,
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+    return evaluateTx(prediction.address, JSON.stringify(testEval))
+        .then(val => {
+            console.log("testing: merge different amount of YES and NO tokens, expect error");
+            return val;
+        })
+        .then(val => {
+            if (val.type == ResultType.ERROR) {
+                try {
+                    totalTests++;
+                    expect(val.result).toContain(expectedErrorMsg);
+                } catch (err) {
+                    failedTests++;
+                    console.error(err);
+                }
+            } else {
+                totalTests++;
+                failedTests++;
+                console.error(" Expected error, got result");
+                console.error(" " + val.result);
+            }
+        });
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log(config);
@@ -1121,6 +1390,10 @@ function main() {
             test04(config),
             test05(config),
             test06(config),
+            test07(config),
+            test08(config),
+            test09(config),
+            test10(config),
         ]
         const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));
