@@ -2,5 +2,6 @@ node_modules
 package-lock.json
 src/*.js
 deploy/*.js
+tests/*.js
 .env.testnet
 .markdownlint.json

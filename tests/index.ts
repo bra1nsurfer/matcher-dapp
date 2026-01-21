@@ -26,6 +26,8 @@ type PredictionConfig = {
     priceAsset: string,
     openEvent: EventConfig,
     closedEvent: EventConfig,
+    expiredEvent: EventConfig,
+    stoppedEvent: EventConfig,
 };
 
 type StateData = {
@@ -91,9 +93,11 @@ function evaluateTx(dapp: string, tx: string): Promise<EvaluateResult> {
         .then(resp => resp.json())
         .then(res => {
             if (res.error) {
+                const msg: string = res.message.toString();
+                const splitPoint = msg.indexOf('\n');
                 return {
                     type: ResultType.ERROR,
-                    result: res.message.toString()
+                    result: msg.slice(0, splitPoint),
                 }
             } else {
                 return {
@@ -129,9 +133,18 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
             const openEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__1").toString();
             const openMintedAmount = Number(getFromState(state, "%s%s%d__event__tokensMinted__1"));
 
-            // Assume event with Id = 2 is Open
+            // Assume event with Id = 2 is Closed with NO
             const closedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__2").toString();
             const closedEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__2").toString();
+
+            // Assume event with Id = 3 is Expired
+            const expiredEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__3").toString();
+            const expiredEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__3").toString();
+
+            // Assume event with Id = 4 is Stopped
+            const stoppedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__4").toString();
+            const stoppedEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__4").toString();
+
 
             return {
                 address: dapp.address,
@@ -154,6 +167,18 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
                     noToken: closedEventNoToken,
                     mintedAmount: 0,
                 },
+                expiredEvent: {
+                    id: 3,
+                    yesToken: expiredEventYesToken,
+                    noToken: expiredEventNoToken,
+                    mintedAmount: 0,
+                },
+                stoppedEvent: {
+                    id: 4,
+                    yesToken: stoppedEventYesToken,
+                    noToken: stoppedEventNoToken,
+                    mintedAmount: 0,
+                }
             }
         })
         .catch(err => {
@@ -162,8 +187,7 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
         });
 };
 
-
-// New event for existing group
+// New event to existing group
 function test01(config: PredictionConfig) {
     const testEval = {
         "type": 16,
@@ -285,7 +309,7 @@ function test01(config: PredictionConfig) {
 
     return evaluateTx(prediction.address, JSON.stringify(testEval))
         .then(val => {
-            console.log("testing: new event for existing group");
+            console.log("testing: new event to existing group");
             return val;
         })
         .then(val => {
@@ -1179,7 +1203,7 @@ function test07(config: PredictionConfig) {
 function test08(config: PredictionConfig) {
     const mintSendAmount = 3000000;
     const mintFee = Math.round(config.mintFeeRate * mintSendAmount);
-    const expectedErrorMsg = "event is closed, stopped or expired";
+    const expectedErrorMsg = "event is closed";
 
     const testEval = {
         "type": 16,
@@ -1379,6 +1403,142 @@ function test10(config: PredictionConfig) {
         });
 }
 
+// Mint tokens for expired Event, expect error
+function test11(config: PredictionConfig) {
+    const mintSendAmount = 3000000;
+    const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
+    const expectedErrorMsg = "event is expired";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": mintSendAmount,
+                "assetId": config.priceAsset
+            },
+            {
+                "amount": mintFee,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "mintTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.expiredEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTx(prediction.address, JSON.stringify(testEval))
+        .then(val => {
+            console.log("testing: mint tokens for expired event, expect error");
+            return val;
+        })
+        .then(val => {
+            if (val.type == ResultType.ERROR) {
+                try {
+                    totalTests++;
+                    expect(val.result).toContain(expectedErrorMsg);
+                } catch (err) {
+                    failedTests++;
+                    console.error(err);
+                }
+            } else {
+                totalTests++;
+                failedTests++;
+                console.error(" Expected error, got result");
+                console.error(" " + val.result);
+            }
+        });
+}
+
+// Mint tokens for stopped Event, expect error
+function test12(config: PredictionConfig) {
+    const mintSendAmount = 3000000;
+    const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
+    const expectedErrorMsg = "event is stopped";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": mintSendAmount,
+                "assetId": config.priceAsset
+            },
+            {
+                "amount": mintFee,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "mintTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.stoppedEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTx(prediction.address, JSON.stringify(testEval))
+        .then(val => {
+            console.log("testing: mint tokens for expired event, expect error");
+            return val;
+        })
+        .then(val => {
+            if (val.type == ResultType.ERROR) {
+                try {
+                    totalTests++;
+                    expect(val.result).toContain(expectedErrorMsg);
+                } catch (err) {
+                    failedTests++;
+                    console.error(err);
+                }
+            } else {
+                totalTests++;
+                failedTests++;
+                console.error(" Expected error, got result");
+                console.error(" " + val.result);
+            }
+        });
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log(config);
@@ -1394,6 +1554,8 @@ function main() {
             test08(config),
             test09(config),
             test10(config),
+            test11(config),
+            test12(config),
         ]
         const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));
