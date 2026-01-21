@@ -2,6 +2,23 @@
 
 Testnet dApp: `3Mt472nizh8hsEWBzuiGJSmtbHUinHEA6Kh`
 
+## Table of Content
+
+- [Legacy prediction](#legacy-prediction)
+  - [Table of Content](#table-of-content)
+  - [Config](#config)
+  - [Group keys](#group-keys)
+  - [Event Keys](#event-keys)
+  - [Functions](#functions)
+    - [New Group with Events](#new-group-with-events)
+    - [Add new Events to existing Group](#add-new-events-to-existing-group)
+    - [Mint Tokens from Event](#mint-tokens-from-event)
+    - [Merge Tokens from Event](#merge-tokens-from-event)
+    - [Withdraw Tokens from Event](#withdraw-tokens-from-event)
+    - [Set Event Status](#set-event-status)
+    - [Edit group info](#edit-group-info)
+    - [Edit event info](#edit-event-info)
+
 ## Config
 
 Keys:
