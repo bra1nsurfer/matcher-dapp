@@ -223,7 +223,6 @@ function evaluateTest(evalText: string, testDescription: string, expectedResult:
                     totalTests++;
                     failedTests++;
                     console.error(" Expected error, got result");
-                    console.error(" " + val.result);
                 }
             }
         });
@@ -393,6 +392,10 @@ function test02(config: PredictionConfig) {
                 },
                 {
                     "type": "string",
+                    "value": "Category1__Category2"
+                },
+                {
+                    "type": "string",
                     "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp"
                 },
                 {
@@ -431,6 +434,11 @@ function test02(config: PredictionConfig) {
             key: `%s%s%d__group__description__${config.lastGroupId + 1}`,
             type: 'string',
             value: 'Lorem ipsum'
+        },
+        {
+            key: `%s%s%d__group__category__${config.lastGroupId + 1}`,
+            type: 'string',
+            value: 'Category1__Category2'
         },
         {
             key: `%s%s%d__group__imgSrc__${config.lastGroupId + 1}`,
@@ -570,6 +578,10 @@ function test03(config: PredictionConfig) {
                 },
                 {
                     "type": "string",
+                    "value": "Category1__Category2"
+                },
+                {
+                    "type": "string",
                     "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp"
                 },
                 {
@@ -608,6 +620,11 @@ function test03(config: PredictionConfig) {
             key: `%s%s%d__group__description__${config.lastGroupId + 1}`,
             type: 'string',
             value: 'Lorem ipsum'
+        },
+        {
+            key: `%s%s%d__group__category__${config.lastGroupId + 1}`,
+            type: 'string',
+            value: 'Category1__Category2'
         },
         {
             key: `%s%s%d__group__imgSrc__${config.lastGroupId + 1}`,
@@ -1529,6 +1546,231 @@ function test15(config: PredictionConfig) {
     )
 }
 
+// Set status by admin
+function test16(config: PredictionConfig) {
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+        "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "setEventStatus",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.stoppedEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": 1
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": {
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    const expectedData: StateData[] = [
+        {
+            key: `%s%s%d__event__status__${config.stoppedEvent.id}`,
+            type: "integer",
+            value: 1,
+        }
+    ]
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: set status by admin",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                transfers: [],
+                issues: [],
+            }
+        }
+    )
+}
+
+// Edit group info by admin
+function test17(config: PredictionConfig) {
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+        "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "editGroup",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.stoppedEvent.id
+                },
+                {
+                    "type": "string",
+                    "value": "Group name change"
+                },
+                {
+                    "type": "string",
+                    "value": "Lorem ipsum"
+                },
+                {
+                    "type": "string",
+                    "value": "Category3__Category4"
+                },
+                {
+                    "type": "string",
+                    "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp?new"
+                },
+                {
+                    "type": "string",
+                    "value": "https://google.com?new"
+                },
+                {
+                    "type": "string",
+                    "value": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB"
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": {
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    const expectedData: StateData[] = [
+        {
+            key: `%s%s%d__group__name__${config.stoppedEvent.id}`,
+            type: "string",
+            value: "Group name change",
+        },
+        {
+            key: `%s%s%d__group__description__${config.stoppedEvent.id}`,
+            type: "string",
+            value: "Lorem ipsum",
+        },
+        {
+            key: `%s%s%d__group__category__${config.stoppedEvent.id}`,
+            type: "string",
+            value: "Category3__Category4",
+        },
+        {
+            key: `%s%s%d__group__imgSrc__${config.stoppedEvent.id}`,
+            type: "string",
+            value: "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp?new",
+        },
+        {
+            key: `%s%s%d__group__source__${config.stoppedEvent.id}`,
+            type: "string",
+            value: "https://google.com?new",
+        },
+        {
+            key: `%s%s%d__group__creator__${config.stoppedEvent.id}`,
+            type: "string",
+            value: "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+        },
+    ]
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: edit group info by admin",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                transfers: [],
+                issues: [],
+            }
+        }
+    )
+}
+
+// Set status by not an admin, expect error
+function test18(config: PredictionConfig) {
+    const expectedErrorMsg = "editGroup: permission denied";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG",
+        "senderPublicKey": "3aqUacmd2bha76PwRqnuJNDQzTyS8KZvEX5mxCaX6656",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "editGroup",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.stoppedEvent.id
+                },
+                {
+                    "type": "string",
+                    "value": "Group name change"
+                },
+                {
+                    "type": "string",
+                    "value": "Lorem ipsum"
+                },
+                {
+                    "type": "string",
+                    "value": "Category3__Category4"
+                },
+                {
+                    "type": "string",
+                    "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp?new"
+                },
+                {
+                    "type": "string",
+                    "value": "https://google.com?new"
+                },
+                {
+                    "type": "string",
+                    "value": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB"
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                        [config.closedEvent.yesToken]: 10,
+                        [config.closedEvent.noToken]: 10,
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: not an admin set event status",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -1551,6 +1793,9 @@ function main() {
             test13(config),
             test14(config),
             test15(config),
+            test16(config),
+            test17(config),
+            test18(config),
         ]
         const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));

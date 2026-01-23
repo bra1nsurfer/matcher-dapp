@@ -37,6 +37,7 @@ Keys:
 |:----------------------------------------|-------:|-------------------------|
 | `%s%s%d__group__name__{groupId}`        | String | Group name              |
 | `%s%s%d__group__description__{groupId}` | String | Group description       |
+| `%s%s%d__group__category__{groupId}`    | String | Group category list     |
 | `%s%s%d__group__imgSrc__{groupId}`      | String | Group image source      |
 | `%s%s%d__group__creator__{groupId}`     | String | Group creator           |
 | `%s%s%d__group__source__{groupId}`      | String | Group settlement source |

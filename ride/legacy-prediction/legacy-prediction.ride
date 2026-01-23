@@ -88,6 +88,7 @@ func kGroupDesc(groupId: String)     = ["%s%s%d", "group", "description", groupI
 func kGroupImgSrc(groupId: String)   = ["%s%s%d", "group", "imgSrc", groupId].makeString(SEP)
 func kGroupSource(groupId: String)   = ["%s%s%d", "group", "source", groupId].makeString(SEP)
 func kGroupCreator(groupId: String)  = ["%s%s%d", "group", "creator", groupId].makeString(SEP)
+func kGroupCategory(groupId: String) = ["%s%s%d", "group", "category", groupId].makeString(SEP)
 func kGroupEvents(groupId: String)   = ["%s%s%d", "group", "events", groupId].makeString(SEP)
 func getGroupEvents(groupId: String) = match (this.getString(kGroupEvents(groupId))) {
     case str:String => str.split_51C(SEP)
@@ -143,14 +144,15 @@ func isEventAdmin(callerAddress: String) = {
   isAdmin(callerAddress) || eventAdminList.containsElement(callerAddress)
 }
 
-func editGroupHelper(groupId: String, name: String, description: String, imgSrc: String, source: String, creator: String) = {
-  let nameEntry    = if(name.size() > 0)        then [StringEntry(kGroupName(groupId), name)] else []
-  let descEntry    = if(description.size() > 0) then [StringEntry(kGroupDesc(groupId), description)] else []
-  let imgEntry     = if(imgSrc.size() > 0)      then [StringEntry(kGroupImgSrc(groupId), imgSrc)] else []
-  let sourceEntry  = if(source.size() > 0)      then [StringEntry(kGroupSource(groupId), source)] else []
-  let creatorEntry = if(creator.size() > 0)     then [StringEntry(kGroupCreator(groupId), creator)] else []
+func editGroupHelper(groupId: String, name: String, description: String, category: String, imgSrc: String, source: String, creator: String) = {
+  let nameEntry     = if(name.size() > 0)        then [StringEntry(kGroupName(groupId), name)] else []
+  let descEntry     = if(description.size() > 0) then [StringEntry(kGroupDesc(groupId), description)] else []
+  let categoryEntry = if(category.size() > 0)    then [StringEntry(kGroupCategory(groupId), category)] else []
+  let imgEntry      = if(imgSrc.size() > 0)      then [StringEntry(kGroupImgSrc(groupId), imgSrc)] else []
+  let sourceEntry   = if(source.size() > 0)      then [StringEntry(kGroupSource(groupId), source)] else []
+  let creatorEntry  = if(creator.size() > 0)     then [StringEntry(kGroupCreator(groupId), creator)] else []
 
-  nameEntry ++ descEntry ++ imgEntry ++ sourceEntry ++ creatorEntry
+  nameEntry ++ descEntry ++ categoryEntry ++ imgEntry ++ sourceEntry ++ creatorEntry
 }
 
 func editEventInfoHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
@@ -466,14 +468,14 @@ func removeEventAdmin(address: String) = {
 }
 
 @Callable(i)
-func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, creator: String) = {
+func editGroup(groupId: Int, name: String, description: String, category: String, imgSrc: String, source: String, creator: String) = {
   let sGroupId = groupId.toString()
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("editGroup: permission denied"),
     this.getString(kGroupName(sGroupId)).valueOrErrorMessage(wrapErr("groupId is not found"))
   ]
 
-  editGroupHelper(sGroupId, name, description, imgSrc, source, creator)
+  editGroupHelper(sGroupId, name, description, category, imgSrc, source, creator)
 }
 
 @Callable(i)
@@ -492,6 +494,7 @@ func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creat
 func newGroupAndEvents(
   gName        : String,
   gDescription : String,
+  gCategory    : String,
   gImgSrc      : String,
   gSource      : String,
   eNames       : String,
@@ -501,7 +504,7 @@ func newGroupAndEvents(
   let groupId = newGroupIndex.toString()
 
   let creator = i.caller.toString()
-  let groupActions = editGroupHelper(groupId, gName, gDescription, gImgSrc, gSource, creator) ++ 
+  let groupActions = editGroupHelper(groupId, gName, gDescription, gCategory, gImgSrc, gSource, creator) ++ 
     [IntegerEntry(kLastGroupIndex, newGroupIndex)]
 
   let (groupEventIds, eTotalFee, eventsActions) = massNewEventsHelper(creator, groupId, eNames, eEndDatetimes)
