@@ -1771,6 +1771,247 @@ function test18(config: PredictionConfig) {
     )
 }
 
+// 2 new events to the existing group
+function test19(config: PredictionConfig) {
+    const testEval = {
+        "type": 16,
+        "fee": 400500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": config.eventCreationFee * 2.0,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "newEvents",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": 1
+                },
+                {
+                    "type": "string",
+                    "value": "EVENT 01__EVENT 02"
+                },
+                {
+                    "type": "string",
+                    "value": "1893456000000__1893456000001"
+                }
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000"
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    const expectedData = [
+        {
+            key: '%s%s%d__group__events__1',
+            type: 'string',
+            value: `2__10__1__${config.lastEventId + 1}__${config.lastEventId + 2}`
+        },
+        {
+            key: `%s%s%d__event__name__${config.lastEventId + 1}`,
+            type: 'string',
+            value: 'EVENT 01'
+        },
+        {
+            key: `%s%s%d__event__endDatetime__${config.lastEventId + 1}`,
+            type: 'integer',
+            value: 1893456000000
+        },
+        {
+            key: `%s%s%d__event__creator__${config.lastEventId + 1}`,
+            type: 'string',
+            value: '3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx'
+        },
+        {
+            key: `%s%s%d__event__groupId__${config.lastEventId + 1}`,
+            type: 'string',
+            value: '1'
+        },
+        {
+            key: `%s%s%d__event__yesAssetId__${config.lastEventId + 1}`,
+            type: 'string',
+        },
+        {
+            key: `%s%s%d__event__noAssetId__${config.lastEventId + 1}`,
+            type: 'string',
+        },
+        {
+            key: `%s%s%d__event__tokensMinted__${config.lastEventId + 1}`,
+            type: 'integer',
+            value: 0
+        },
+        {
+            key: `%s%s%d__event__name__${config.lastEventId + 2}`,
+            type: 'string',
+            value: 'EVENT 02'
+        },
+        {
+            key: `%s%s%d__event__endDatetime__${config.lastEventId + 2}`,
+            type: 'integer',
+            value: 1893456000001
+        },
+        {
+            key: `%s%s%d__event__creator__${config.lastEventId + 2}`,
+            type: 'string',
+            value: '3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx'
+        },
+        {
+            key: `%s%s%d__event__groupId__${config.lastEventId + 2}`,
+            type: 'string',
+            value: '1'
+        },
+        {
+            key: `%s%s%d__event__yesAssetId__${config.lastEventId + 2}`,
+            type: 'string',
+        },
+        {
+            key: `%s%s%d__event__noAssetId__${config.lastEventId + 2}`,
+            type: 'string',
+        },
+        {
+            key: `%s%s%d__event__tokensMinted__${config.lastEventId + 2}`,
+            type: 'integer',
+            value: 0
+        },
+        {
+            key: '%s__lastEventIndex',
+            type: 'integer',
+            value: config.lastEventId + 2
+        }
+    ]
+
+    const expectedTransfers = [
+        {
+            address: config.feeGetter,
+            asset: config.priceAsset,
+            amount: 2000000
+        }
+    ];
+
+    const expectedIssues = [
+        {
+            name: `EV_${config.lastEventId + 1}_Y`,
+            description: `EventId: ${config.lastEventId + 1} YES token`,
+            quantity: 0,
+            decimals: 0,
+            isReissuable: true,
+            compiledScript: null,
+            nonce: 0
+        },
+        {
+            name: `EV_${config.lastEventId + 1}_N`,
+            description: `EventId: ${config.lastEventId + 1} NO token`,
+            quantity: 0,
+            decimals: 0,
+            isReissuable: true,
+            compiledScript: null,
+            nonce: 0
+        },
+        {
+            name: `EV_${config.lastEventId + 2}_Y`,
+            description: `EventId: ${config.lastEventId + 2} YES token`,
+            quantity: 0,
+            decimals: 0,
+            isReissuable: true,
+            compiledScript: null,
+            nonce: 0
+        },
+        {
+            name: `EV_${config.lastEventId + 2}_N`,
+            description: `EventId: ${config.lastEventId + 2} NO token`,
+            quantity: 0,
+            decimals: 0,
+            isReissuable: true,
+            compiledScript: null,
+            nonce: 0
+        },
+    ]
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: 2 new events to the existing group",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: expectedIssues,
+                transfers: expectedTransfers,
+            }
+        })
+}
+
+// Trying to create event with empty name
+function test20(config: PredictionConfig) {
+    const expectedErrorMsg = "event cannot be empty";
+
+    const testEval = {
+        "type": 16,
+        "fee": 400500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": config.eventCreationFee * 2.0,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "newEvents",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": 1
+                },
+                {
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "type": "string",
+                    "value": "1893456000000"
+                }
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000"
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: new events with empty name, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -1796,6 +2037,8 @@ function main() {
             test16(config),
             test17(config),
             test18(config),
+            test19(config),
+            test20(config),
         ]
         const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));

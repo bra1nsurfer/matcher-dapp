@@ -152,7 +152,12 @@ func editGroupHelper(groupId: String, name: String, description: String, categor
   let sourceEntry   = if(source.size() > 0)      then [StringEntry(kGroupSource(groupId), source)] else []
   let creatorEntry  = if(creator.size() > 0)     then [StringEntry(kGroupCreator(groupId), creator)] else []
 
-  nameEntry ++ descEntry ++ categoryEntry ++ imgEntry ++ sourceEntry ++ creatorEntry
+  nameEntry ++ 
+  descEntry ++ 
+  categoryEntry ++ 
+  imgEntry ++ 
+  sourceEntry ++ 
+  creatorEntry
 }
 
 func editEventInfoHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
@@ -274,6 +279,8 @@ func massNewEventsHelper(
   let eTotalFee = eventCreationFeeAmount * eNamesCount
 
   strict check = [
+    eNames.size() > 0 || throwErr("event cannot be empty"),
+    eEndDatetimes.size() > 0 || throwErr("event end datetimes cannot be empty"),
     eNamesCount <= MAX_EVENTS || throwErr("too many events"),
     eNamesCount == eEndCount || throwErr("invalid events end datetime amount")
   ]
@@ -285,7 +292,8 @@ func massNewEventsHelper(
 
   let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString(SEP))] 
   
-  ( groupEventIds,
+  ( 
+    groupEventIds,
     eTotalFee,
     allEventsActions ++ [IntegerEntry(kLastEventIndex, newLastEventIndex)]
   )
@@ -450,7 +458,7 @@ func addEventAdmin(address: String) = {
 @Callable(i)
 func removeEventAdmin(address: String) = {
   strict check = [
-    isAdmin(i.caller.toString()) || throwErr("addEventAdmin: permission denied")
+    isAdmin(i.caller.toString()) || throwErr("removeEventAdmin: permission denied")
   ]
 
   let newAdminList = match (eventAdminList.indexOf(address)) {
@@ -512,6 +520,11 @@ func newGroupAndEvents(
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
+    gName.size() > 0 || throwErr("group name is required"),
+    gDescription.size() > 0 || throwErr("group description is required"),
+    gCategory.size() > 0 || throwErr("group category is required"),
+    gImgSrc.size() > 0 || throwErr("group image source is required"),
+    gSource.size() > 0 || throwErr("group source is required"),
     totalFee == 0 || i.payments.size() > 0 || throwErr("payment not found"),
     totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
     totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
