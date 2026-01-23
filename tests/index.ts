@@ -1701,7 +1701,7 @@ function test17(config: PredictionConfig) {
     )
 }
 
-// Set status by not an admin, expect error
+// Edit group info without permission, expect error
 function test18(config: PredictionConfig) {
     const expectedErrorMsg = "editGroup: permission denied";
 
@@ -1763,7 +1763,7 @@ function test18(config: PredictionConfig) {
 
     return evaluateTest(
         JSON.stringify(testEval),
-        "testing: not an admin set event status",
+        "testing: edit group info without permission",
         {
             type: ResultType.ERROR,
             result: expectedErrorMsg
@@ -2012,6 +2012,218 @@ function test20(config: PredictionConfig) {
     )
 }
 
+// Add event admin without permission, expect error
+function test21(config: PredictionConfig) {
+    const expectedErrorMsg = "addEventAdmin: permission denied";
+
+    const testEval = {
+        "type": 16,
+        "fee": 400500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "addEventAdmin",
+            "args": [
+                {
+                    "type": "string",
+                    "value": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx"
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000"
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: add event admin without permission, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
+// Remove event admin without permission, expect error
+function test22(config: PredictionConfig) {
+    const expectedErrorMsg = "removeEventAdmin: permission denied";
+
+    const testEval = {
+        "type": 16,
+        "fee": 400500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "removeEventAdmin",
+            "args": [
+                {
+                    "type": "string",
+                    "value": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx"
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000"
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: remove event admin without permission, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
+// Edit event info without permission, expect error
+function test23(config: PredictionConfig) {
+    const expectedErrorMsg = "editEvent: permission denied";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG",
+        "senderPublicKey": "3aqUacmd2bha76PwRqnuJNDQzTyS8KZvEX5mxCaX6656",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "editEvent",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.stoppedEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": 1
+                },
+                {
+                    "type": "string",
+                    "value": "New event name"
+                },
+                {
+                    "type": "integer",
+                    "value": 1893456000000
+                },
+                {
+                    "type": "string",
+                    "value": "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG"
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                        [config.closedEvent.yesToken]: 10,
+                        [config.closedEvent.noToken]: 10,
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: edit event info without permission",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
+// Init function without permission, expect error
+function test24(config: PredictionConfig) {
+    const expectedErrorMsg = "init: permission denied";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG",
+        "senderPublicKey": "3aqUacmd2bha76PwRqnuJNDQzTyS8KZvEX5mxCaX6656",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "init",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.stoppedEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": 1
+                },
+                {
+                    "type": "string",
+                    "value": "New event name"
+                },
+                {
+                    "type": "integer",
+                    "value": 1893456000000
+                },
+                {
+                    "type": "string",
+                    "value": "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG"
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                        [config.closedEvent.yesToken]: 10,
+                        [config.closedEvent.noToken]: 10,
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: init function without permission, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -2039,6 +2251,10 @@ function main() {
             test18(config),
             test19(config),
             test20(config),
+            test21(config),
+            test22(config),
+            test23(config),
+            test24(config),
         ]
         const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));
