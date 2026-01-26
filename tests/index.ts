@@ -13,6 +13,7 @@ type EventConfig = {
     yesToken: string,
     noToken: string,
     mintedAmount: number,
+    groupId: string,
 };
 
 type PredictionConfig = {
@@ -160,24 +161,28 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
                     yesToken: openEventYesToken,
                     noToken: openEventNoToken,
                     mintedAmount: openMintedAmount,
+                    groupId: "",
                 },
                 closedEvent: {
                     id: 2,
                     yesToken: closedEventYesToken,
                     noToken: closedEventNoToken,
                     mintedAmount: 0,
+                    groupId: "",
                 },
                 expiredEvent: {
                     id: 3,
                     yesToken: expiredEventYesToken,
                     noToken: expiredEventNoToken,
                     mintedAmount: 0,
+                    groupId: "",
                 },
                 stoppedEvent: {
                     id: 4,
                     yesToken: stoppedEventYesToken,
                     noToken: stoppedEventNoToken,
                     mintedAmount: 0,
+                    groupId: "3",
                 }
             }
         })
@@ -392,10 +397,6 @@ function test02(config: PredictionConfig) {
                 },
                 {
                     "type": "string",
-                    "value": "Category1__Category2"
-                },
-                {
-                    "type": "string",
                     "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp"
                 },
                 {
@@ -434,11 +435,6 @@ function test02(config: PredictionConfig) {
             key: `%s%s%d__group__description__${config.lastGroupId + 1}`,
             type: 'string',
             value: 'Lorem ipsum'
-        },
-        {
-            key: `%s%s%d__group__category__${config.lastGroupId + 1}`,
-            type: 'string',
-            value: 'Category1__Category2'
         },
         {
             key: `%s%s%d__group__imgSrc__${config.lastGroupId + 1}`,
@@ -578,10 +574,6 @@ function test03(config: PredictionConfig) {
                 },
                 {
                     "type": "string",
-                    "value": "Category1__Category2"
-                },
-                {
-                    "type": "string",
                     "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp"
                 },
                 {
@@ -620,11 +612,6 @@ function test03(config: PredictionConfig) {
             key: `%s%s%d__group__description__${config.lastGroupId + 1}`,
             type: 'string',
             value: 'Lorem ipsum'
-        },
-        {
-            key: `%s%s%d__group__category__${config.lastGroupId + 1}`,
-            type: 'string',
-            value: 'Category1__Category2'
         },
         {
             key: `%s%s%d__group__imgSrc__${config.lastGroupId + 1}`,
@@ -1520,6 +1507,10 @@ function test15(config: PredictionConfig) {
                     "type": "integer",
                     "value": 0
                 },
+                {
+                    "type": "string",
+                    "value": "category1"
+                },
             ]
         },
         "state": {
@@ -1568,6 +1559,10 @@ function test16(config: PredictionConfig) {
                     "type": "integer",
                     "value": 1
                 },
+                {
+                    "type": "string",
+                    "value": "Category 1__Category 2"
+                },
             ]
         },
         "state": {
@@ -1584,6 +1579,11 @@ function test16(config: PredictionConfig) {
             key: `%s%s%d__event__status__${config.stoppedEvent.id}`,
             type: "integer",
             value: 1,
+        },
+        {
+            key: `%s%s%d__group__category__${config.stoppedEvent.groupId}`,
+            type: "string",
+            value: "Category 1__Category 2",
         }
     ]
 

@@ -430,15 +430,19 @@ func withdrawTokens(eventId: Int) = {
 }
 
 @Callable(i)
-func setEventStatus(eventId: Int, status: Int) = {
+func setEventStatus(eventId: Int, status: Int, category: String) = {
   let sEventId = eventId.toString()
+  let groupId = this.getString(kEventGroupId(sEventId)).valueOrErrorMessage(wrapErr("invalid group id in event"))
+
+  let groupActions = editGroupHelper(groupId, "", "", category, "", "", "")
 
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("setEventStatus: permission denied"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
   ]
 
-  [IntegerEntry(kEventStatus(sEventId), status)]
+  [ IntegerEntry(kEventStatus(sEventId), status) ] ++ 
+  groupActions
 }
 
 @Callable(i)
@@ -502,7 +506,6 @@ func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creat
 func newGroupAndEvents(
   gName        : String,
   gDescription : String,
-  gCategory    : String,
   gImgSrc      : String,
   gSource      : String,
   eNames       : String,
@@ -512,7 +515,7 @@ func newGroupAndEvents(
   let groupId = newGroupIndex.toString()
 
   let creator = i.caller.toString()
-  let groupActions = editGroupHelper(groupId, gName, gDescription, gCategory, gImgSrc, gSource, creator) ++ 
+  let groupActions = editGroupHelper(groupId, gName, gDescription, "", gImgSrc, gSource, creator) ++ 
     [IntegerEntry(kLastGroupIndex, newGroupIndex)]
 
   let (groupEventIds, eTotalFee, eventsActions) = massNewEventsHelper(creator, groupId, eNames, eEndDatetimes)
@@ -522,7 +525,6 @@ func newGroupAndEvents(
     !forceStop || throwErr("contract is temporary stopped"),
     gName.size() > 0 || throwErr("group name is required"),
     gDescription.size() > 0 || throwErr("group description is required"),
-    gCategory.size() > 0 || throwErr("group category is required"),
     gImgSrc.size() > 0 || throwErr("group image source is required"),
     gSource.size() > 0 || throwErr("group source is required"),
     totalFee == 0 || i.payments.size() > 0 || throwErr("payment not found"),

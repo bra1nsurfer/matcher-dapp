@@ -416,7 +416,7 @@ Event is stopped without resolution
 
 ```js
 @Callable(i)
-func setEventStatus(eventId: Int, status: Int)
+func setEventStatus(eventId: Int, status: Int, category: String)
 ```
 
 ```txt
@@ -435,7 +435,15 @@ E_EXPIRED    = 4
 
 ```js
 @Callable(i)
-func editGroup(groupId: Int, name: String, description: String, imgSrc: String, source: String, creator: String)
+func editGroup(
+  groupId    : Int,
+  name       : String,
+  description: String,
+  category   : String,
+  imgSrc     : String,
+  source     : String,
+  creator    : String
+)
 ```
 
 - Can be called only by event admin
@@ -444,7 +452,13 @@ func editGroup(groupId: Int, name: String, description: String, imgSrc: String, 
 
 ```js
 @Callable(i)
-func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creator: String)
+func editEvent(
+  eventId    : Int,
+  groupId    : Int,
+  name       : String,
+  endDatetime: Int,
+  creator    : String
+)
 ```
 
 - Can be called only by event admin
