@@ -23,13 +23,13 @@ Testnet dApp: `3Mt472nizh8hsEWBzuiGJSmtbHUinHEA6Kh`
 
 Keys:
 
-|                          Key |    Type | Example                                                                   | Value Description                                                                                         |
-|-----------------------------:|--------:|---------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-|            `%s__mintFeeRate` | Integer | `1000000`                                                                 | Yes/No token mint fee rate (example: 1% or 0.01 * 10^8. If user mint for 2.0 USDT fee is equal 0.02 USDT) |
-| `%s__groupCreationFeeAmount` | Integer | `500000`                                                                  | Group creation fee (example: 0.5 USDT)                                                                    |
-| `%s__eventCreationFeeAmount` | Integer | `1000000`                                                                 | Event creation fee (example: 1.0 USDT)                                                                    |
-|         `%s__eventAdminList` |  String | `N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB` | Event admin list. Admin can set event status, edit event/group info                                       |
-|   `%s__predictionPriceAsset` |  String | `"25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"`                          | Base price asset id                                                                                       |
+|                          Key |    Type | Example                                                                     | Value Description                                                                                         |
+|-----------------------------:|--------:|-----------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+|            `%s__mintFeeRate` | Integer | `1000000`                                                                   | Yes/No token mint fee rate (example: 1% or 0.01 * 10^8. If user mint for 2.0 USDT fee is equal 0.02 USDT) |
+| `%s__groupCreationFeeAmount` | Integer | `500000`                                                                    | Group creation fee (example: 0.5 USDT)                                                                    |
+| `%s__eventCreationFeeAmount` | Integer | `1000000`                                                                   | Event creation fee (example: 1.0 USDT)                                                                    |
+|         `%s__eventAdminList` |  String | `"N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB"` | Event admin list. Admin can set event status, edit event/group info                                       |
+|   `%s__predictionPriceAsset` |  String | `"25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"`                            | Base price asset id                                                                                       |
 
 ## Group keys
 
@@ -76,6 +76,11 @@ Example:
     "key": "%s%s%d__group__events__1",
     "type": "string",
     "value": "1__3"
+  },
+  {
+      "key": "%s%s%d__group__category__1",
+      "type": "string",
+      "value": "Category 1__Category 2",
   }
 ]
 ```
