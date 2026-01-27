@@ -106,6 +106,7 @@ E_CLOSED_YES = 1
 E_CLOSED_NO  = 2
 E_STOPPED    = 3
 E_EXPIRED    = 4
+E_REJECTED   = 5
 ```
 
 Example:
@@ -432,6 +433,7 @@ E_CLOSED_YES = 1
 E_CLOSED_NO  = 2
 E_STOPPED    = 3
 E_EXPIRED    = 4
+E_REJECTED   = 5
 ```
 
 - Can be called only by event admin

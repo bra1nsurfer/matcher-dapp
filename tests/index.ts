@@ -29,6 +29,7 @@ type PredictionConfig = {
     closedEvent: EventConfig,
     expiredEvent: EventConfig,
     stoppedEvent: EventConfig,
+    rejectedEvent: EventConfig,
 };
 
 type StateData = {
@@ -145,7 +146,11 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
             // Assume event with Id = 4 is Stopped
             const stoppedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__4").toString();
             const stoppedEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__4").toString();
+            const stoppedEventGroupId = getFromState(state, "%s%s%d__event__groupId__4").toString();
 
+            // Assume event with Id = 5 is Rejected
+            const rejectedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__5").toString();
+            const rejectedEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__5").toString();
 
             return {
                 address: dapp.address,
@@ -182,7 +187,14 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
                     yesToken: stoppedEventYesToken,
                     noToken: stoppedEventNoToken,
                     mintedAmount: 0,
-                    groupId: "3",
+                    groupId: stoppedEventGroupId,
+                },
+                rejectedEvent: {
+                    id: 5,
+                    yesToken: rejectedEventYesToken,
+                    noToken: rejectedEventNoToken,
+                    mintedAmount: 0,
+                    groupId: stoppedEventGroupId,
                 }
             }
         })
@@ -282,7 +294,7 @@ function test01(config: PredictionConfig) {
         {
             key: '%s%s%d__group__events__1',
             type: 'string',
-            value: `2__10__1__${config.lastEventId + 1}`
+            value: `2__10__1__5__${config.lastEventId + 1}`
         },
         {
             key: `%s%s%d__event__name__${config.lastEventId + 1}`,
@@ -1820,7 +1832,7 @@ function test19(config: PredictionConfig) {
         {
             key: '%s%s%d__group__events__1',
             type: 'string',
-            value: `2__10__1__${config.lastEventId + 1}__${config.lastEventId + 2}`
+            value: `2__10__1__5__${config.lastEventId + 1}__${config.lastEventId + 2}`
         },
         {
             key: `%s%s%d__event__name__${config.lastEventId + 1}`,
@@ -2224,6 +2236,61 @@ function test24(config: PredictionConfig) {
     )
 }
 
+// Mint tokens for the rejected Event, expect error
+function test25(config: PredictionConfig) {
+    const mintSendAmount = 3000000;
+    const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
+    const expectedErrorMsg = "event is rejected";
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": mintSendAmount,
+                "assetId": config.priceAsset
+            },
+            {
+                "amount": mintFee,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "mintTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.rejectedEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
+                    "assetBalances": {
+                        [config.priceAsset]: "1000000000000",
+                    },
+                    "regularBalance": "300000000000"
+                }
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens for the rejected event, expect error",
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -2255,8 +2322,9 @@ function main() {
             test22(config),
             test23(config),
             test24(config),
+            test25(config),
         ]
-        const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 100 });
+        const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 300 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));
 
         Promise.all(testTasks)
