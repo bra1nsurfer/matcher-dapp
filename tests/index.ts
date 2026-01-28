@@ -24,7 +24,8 @@ type PredictionConfig = {
     eventCreationFee: number,
     mintFeeRate: number,
     feeGetter: string,
-    priceAsset: string,
+    priceAsset: string | null,
+    priceAssetDecimals: number,
     openEvent: EventConfig,
     closedEvent: EventConfig,
     expiredEvent: EventConfig,
@@ -40,7 +41,7 @@ type StateData = {
 
 type StateTransfer = {
     address: string,
-    asset: string,
+    asset: string | null,
     amount: number,
 };
 
@@ -160,7 +161,8 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
                 groupCreationFee,
                 mintFeeRate,
                 feeGetter,
-                priceAsset,
+                priceAsset: priceAsset == "WAVES" ? null : priceAsset,
+                priceAssetDecimals: priceAsset == "WAVES" ? 1_0000_0000 : 1_000_000,
                 openEvent: {
                     id: 1,
                     yesToken: openEventYesToken,
@@ -245,6 +247,24 @@ function evaluateTest(evalText: string, testDescription: string, expectedResult:
         });
 }
 
+function getFakeBalances(config: PredictionConfig) {
+    return {
+        "assetBalances": config.priceAsset ? {
+            [config.priceAsset]: "1000000000000",
+            [config.openEvent.yesToken]: 10,
+            [config.openEvent.noToken]: 10,
+            [config.closedEvent.yesToken]: 10,
+            [config.closedEvent.noToken]: 10,
+        } : {
+            [config.openEvent.yesToken]: 10,
+            [config.openEvent.noToken]: 10,
+            [config.closedEvent.yesToken]: 10,
+            [config.closedEvent.noToken]: 10,
+        },
+        "regularBalance": "300000000000"
+    }
+}
+
 // New event to existing group
 function test01(config: PredictionConfig) {
     const testEval = {
@@ -280,12 +300,7 @@ function test01(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000"
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -340,7 +355,7 @@ function test01(config: PredictionConfig) {
         {
             address: config.feeGetter,
             asset: config.priceAsset,
-            amount: 1000000
+            amount: config.eventCreationFee * 1.0,
         }
     ];
 
@@ -427,15 +442,10 @@ function test02(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000"
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
-    };
+    }
 
     const expectedData = [
         {
@@ -604,12 +614,7 @@ function test03(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000"
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -836,7 +841,7 @@ function test03(config: PredictionConfig) {
 
 // Mint tokens
 function test04(config: PredictionConfig) {
-    const mintSendAmount = 3000000;
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
     const mintFee = Math.round(config.mintFeeRate * mintSendAmount);
     const expectedTokensAmount = 3;
 
@@ -869,12 +874,7 @@ function test04(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -921,7 +921,7 @@ function test04(config: PredictionConfig) {
 // Merge tokens
 function test05(config: PredictionConfig) {
     const sendTokenAmount = 3;
-    const expectedReceiveAmount = 3000000;
+    const expectedReceiveAmount = sendTokenAmount * config.priceAssetDecimals;
 
     const testEval = {
         "type": 16,
@@ -952,14 +952,7 @@ function test05(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.openEvent.yesToken]: 10,
-                        [config.openEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -996,7 +989,7 @@ function test05(config: PredictionConfig) {
 // Withdraw tokens (CLOSED_NO)
 function test06(config: PredictionConfig) {
     const sendTokenAmount = 3;
-    const expectedReceiveAmount = 3000000;
+    const expectedReceiveAmount = sendTokenAmount * config.priceAssetDecimals;
 
     const testEval = {
         "type": 16,
@@ -1023,14 +1016,7 @@ function test06(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.closedEvent.yesToken]: 10,
-                        [config.closedEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1086,14 +1072,7 @@ function test07(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.closedEvent.yesToken]: 10,
-                        [config.closedEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1110,7 +1089,7 @@ function test07(config: PredictionConfig) {
 
 // Mint tokens, event closed, expect error
 function test08(config: PredictionConfig) {
-    const mintSendAmount = 3000000;
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
     const mintFee = Math.round(config.mintFeeRate * mintSendAmount);
     const expectedErrorMsg = "event is closed";
 
@@ -1143,12 +1122,7 @@ function test08(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1165,7 +1139,7 @@ function test08(config: PredictionConfig) {
 
 // Mint tokens with not enough fee, expect error
 function test09(config: PredictionConfig) {
-    const mintSendAmount = 3000000;
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
     const mintFee = 1;
     const expectedErrorMsg = "mint fee amount is not enough";
 
@@ -1198,12 +1172,7 @@ function test09(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1252,14 +1221,7 @@ function test10(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.openEvent.yesToken]: 10,
-                        [config.openEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1276,7 +1238,7 @@ function test10(config: PredictionConfig) {
 
 // Mint tokens for the expired Event, expect error
 function test11(config: PredictionConfig) {
-    const mintSendAmount = 3000000;
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
     const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
     const expectedErrorMsg = "event is expired";
 
@@ -1309,12 +1271,7 @@ function test11(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1331,7 +1288,7 @@ function test11(config: PredictionConfig) {
 
 // Mint tokens for the stopped Event, expect error
 function test12(config: PredictionConfig) {
-    const mintSendAmount = 3000000;
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
     const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
     const expectedErrorMsg = "event is stopped";
 
@@ -1364,12 +1321,7 @@ function test12(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1386,7 +1338,7 @@ function test12(config: PredictionConfig) {
 
 // Mint tokens for the closed Event, expect error
 function test13(config: PredictionConfig) {
-    const mintSendAmount = 3000000;
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
     const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
     const expectedErrorMsg = "event is closed";
 
@@ -1419,12 +1371,7 @@ function test13(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1473,14 +1420,7 @@ function test14(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.closedEvent.yesToken]: 10,
-                        [config.closedEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1527,14 +1467,7 @@ function test15(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.closedEvent.yesToken]: 10,
-                        [config.closedEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": getFakeBalances(config),
             }
         }
     };
@@ -1579,9 +1512,7 @@ function test16(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": {
-                    "regularBalance": "300000000000"
-                }
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": getFakeBalances(config),
             }
         }
     };
@@ -1659,9 +1590,7 @@ function test17(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": {
-                    "regularBalance": "300000000000"
-                }
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": getFakeBalances(config),
             }
         }
     };
@@ -1761,14 +1690,7 @@ function test18(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.closedEvent.yesToken]: 10,
-                        [config.closedEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": getFakeBalances(config),
             }
         }
     };
@@ -1818,12 +1740,7 @@ function test19(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000"
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -1911,7 +1828,7 @@ function test19(config: PredictionConfig) {
         {
             address: config.feeGetter,
             asset: config.priceAsset,
-            amount: 2000000
+            amount: config.eventCreationFee * 2.0
         }
     ];
 
@@ -2004,12 +1921,7 @@ function test20(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000"
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -2048,12 +1960,7 @@ function test21(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000"
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -2092,12 +1999,7 @@ function test22(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000"
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };
@@ -2152,14 +2054,7 @@ function test23(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.closedEvent.yesToken]: 10,
-                        [config.closedEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": getFakeBalances(config),
             }
         }
     };
@@ -2214,14 +2109,7 @@ function test24(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                        [config.closedEvent.yesToken]: 10,
-                        [config.closedEvent.noToken]: 10,
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG": getFakeBalances(config),
             }
         }
     };
@@ -2238,7 +2126,7 @@ function test24(config: PredictionConfig) {
 
 // Mint tokens for the rejected Event, expect error
 function test25(config: PredictionConfig) {
-    const mintSendAmount = 3000000;
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
     const mintFee = Math.round(mintSendAmount * config.mintFeeRate);
     const expectedErrorMsg = "event is rejected";
 
@@ -2271,12 +2159,7 @@ function test25(config: PredictionConfig) {
         },
         "state": {
             "accounts": {
-                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": {
-                    "assetBalances": {
-                        [config.priceAsset]: "1000000000000",
-                    },
-                    "regularBalance": "300000000000"
-                }
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
             }
         }
     };

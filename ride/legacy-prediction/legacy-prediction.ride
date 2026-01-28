@@ -57,7 +57,11 @@ let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
 let sPredictionPriceAsset    = this.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
 let predictionPriceAsset     = sPredictionPriceAsset.stringToAssetId()
 let predictionPriceAssetInfo = assetInfo(sPredictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
-let PREDICTION_PRICE_UNIT    = pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
+# Calc price asset single token decimals or DEC8 for Waves
+let PREDICTION_PRICE_UNIT = match (predictionPriceAsset) {
+    case t:ByteVector => pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
+    case _ => DEC8
+  }
 
 let kLastEventIndex = ["%s", "lastEventIndex"].makeString(SEP)
 let lastEventIndex  = this.getInteger(kLastEventIndex).valueOrElse(0)
