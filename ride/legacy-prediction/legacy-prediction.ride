@@ -18,7 +18,7 @@ let E_REJECTED   = 5
 
 ### Do not forget to update `FOLD<>` in mass creation functions
 let INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-let MAX_EVENTS = INDEXES.size()
+let MAX_FOLD_EVENTS = INDEXES.size()
 
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
@@ -77,7 +77,10 @@ let eventAdminList  = match (this.getString(kEventAdminList)) {
 
 let kFeeGetter = ["%s", "feeGetter"].makeString(SEP)
 let sFeeGetter = this.getString(kFeeGetter).valueOrElse(this.toString())
-let feeGetter = sFeeGetter.addressFromStringValue()
+let feeGetter  = sFeeGetter.addressFromStringValue()
+
+let kMaxEventsInGroup = ["%s", "maxEventsInGroup"].makeString(SEP)
+let MAX_GROUP_EVENTS  = this.getInteger(kMaxEventsInGroup).valueOrElse(20)
 
 func kEventName(eventId: String)         = ["%s%s%d", "event", "name", eventId].makeString(SEP)
 func kEventEndDatetime(eventId: String)  = ["%s%s%d", "event", "endDatetime", eventId].makeString(SEP)
@@ -88,13 +91,15 @@ func kEventTokensMinted(eventId: String) = ["%s%s%d", "event", "tokensMinted", e
 func kEventGroupId(eventId: String)      = ["%s%s%d", "event", "groupId", eventId].makeString(SEP)
 func kEventCreator(eventId: String)      = ["%s%s%d", "event", "creator", eventId].makeString(SEP)
 
-func kGroupName(groupId: String)     = ["%s%s%d", "group", "name", groupId].makeString(SEP)
-func kGroupDesc(groupId: String)     = ["%s%s%d", "group", "description", groupId].makeString(SEP)
-func kGroupImgSrc(groupId: String)   = ["%s%s%d", "group", "imgSrc", groupId].makeString(SEP)
-func kGroupSource(groupId: String)   = ["%s%s%d", "group", "source", groupId].makeString(SEP)
-func kGroupCreator(groupId: String)  = ["%s%s%d", "group", "creator", groupId].makeString(SEP)
-func kGroupCategory(groupId: String) = ["%s%s%d", "group", "category", groupId].makeString(SEP)
-func kGroupEvents(groupId: String)   = ["%s%s%d", "group", "events", groupId].makeString(SEP)
+func kGroupName(groupId: String)          = ["%s%s%d", "group", "name", groupId].makeString(SEP)
+func kGroupDesc(groupId: String)          = ["%s%s%d", "group", "description", groupId].makeString(SEP)
+func kGroupImgSrc(groupId: String)        = ["%s%s%d", "group", "imgSrc", groupId].makeString(SEP)
+func kGroupSource(groupId: String)        = ["%s%s%d", "group", "source", groupId].makeString(SEP)
+func kGroupCreator(groupId: String)       = ["%s%s%d", "group", "creator", groupId].makeString(SEP)
+func kGroupCategory(groupId: String)      = ["%s%s%d", "group", "category", groupId].makeString(SEP)
+func kGroupEvents(groupId: String)        = ["%s%s%d", "group", "events", groupId].makeString(SEP)
+func kGroupRejectedCount(groupId: String) = ["%s%s%d", "group", "rejectedCount", groupId].makeString(SEP)
+
 func getGroupEvents(groupId: String) = match (this.getString(kGroupEvents(groupId))) {
     case str:String => str.split_51C(SEP)
     case _ => []
@@ -109,6 +114,8 @@ func getEventStatus(eventId: String) = {
       case _ => E_NOT_FOUND
     }
 }
+
+func getRejectedCount(groupId: String) = this.getInteger(kGroupRejectedCount(groupId)).valueOrElse(0)
 
 func amountAssetToPriceAsset(amount: Int, price: Int) = {
   fraction(amount, price, 1, DOWN)
@@ -200,7 +207,20 @@ func eventGroupIdHelper(eventId: String, groupId: String) = {
     then [StringEntry(kGroupEvents(groupId), nextGroupEvents.makeString(SEP))] 
     else []
 
-  prevGroupActions ++ nextGroupActions
+  let oldGroupRejected = getRejectedCount(oldGroupId)
+  let newGroupRejected = getRejectedCount(groupId)
+  let eventStatus = getEventStatus(eventId)
+
+  let rejectedCountActions = if (eventStatus == E_REJECTED && groupId != oldGroupId)
+    then [
+      IntegerEntry(kGroupRejectedCount(oldGroupId), oldGroupRejected - 1),
+      IntegerEntry(kGroupRejectedCount(groupId), newGroupRejected + 1)
+    ]
+    else []
+
+  prevGroupActions ++ 
+  nextGroupActions ++
+  rejectedCountActions
 }
 
 func editEventHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
@@ -286,7 +306,7 @@ func massNewEventsHelper(
   strict check = [
     eNames.size() > 0 || throwErr("event cannot be empty"),
     eEndDatetimes.size() > 0 || throwErr("event end datetimes cannot be empty"),
-    eNamesCount <= MAX_EVENTS || throwErr("too many events"),
+    eNamesCount <= MAX_FOLD_EVENTS || throwErr("too many events"),
     eNamesCount == eEndCount || throwErr("invalid events end datetime amount")
   ]
 
@@ -440,15 +460,28 @@ func setEventStatus(eventId: Int, status: Int, category: String) = {
   let sEventId = eventId.toString()
   let groupId = this.getString(kEventGroupId(sEventId)).valueOrErrorMessage(wrapErr("invalid group id in event"))
 
+  let oldRejectedCount = getRejectedCount(groupId)
+  let oldEventStatus = getEventStatus(sEventId)
   let groupActions = editGroupHelper(groupId, "", "", category, "", "", "")
-
+  let groupRejectedActions = if (oldEventStatus == E_REJECTED)
+    then {
+      if (status != E_REJECTED) 
+      then [IntegerEntry(kGroupRejectedCount(groupId), oldRejectedCount - 1)]
+      else []
+    }
+    else {
+      if (status == E_REJECTED) 
+      then [IntegerEntry(kGroupRejectedCount(groupId), oldRejectedCount + 1)]
+      else []
+    }
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("setEventStatus: permission denied"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
   ]
 
   [ IntegerEntry(kEventStatus(sEventId), status) ] ++ 
-  groupActions
+  groupActions ++
+  groupRejectedActions
 }
 
 @Callable(i)
@@ -568,9 +601,11 @@ func newEvents(
   ]
 
   let oldGroupEventIds = getGroupEvents(sGroupId)
-  let groupEventIdsActions = if (oldGroupEventIds.size() + newGroupEventIds.size() < 1000) 
-    then [StringEntry(kGroupEvents(sGroupId), (oldGroupEventIds ++ newGroupEventIds).makeString(SEP))] 
-    else throwErr("max 1000 events in group")
+  let groupNewTotalEventsCount = oldGroupEventIds.size() + newGroupEventIds.size()
+  let groupRejectedEventsCount = getRejectedCount(sGroupId)
+  let groupEventIdsActions = if (groupNewTotalEventsCount - groupRejectedEventsCount <= MAX_GROUP_EVENTS) 
+    then [StringEntry(kGroupEvents(sGroupId), (oldGroupEventIds ++ newGroupEventIds).makeString(SEP))]
+    else throwErr(["max", MAX_GROUP_EVENTS.toString(), "events in group"].makeString(" "))
 
   let transferFeeAction = if(totalFee == 0) 
     then []

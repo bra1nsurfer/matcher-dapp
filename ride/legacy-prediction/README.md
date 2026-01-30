@@ -33,15 +33,16 @@ Keys:
 
 ## Group keys
 
-| Key                                     |   Type | Value Description       |
-|:----------------------------------------|-------:|-------------------------|
-| `%s%s%d__group__name__{groupId}`        | String | Group name              |
-| `%s%s%d__group__description__{groupId}` | String | Group description       |
-| `%s%s%d__group__category__{groupId}`    | String | Group category list     |
-| `%s%s%d__group__imgSrc__{groupId}`      | String | Group image source      |
-| `%s%s%d__group__creator__{groupId}`     | String | Group creator           |
-| `%s%s%d__group__source__{groupId}`      | String | Group settlement source |
-| `%s%s%d__group__events__{groupId}`      | String | Group events list       |
+| Key                                       |    Type | Value Description           |
+|:------------------------------------------|--------:|-----------------------------|
+| `%s%s%d__group__name__{groupId}`          |  String | Group name                  |
+| `%s%s%d__group__description__{groupId}`   |  String | Group description           |
+| `%s%s%d__group__category__{groupId}`      |  String | Group category list         |
+| `%s%s%d__group__imgSrc__{groupId}`        |  String | Group image source          |
+| `%s%s%d__group__creator__{groupId}`       |  String | Group creator               |
+| `%s%s%d__group__source__{groupId}`        |  String | Group settlement source     |
+| `%s%s%d__group__events__{groupId}`        |  String | Group events list           |
+| `%s%s%d__group__rejectedCount__{groupId}` | Integer | Group rejected events count |
 
 Example:
 
@@ -75,13 +76,18 @@ Example:
   {
     "key": "%s%s%d__group__events__1",
     "type": "string",
-    "value": "1__3"
+    "value": "1__3__5"
   },
   {
       "key": "%s%s%d__group__category__1",
       "type": "string",
       "value": "Category 1__Category 2",
-  }
+  },
+  {
+    "key": "%s%s%d__group__rejectedCount__1",
+    "type": "integer",
+    "value": 1
+  },
 ]
 ```
 

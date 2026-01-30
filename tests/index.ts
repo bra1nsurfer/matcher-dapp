@@ -16,6 +16,12 @@ type EventConfig = {
     groupId: string,
 };
 
+type GroupConfig = {
+    id: number,
+    events: string,
+    rejectedCount: number,
+}
+
 type PredictionConfig = {
     address: string,
     lastEventId: number,
@@ -31,6 +37,8 @@ type PredictionConfig = {
     expiredEvent: EventConfig,
     stoppedEvent: EventConfig,
     rejectedEvent: EventConfig,
+    mainGroup: GroupConfig,
+    otherGroup: GroupConfig,
 };
 
 type StateData = {
@@ -69,11 +77,21 @@ enum ResultType {
 
 type EvaluateResult = {
     type: ResultType.SUCCESS,
-    result: StateChanges,
+    result?: StateChanges,
 } | {
     type: ResultType.ERROR,
     result: string,
 };
+
+enum EventStatus {
+    NOT_FOUND = -1,
+    OPEN = 0,
+    CLOSED_YES = 1,
+    CLOSED_NO = 2,
+    STOPPED = 3,
+    EXPIRED = 4,
+    REJECTED = 5,
+}
 
 const e = process.env;
 const NODE: string = e.NODE_URL ? e.NODE_URL : "https://nodes-testnet.wavesnodes.com";
@@ -147,11 +165,18 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
             // Assume event with Id = 4 is Stopped
             const stoppedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__4").toString();
             const stoppedEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__4").toString();
-            const stoppedEventGroupId = getFromState(state, "%s%s%d__event__groupId__4").toString();
 
             // Assume event with Id = 5 is Rejected
             const rejectedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__5").toString();
             const rejectedEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__5").toString();
+
+            // Group ID = 1
+            const mainGroupEvents = getFromState(state, "%s%s%d__group__events__1").toString();
+            const mainGroupRejectedEvents = Number(getFromState(state, "%s%s%d__group__rejectedCount__1"));
+
+            // Group ID = 2
+            const otherGroupEvents = getFromState(state, "%s%s%d__group__events__2").toString();
+            const otherGroupRejectedEvents = Number(getFromState(state, "%s%s%d__group__rejectedCount__2"));
 
             return {
                 address: dapp.address,
@@ -168,36 +193,46 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
                     yesToken: openEventYesToken,
                     noToken: openEventNoToken,
                     mintedAmount: openMintedAmount,
-                    groupId: "",
+                    groupId: "1",
                 },
                 closedEvent: {
                     id: 2,
                     yesToken: closedEventYesToken,
                     noToken: closedEventNoToken,
                     mintedAmount: 0,
-                    groupId: "",
+                    groupId: "1",
                 },
                 expiredEvent: {
                     id: 3,
                     yesToken: expiredEventYesToken,
                     noToken: expiredEventNoToken,
                     mintedAmount: 0,
-                    groupId: "",
+                    groupId: "1",
                 },
                 stoppedEvent: {
                     id: 4,
                     yesToken: stoppedEventYesToken,
                     noToken: stoppedEventNoToken,
                     mintedAmount: 0,
-                    groupId: stoppedEventGroupId,
+                    groupId: "1",
                 },
                 rejectedEvent: {
                     id: 5,
                     yesToken: rejectedEventYesToken,
                     noToken: rejectedEventNoToken,
                     mintedAmount: 0,
-                    groupId: stoppedEventGroupId,
-                }
+                    groupId: "1",
+                },
+                mainGroup: {
+                    id: 1,
+                    events: mainGroupEvents,
+                    rejectedCount: mainGroupRejectedEvents,
+                },
+                otherGroup: {
+                    id: 2,
+                    events: otherGroupEvents,
+                    rejectedCount: otherGroupRejectedEvents,
+                },
             }
         })
         .catch(err => {
@@ -213,17 +248,18 @@ function evaluateTest(evalText: string, testDescription: string, expectedResult:
             return val;
         })
         .then(val => {
+            totalTests++;
             if (expectedResult.type == ResultType.SUCCESS) {
                 if (val.type == ResultType.SUCCESS) {
-                    try {
-                        totalTests++;
-                        expect(val.result).toMatchObject(expectedResult.result);
-                    } catch (err) {
-                        failedTests++;
-                        console.error(err);
+                    if (expectedResult.result) {
+                        try {
+                            expect(val.result).toMatchObject(expectedResult.result);
+                        } catch (err) {
+                            failedTests++;
+                            console.error(err);
+                        }
                     }
                 } else {
-                    totalTests++;
                     failedTests++;
                     console.error(" Expected result, got error");
                     console.error(" " + val.result);
@@ -232,14 +268,12 @@ function evaluateTest(evalText: string, testDescription: string, expectedResult:
             else {
                 if (val.type == ResultType.ERROR) {
                     try {
-                        totalTests++;
                         expect(val.result).toContain(expectedResult.result);
                     } catch (err) {
                         failedTests++;
                         console.error(err);
                     }
                 } else {
-                    totalTests++;
                     failedTests++;
                     console.error(" Expected error, got result");
                 }
@@ -309,7 +343,7 @@ function test01(config: PredictionConfig) {
         {
             key: '%s%s%d__group__events__1',
             type: 'string',
-            value: `2__10__1__5__${config.lastEventId + 1}`
+            value: `${config.mainGroup.events}__${config.lastEventId + 1}`
         },
         {
             key: `%s%s%d__event__name__${config.lastEventId + 1}`,
@@ -1457,7 +1491,7 @@ function test15(config: PredictionConfig) {
                 },
                 {
                     "type": "integer",
-                    "value": 0
+                    "value": EventStatus.OPEN
                 },
                 {
                     "type": "string",
@@ -1502,7 +1536,7 @@ function test16(config: PredictionConfig) {
                 },
                 {
                     "type": "integer",
-                    "value": 1
+                    "value": EventStatus.CLOSED_YES
                 },
                 {
                     "type": "string",
@@ -1521,7 +1555,7 @@ function test16(config: PredictionConfig) {
         {
             key: `%s%s%d__event__status__${config.stoppedEvent.id}`,
             type: "integer",
-            value: 1,
+            value: EventStatus.CLOSED_YES,
         },
         {
             key: `%s%s%d__group__category__${config.stoppedEvent.groupId}`,
@@ -1749,7 +1783,7 @@ function test19(config: PredictionConfig) {
         {
             key: '%s%s%d__group__events__1',
             type: 'string',
-            value: `2__10__1__5__${config.lastEventId + 1}__${config.lastEventId + 2}`
+            value: `${config.mainGroup.events}__${config.lastEventId + 1}__${config.lastEventId + 2}`
         },
         {
             key: `%s%s%d__event__name__${config.lastEventId + 1}`,
@@ -2174,6 +2208,332 @@ function test25(config: PredictionConfig) {
     )
 }
 
+// Set REJECTED status by admin
+function test26(config: PredictionConfig) {
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+        "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "setEventStatus",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.stoppedEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": EventStatus.REJECTED
+                },
+                {
+                    "type": "string",
+                    "value": ""
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": getFakeBalances(config),
+            }
+        }
+    };
+
+    const expectedData: StateData[] = [
+        {
+            key: `%s%s%d__event__status__${config.stoppedEvent.id}`,
+            type: "integer",
+            value: EventStatus.REJECTED,
+        },
+        {
+            key: `%s%s%d__group__rejectedCount__${config.stoppedEvent.groupId}`,
+            type: "integer",
+            value: config.mainGroup.rejectedCount + 1,
+        },
+    ]
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: set REJECTED status by admin",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                transfers: [],
+                issues: [],
+            }
+        }
+    )
+}
+
+// Change REJECTED status to OPEN by admin
+function test27(config: PredictionConfig) {
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+        "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "setEventStatus",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.rejectedEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": EventStatus.OPEN
+                },
+                {
+                    "type": "string",
+                    "value": ""
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": getFakeBalances(config),
+            }
+        }
+    };
+
+    const expectedData: StateData[] = [
+        {
+            key: `%s%s%d__event__status__${config.rejectedEvent.id}`,
+            type: "integer",
+            value: EventStatus.OPEN,
+        },
+        {
+            key: `%s%s%d__group__rejectedCount__${config.rejectedEvent.groupId}`,
+            type: "integer",
+            value: config.mainGroup.rejectedCount - 1,
+        },
+    ]
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: change REJECTED status to OPEN by admin",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                transfers: [],
+                issues: [],
+            }
+        }
+    )
+}
+
+// Edit REJECTED event groupId by admin
+function test28(config: PredictionConfig) {
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+        "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "editEvent",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.rejectedEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": config.otherGroup.id
+                },
+                {
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "type": "integer",
+                    "value": 0
+                },
+                {
+                    "type": "string",
+                    "value": ""
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": getFakeBalances(config),
+            }
+        }
+    };
+
+    const mainGroupEvents = config.mainGroup.events.split("__").filter(i => i != config.rejectedEvent.id.toString()).join("__");
+
+    const expectedData = [
+        {
+            key: `%s%s%d__event__groupId__${config.rejectedEvent.id}`,
+            type: 'string',
+            value: `${config.otherGroup.id}`
+        },
+        {
+            key: `%s%s%d__group__events__${config.mainGroup.id}`,
+            type: 'string',
+            value: mainGroupEvents
+        },
+        {
+            key: `%s%s%d__group__events__${config.otherGroup.id}`,
+            type: 'string',
+            value: `${config.otherGroup.events}__${config.rejectedEvent.id}`
+        },
+        {
+            key: `%s%s%d__group__rejectedCount__${config.mainGroup.id}`,
+            type: 'integer',
+            value: config.mainGroup.rejectedCount - 1
+        },
+        {
+            key: `%s%s%d__group__rejectedCount__${config.otherGroup.id}`,
+            type: 'integer',
+            value: config.otherGroup.rejectedCount + 1
+        },
+    ]
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: edit REJECTED event groupId by admin",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: [],
+                transfers: [],
+            }
+        }
+    )
+}
+
+// Max event limit (20)
+function test29(config: PredictionConfig) {
+    const maxEventLimit = 20;
+    const groupTotalEventsCount = config.mainGroup.events.split("__").length;
+    const allowedEventsCount = maxEventLimit - groupTotalEventsCount + config.mainGroup.rejectedCount + 1;
+
+    const eNames = Array(allowedEventsCount).fill("EVENT").join("__");
+    const eDatetimes = Array(allowedEventsCount).fill("1893456000000").join("__");
+
+    const expectedErrorMsg = "max 20 events in group";
+
+    const testEval = {
+        "type": 16,
+        "fee": (200000000 * allowedEventsCount) + 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": config.eventCreationFee * allowedEventsCount,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "newEvents",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.mainGroup.id
+                },
+                {
+                    "type": "string",
+                    "value": eNames
+                },
+                {
+                    "type": "string",
+                    "value": eDatetimes
+                }
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        `testing: max ${maxEventLimit} events in group, creating ${allowedEventsCount} events`,
+        {
+            type: ResultType.ERROR,
+            result: expectedErrorMsg
+        }
+    )
+}
+
+// Max event limit (20) excluding REJECTED, success
+function test30(config: PredictionConfig) {
+    const maxEventLimit = 20;
+    const groupTotalEventsCount = config.mainGroup.events.split("__").length;
+    const allowedEventsCount = maxEventLimit - groupTotalEventsCount + config.mainGroup.rejectedCount;
+
+    const eNames = Array(allowedEventsCount).fill("EVENT").join("__");
+    const eDatetimes = Array(allowedEventsCount).fill("1893456000000").join("__");
+
+    const testEval = {
+        "type": 16,
+        "fee": (200000000 * allowedEventsCount) + 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": config.eventCreationFee * allowedEventsCount,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "newEvents",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.mainGroup.id
+                },
+                {
+                    "type": "string",
+                    "value": eNames
+                },
+                {
+                    "type": "string",
+                    "value": eDatetimes
+                }
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        `testing: rejected events excluded from group limit, creating ${allowedEventsCount} events`,
+        {
+            type: ResultType.SUCCESS,
+        }
+    )
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -2206,8 +2566,13 @@ function main() {
             test23(config),
             test24(config),
             test25(config),
+            test26(config),
+            test27(config),
+            test28(config),
+            test29(config),
+            test30(config),
         ]
-        const limiter = new Bottleneck({ maxConcurrent: 3, minTime: 300 });
+        const limiter = new Bottleneck({ maxConcurrent: 2, minTime: 500 });
         const testTasks = testPromises.map(p => limiter.schedule(() => p));
 
         Promise.all(testTasks)
