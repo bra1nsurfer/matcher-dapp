@@ -272,7 +272,7 @@ Example:
         }
     ],
     "call": {
-        "function": "newGroupAndEvents",
+        "function": "newEvents",
         "args": [
             {
                 "type": "integer",
