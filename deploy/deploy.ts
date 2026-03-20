@@ -10,7 +10,7 @@ type Account = {
 };
 
 const e = process.env;
-const NODE: string = e.NODE_URL ? e.NODE_URL : "https://nodes-testnet.wavesnodes.com";
+const NODE: string = e.NODE_URL ? e.NODE_URL : "https://nodes-testnet.wx.network";
 const chainId: string = e.CHAIN_ID ? e.CHAIN_ID : "T";
 const api = create(NODE);
 
@@ -116,7 +116,7 @@ const deployPromises = [
     broadcastNewScript('./ride/matcher-eventmanager.ride', eventManager),
     broadcastNewScript('./ride/legacy-prediction/legacy-prediction.ride', legacyPrediction),
 ]
-const limiter = new Bottleneck({ maxConcurrent: 4 });
+const limiter = new Bottleneck({ maxConcurrent: 2, minTime: 1000 });
 const tasks = deployPromises.map(p => limiter.schedule(() => p));
 
 Promise.all(tasks)

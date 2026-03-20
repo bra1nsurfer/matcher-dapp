@@ -94,7 +94,7 @@ enum EventStatus {
 }
 
 const e = process.env;
-const NODE: string = e.NODE_URL ? e.NODE_URL : "https://nodes-testnet.wavesnodes.com";
+const NODE: string = e.NODE_URL ? e.NODE_URL : "https://nodes-testnet.wx.network";
 const api = create(NODE);
 
 const chainId: string = e.CHAIN_ID ? e.CHAIN_ID : "T";
