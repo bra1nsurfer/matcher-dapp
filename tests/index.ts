@@ -1749,6 +1749,9 @@ function test18(config: PredictionConfig) {
 
 // 2 new events to the existing group
 function test19(config: PredictionConfig) {
+    const totalFee = config.eventCreationFee * 2.0;
+    const feeExcess = 0.12 * config.priceAssetDecimals;
+
     const testEval = {
         "type": 16,
         "fee": 400500000,
@@ -1759,7 +1762,7 @@ function test19(config: PredictionConfig) {
         "dApp": config.address,
         "payment": [
             {
-                "amount": config.eventCreationFee * 2.0,
+                "amount": totalFee + feeExcess,
                 "assetId": config.priceAsset
             }
         ],
@@ -1870,7 +1873,12 @@ function test19(config: PredictionConfig) {
         {
             address: config.feeGetter,
             asset: config.priceAsset,
-            amount: config.eventCreationFee * 2.0
+            amount: totalFee
+        },
+        {
+            address: "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+            asset: config.priceAsset,
+            amount: feeExcess
         }
     ];
 
