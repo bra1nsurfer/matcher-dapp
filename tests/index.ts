@@ -603,6 +603,7 @@ function test02(config: PredictionConfig) {
 // New group and multiple events
 function test03(config: PredictionConfig) {
     const totalFeeAmount = config.eventCreationFee * 3.0 + config.groupCreationFee;
+    const feeExcessAmount = 0.123 * config.priceAssetDecimals;
 
     const testEval = {
         "type": 16,
@@ -614,7 +615,7 @@ function test03(config: PredictionConfig) {
         "dApp": config.address,
         "payment": [
             {
-                "amount": totalFeeAmount,
+                "amount": totalFeeAmount + feeExcessAmount,
                 "assetId": config.priceAsset
             }
         ],
@@ -801,6 +802,11 @@ function test03(config: PredictionConfig) {
             address: config.feeGetter,
             asset: config.priceAsset,
             amount: totalFeeAmount
+        },
+        {
+            address: "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+            asset: config.priceAsset,
+            amount: feeExcessAmount
         }
     ];
 

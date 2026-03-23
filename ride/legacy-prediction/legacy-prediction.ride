@@ -592,20 +592,25 @@ func newGroupAndEvents(
     gDescription.size() > 0 || throwErr("group description is required"),
     gImgSrc.size() > 0 || throwErr("group image source is required"),
     gSource.size() > 0 || throwErr("group source is required"),
-    totalFee == 0 || i.payments.size() > 0 || throwErr("payment not found"),
+    totalFee == 0 || i.payments.size() == 1 || throwErr("payment not found"),
     totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
     totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
   ]
 
   let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString(SEP))] 
-  let transferFeeAction = if(totalFee == 0) 
-    then []
-    else [ScriptTransfer(feeGetter, i.payments[0].amount, i.payments[0].assetId)]
+  let transferFeeAction = if (totalFee > 0) 
+    then [ScriptTransfer(feeGetter, totalFee, i.payments[0].assetId)]
+    else []
+  let feeExcess = i.payments[0].amount - totalFee
+  let returnExcessFeeAction = if (feeExcess > 0)
+    then [ScriptTransfer(i.caller, feeExcess, i.payments[0].assetId)]
+    else []
 
   groupActions ++
   groupEventIdsActions ++
   eventsActions ++
-  transferFeeAction
+  transferFeeAction ++
+  returnExcessFeeAction
 }
 
 @Callable(i)
