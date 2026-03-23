@@ -94,7 +94,7 @@ enum EventStatus {
 }
 
 const e = process.env;
-const NODE: string = e.NODE_URL ? e.NODE_URL : "https://nodes-testnet.wx.network";
+const NODE: string = e.NODE_URL ? e.NODE_URL : "https://nodes-testnet.wavesnodes.com";
 const api = create(NODE);
 
 const chainId: string = e.CHAIN_ID ? e.CHAIN_ID : "T";
@@ -111,6 +111,7 @@ function evaluateTx(dapp: string, tx: string): Promise<EvaluateResult> {
         "Content-Type": "application/json",
     };
     return fetch(NODE + "/utils/script/evaluate/" + dapp, { method: "POST", headers, body: tx })
+        // .then(resp => {console.log(resp); return resp})
         .then(resp => resp.json())
         .then(res => {
             if (res.error) {
@@ -1518,6 +1519,7 @@ function test15(config: PredictionConfig) {
 
 // Set status by admin
 function test16(config: PredictionConfig) {
+    const event = config.openEvent;
     const testEval = {
         "type": 16,
         "fee": 500000,
@@ -1532,7 +1534,7 @@ function test16(config: PredictionConfig) {
             "args": [
                 {
                     "type": "integer",
-                    "value": config.stoppedEvent.id
+                    "value": event.id
                 },
                 {
                     "type": "integer",
@@ -1553,12 +1555,12 @@ function test16(config: PredictionConfig) {
 
     const expectedData: StateData[] = [
         {
-            key: `%s%s%d__event__status__${config.stoppedEvent.id}`,
+            key: `%s%s%d__event__status__${event.id}`,
             type: "integer",
             value: EventStatus.CLOSED_YES,
         },
         {
-            key: `%s%s%d__group__category__${config.stoppedEvent.groupId}`,
+            key: `%s%s%d__group__category__${event.groupId}`,
             type: "string",
             value: "Category 1__Category 2",
         }
@@ -2210,6 +2212,7 @@ function test25(config: PredictionConfig) {
 
 // Set REJECTED status by admin
 function test26(config: PredictionConfig) {
+    const event = config.openEvent
     const testEval = {
         "type": 16,
         "fee": 500000,
@@ -2224,7 +2227,7 @@ function test26(config: PredictionConfig) {
             "args": [
                 {
                     "type": "integer",
-                    "value": config.stoppedEvent.id
+                    "value": event.id
                 },
                 {
                     "type": "integer",
@@ -2245,7 +2248,7 @@ function test26(config: PredictionConfig) {
 
     const expectedData: StateData[] = [
         {
-            key: `%s%s%d__event__status__${config.stoppedEvent.id}`,
+            key: `%s%s%d__event__status__${event.id}`,
             type: "integer",
             value: EventStatus.REJECTED,
         },
@@ -2270,7 +2273,7 @@ function test26(config: PredictionConfig) {
     )
 }
 
-// Change REJECTED status to OPEN by admin
+// Change REJECTED status to OPEN by admin (expect error)
 function test27(config: PredictionConfig) {
     const testEval = {
         "type": 16,
@@ -2305,29 +2308,12 @@ function test27(config: PredictionConfig) {
         }
     };
 
-    const expectedData: StateData[] = [
-        {
-            key: `%s%s%d__event__status__${config.rejectedEvent.id}`,
-            type: "integer",
-            value: EventStatus.OPEN,
-        },
-        {
-            key: `%s%s%d__group__rejectedCount__${config.rejectedEvent.groupId}`,
-            type: "integer",
-            value: config.mainGroup.rejectedCount - 1,
-        },
-    ]
-
     return evaluateTest(
         JSON.stringify(testEval),
         "testing: change REJECTED status to OPEN by admin",
         {
-            type: ResultType.SUCCESS,
-            result: {
-                data: expectedData,
-                transfers: [],
-                issues: [],
-            }
+            type: ResultType.ERROR,
+            result: "old status is final"
         }
     )
 }
@@ -2534,6 +2520,51 @@ function test30(config: PredictionConfig) {
     )
 }
 
+// Change CLOSED status to OPEN by admin (expect error)
+function test31(config: PredictionConfig) {
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+        "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+        "dApp": config.address,
+        "payment": [],
+        "call": {
+            "function": "setEventStatus",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.closedEvent.id
+                },
+                {
+                    "type": "integer",
+                    "value": EventStatus.OPEN
+                },
+                {
+                    "type": "string",
+                    "value": ""
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB": getFakeBalances(config),
+            }
+        }
+    };
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: change CLOSED status to OPEN by admin",
+        {
+            type: ResultType.ERROR,
+            result: "old status is final"
+        }
+    )
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -2571,18 +2602,21 @@ function main() {
             test28(config),
             test29(config),
             test30(config),
+            test31(config),
         ]
-        const limiter = new Bottleneck({ maxConcurrent: 2, minTime: 500 });
-        const testTasks = testPromises.map(p => limiter.schedule(() => p));
+        const limiter = new Bottleneck({ maxConcurrent: 1, minTime: 2000 });
 
-        Promise.all(testTasks)
-            .then(() => {
-                console.log("===========================");
-                console.log(`Total tests: ${totalTests}, Passed: ${totalTests - failedTests}, Failed: ${failedTests}`);
-                console.log("===========================");
+        limiter.schedule(() => {
+            const testTasks = testPromises.map(p => limiter.schedule(() => p));
+            return Promise.all(testTasks);
 
-                if (failedTests != 0) process.exit(1);
-            });
+        }).then(() => {
+            console.log("===========================");
+            console.log(`Total tests: ${totalTests}, Passed: ${totalTests - failedTests}, Failed: ${failedTests}`);
+            console.log("===========================");
+
+            if (failedTests != 0) process.exit(1);
+        });
     });
 };
 
