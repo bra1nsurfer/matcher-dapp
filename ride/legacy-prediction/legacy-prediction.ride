@@ -427,7 +427,7 @@ func mergeTokens(eventId: Int) = {
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    i.payments.size() >= 2 || throwErr("must be with 2 payments"),
+    i.payments.size() == 2 || throwErr("must be with 2 payments"),
     isAssetsRight || throwErr("assets and event mismatch"),
     i.payments[0].amount == i.payments[1].amount || throwErr("payment amounts must be equal")
   ]  
@@ -460,7 +460,7 @@ func withdrawTokens(eventId: Int) = {
 
   strict check = [
     eventStatus == E_CLOSED_YES || eventStatus == E_CLOSED_NO || throwErr("event is not closed"),
-    i.payments.size() >= 1 || throwErr("must be with payment"),
+    i.payments.size() == 1 || throwErr("must be with payment"),
     i.payments[0].assetId == finalEventAssetId || throwErr("invalid asset in payment")
   ]
 
