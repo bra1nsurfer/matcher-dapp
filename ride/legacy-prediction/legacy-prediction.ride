@@ -39,10 +39,7 @@ func stringToAssetId(s: String) = {
   if (s == WAVES) then unit else s.fromBase58String()
 }
 
-let currentDatetime = match (blockInfoByHeight(height)) {
-    case bi:BlockInfo => bi.timestamp
-    case _ => 0
-  }
+let currentDatetime = lastBlock.timestamp
 
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = this.getBoolean(kForceStop).valueOrElse(false)
@@ -154,6 +151,13 @@ func isAdmin(callerAddress: String) = {
 
 func isEventAdmin(callerAddress: String) = {
   isAdmin(callerAddress) || eventAdminList.containsElement(callerAddress)
+}
+
+func isGroupExist(groupId: String) = {
+  match (this.getString(kGroupName(groupId))) {
+      case t:String => true
+      case _ => false
+    }
 }
 
 func editGroupHelper(groupId: String, name: String, description: String, category: String, imgSrc: String, source: String, creator: String) = {
@@ -306,7 +310,7 @@ func massNewEventsHelper(
   strict check = [
     eNames.size() > 0 || throwErr("event cannot be empty"),
     eEndDatetimes.size() > 0 || throwErr("event end datetimes cannot be empty"),
-    eNamesCount <= MAX_FOLD_EVENTS || throwErr("too many events"),
+    eNamesCount <= min([MAX_FOLD_EVENTS, MAX_GROUP_EVENTS]) || throwErr("too many events"),
     eNamesCount == eEndCount || throwErr("invalid events end datetime amount")
   ]
 
@@ -315,8 +319,6 @@ func massNewEventsHelper(
   let (_a, groupEventIds, allEventsActions, newLastEventIndex) = FOLD<10>(INDEXES, (CONST_DATA, [], [], lastEventIndex), massEventHelper)
   ###
 
-  let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString(SEP))] 
-  
   ( 
     groupEventIds,
     eTotalFee,
@@ -594,6 +596,7 @@ func newEvents(
   let (newGroupEventIds, totalFee, eventsActions) = massNewEventsHelper(creator, sGroupId, eNames, eEndDatetimes)
 
   strict check = [
+    isGroupExist(sGroupId) || throwErr("groupId no found"),
     !forceStop || throwErr("contract is temporary stopped"),
     totalFee == 0 || i.payments.size() > 0 || throwErr("payment not found"),
     totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
