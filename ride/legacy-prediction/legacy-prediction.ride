@@ -367,29 +367,33 @@ func init(feeGetter: String, basePriceAsset: String, eventCreationFeeAmount: Int
 @Callable(i)
 func mintTokens(eventId: Int) = {
   let sEventId = eventId.toString()
+  let rawPaymentAmount = i.payments[0].amount
+  let mintFeeAmount = i.payments[1].amount
+  let mintAmount = priceAssetToAmountAsset(rawPaymentAmount, PREDICTION_PRICE_UNIT)
+  let paymentAmount = amountAssetToPriceAsset(mintAmount, PREDICTION_PRICE_UNIT)
+  let minMintFeeAmount = fraction(paymentAmount, eventMintFeeRate, DEC8)
+
+  let expectedPaymentSize = if (eventMintFeeRate > 0) then 2 else 1
 
   strict check1 = [
     !forceStop || throwErr("contract is temporary stopped"),
     this.getString(kEventName(sEventId)).valueOrElse("").size() > 0 || throwErr("eventId is not found"),
     isEventOpen(sEventId) || throwErr("invalid event status"),
-    i.payments.size() >= 2 || throwErr("must be with 2 payments"),
+    i.payments.size() == expectedPaymentSize || throwErr("must be with 2 payments"),
     i.payments[0].assetId == predictionPriceAsset || throwErr("wrong price asset"),
-    i.payments[1].assetId == predictionPriceAsset || throwErr("wrong mint fee price asset")
-  ]
-
-  let paymentAmount = i.payments[0].amount
-  let mintFeeAmount = i.payments[1].amount
-  let mintAmount = priceAssetToAmountAsset(paymentAmount, PREDICTION_PRICE_UNIT)
-  let minMintFeeAmount = fraction(paymentAmount, eventMintFeeRate, DEC8)
-
-  strict check2 = [
+    eventMintFeeRate == 0 || i.payments[1].assetId == predictionPriceAsset || throwErr("wrong mint fee price asset"),
     mintAmount > 0 || throwErr("payment is not enough"),
-    mintFeeAmount >= minMintFeeAmount || throwErr(["mint fee amount is not enough (min: ", minMintFeeAmount.toString(), ")"].makeString(""))
+    eventMintFeeRate == 0 || mintFeeAmount >= minMintFeeAmount || throwErr(["mint fee amount is not enough (min: ", minMintFeeAmount.toString(), ")"].makeString(""))
   ]
 
-  let transferMintFeeAction = if(minMintFeeAmount == 0) 
-    then []
-    else [ScriptTransfer(feeGetter, mintFeeAmount, i.payments[1].assetId)]
+  let excessAmount = (rawPaymentAmount - paymentAmount) + (mintFeeAmount - minMintFeeAmount)
+  let returnExcessAction = if (excessAmount > 0) 
+    then [ScriptTransfer(i.caller, excessAmount, i.payments[0].assetId)]
+    else []
+
+  let transferMintFeeAction = if(minMintFeeAmount > 0) 
+    then [ScriptTransfer(feeGetter, minMintFeeAmount, i.payments[1].assetId)]
+    else []
 
   let oldTotalMinted = this.getInteger(kEventTokensMinted(sEventId)).valueOrElse(0)
   let newTotalMinted = oldTotalMinted + mintAmount
@@ -406,7 +410,9 @@ func mintTokens(eventId: Int) = {
     ScriptTransfer(i.caller, mintAmount, yesAssetId),
     ScriptTransfer(i.caller, mintAmount, noAssetId),
     IntegerEntry(kEventTokensMinted(sEventId), newTotalMinted)
-  ] ++ transferMintFeeAction
+  ] ++ 
+  transferMintFeeAction ++
+  returnExcessAction
 }
 
 @Callable(i)

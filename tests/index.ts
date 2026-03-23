@@ -2565,6 +2565,92 @@ function test31(config: PredictionConfig) {
     )
 }
 
+// Mint tokens with Excess payment amount
+function test32(config: PredictionConfig) {
+    const mintSendAmount = 3.0 * config.priceAssetDecimals;
+    const mintFee = Math.round(config.mintFeeRate * mintSendAmount);
+    const expectedTokensAmount = 3;
+    const mintPaymentExcess = 0.4 * config.priceAssetDecimals
+    const mintFeeExcess = 0.3 * config.priceAssetDecimals
+
+    const testEval = {
+        "type": 16,
+        "fee": 500000,
+        "feeAssetId": null,
+        "version": 2,
+        "sender": "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+        "senderPublicKey": "9QvMuwXsxpVmjirwEvpYyG93BL5uW54RVv5SozrwP9wv",
+        "dApp": config.address,
+        "payment": [
+            {
+                "amount": mintSendAmount + mintPaymentExcess,
+                "assetId": config.priceAsset
+            },
+            {
+                "amount": mintFee + mintFeeExcess,
+                "assetId": config.priceAsset
+            }
+        ],
+        "call": {
+            "function": "mintTokens",
+            "args": [
+                {
+                    "type": "integer",
+                    "value": config.openEvent.id
+                },
+            ]
+        },
+        "state": {
+            "accounts": {
+                "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx": getFakeBalances(config),
+            }
+        }
+    };
+
+    const expectedData = [
+        {
+            key: `%s%s%d__event__tokensMinted__${config.openEvent.id}`,
+            type: 'integer',
+            value: config.openEvent.mintedAmount + expectedTokensAmount
+        },
+    ]
+
+    const expectedTransfers = [
+        {
+            address: "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+            asset: config.openEvent.yesToken,
+            amount: expectedTokensAmount
+        },
+        {
+            address: "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+            asset: config.openEvent.noToken,
+            amount: expectedTokensAmount
+        },
+        {
+            address: config.feeGetter,
+            asset: config.priceAsset,
+            amount: mintFee
+        },
+        {
+            address: "3MwwN6bPUCm2Tbi9YxJwiu21zbRbERroHyx",
+            asset: config.priceAsset,
+            amount: mintPaymentExcess + mintFeeExcess
+        },
+    ];
+
+    return evaluateTest(
+        JSON.stringify(testEval),
+        "testing: mint tokens with Excess payment amount",
+        {
+            type: ResultType.SUCCESS,
+            result: {
+                data: expectedData,
+                issues: [],
+                transfers: expectedTransfers,
+            }
+        })
+}
+
 function main() {
     getConfig(prediction).then(config => {
         console.log("======dApp config======");
@@ -2603,6 +2689,7 @@ function main() {
             test29(config),
             test30(config),
             test31(config),
+            test32(config),
         ]
 
         testPromises.reduce((p, fn) => p.then(() => fn), Promise.resolve()).then(() => {
