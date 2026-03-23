@@ -2604,20 +2604,15 @@ function main() {
             test30(config),
             test31(config),
         ]
-        const limiter = new Bottleneck({ maxConcurrent: 1, minTime: 2000 });
 
-        limiter.schedule(() => {
-            const testTasks = testPromises.map(p => limiter.schedule(() => p));
-            return Promise.all(testTasks);
-
-        }).then(() => {
+        testPromises.reduce((p, fn) => p.then(() => fn), Promise.resolve()).then(() => {
             console.log("===========================");
             console.log(`Total tests: ${totalTests}, Passed: ${totalTests - failedTests}, Failed: ${failedTests}`);
             console.log("===========================");
 
             if (failedTests != 0) process.exit(1);
-        });
-    });
+        })
+    })
 };
 
 main();
