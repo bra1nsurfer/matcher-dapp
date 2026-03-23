@@ -373,7 +373,7 @@ func mintTokens(eventId: Int) = {
   let paymentAmount = amountAssetToPriceAsset(mintAmount, PREDICTION_PRICE_UNIT)
   let minMintFeeAmount = fraction(paymentAmount, eventMintFeeRate, DEC8)
 
-  let expectedPaymentSize = if (eventMintFeeRate > 0) then 2 else 1
+  let expectedPaymentSize = if (minMintFeeAmount > 0) then 2 else 1
 
   strict check1 = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -381,9 +381,9 @@ func mintTokens(eventId: Int) = {
     isEventOpen(sEventId) || throwErr("invalid event status"),
     i.payments.size() == expectedPaymentSize || throwErr("must be with 2 payments"),
     i.payments[0].assetId == predictionPriceAsset || throwErr("wrong price asset"),
-    eventMintFeeRate == 0 || i.payments[1].assetId == predictionPriceAsset || throwErr("wrong mint fee price asset"),
+    minMintFeeAmount == 0 || i.payments[1].assetId == predictionPriceAsset || throwErr("wrong mint fee price asset"),
     mintAmount > 0 || throwErr("payment is not enough"),
-    eventMintFeeRate == 0 || mintFeeAmount >= minMintFeeAmount || throwErr(["mint fee amount is not enough (min: ", minMintFeeAmount.toString(), ")"].makeString(""))
+    minMintFeeAmount == 0 || mintFeeAmount >= minMintFeeAmount || throwErr(["mint fee amount is not enough (min: ", minMintFeeAmount.toString(), ")"].makeString(""))
   ]
 
   let excessAmount = (rawPaymentAmount - paymentAmount) + (mintFeeAmount - minMintFeeAmount)
