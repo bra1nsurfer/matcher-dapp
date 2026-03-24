@@ -162,6 +162,13 @@ func isEventAdmin(callerAddress: String) = {
   isAdmin(callerAddress) || eventAdminList.containsElement(callerAddress)
 }
 
+func isEventExist(eventId: String) = {
+  match (this.getString(kEventName(eventId))) {
+      case t:String => true
+      case _ => false
+    }
+}
+
 func isGroupExist(groupId: String) = {
   match (this.getString(kGroupName(groupId))) {
       case t:String => true
@@ -464,7 +471,7 @@ func withdrawTokens(eventId: Int) = {
     i.payments[0].assetId == finalEventAssetId || throwErr("invalid asset in payment")
   ]
 
-  let priceAssetAmount = i.payments[0].amount * PREDICTION_PRICE_UNIT
+  let priceAssetAmount = amountAssetToPriceAsset(i.payments[0].amount, PREDICTION_PRICE_UNIT)
 
   [
     ScriptTransfer(i.caller, priceAssetAmount, predictionPriceAsset),
@@ -487,6 +494,7 @@ func setEventStatus(eventId: Int, status: Int, category: String) = {
 
   strict check = [
     isEventAdmin(callerAddress) || throwErr("setEventStatus: permission denied"),
+    isEventExist(sEventId) || throwErr("event id is not found"),
     VALID_STATUSES.containsElement(status) || throwErr("new status is not valid"),
     s_newEvent || s_openEvent || s_stoppedEvent || isAdmin(callerAddress) || throw("old status is final"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
@@ -549,6 +557,7 @@ func editGroup(groupId: Int, name: String, description: String, category: String
   let sGroupId = groupId.toString()
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("editGroup: permission denied"),
+    isGroupExist(sGroupId) || throwErr("groupId is not found"),
     this.getString(kGroupName(sGroupId)).valueOrErrorMessage(wrapErr("groupId is not found"))
   ]
 
@@ -561,6 +570,8 @@ func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creat
   let sGroupId = if (groupId > 0) then groupId.toString() else ""
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("editEvent: permission denied"),
+    isEventExist(sEventId) || throwErr("eventId is not found"),
+    groupId == 0 || isGroupExist(sGroupId) || throwErr("groupId not found"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
   ]
   
