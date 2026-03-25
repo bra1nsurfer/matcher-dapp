@@ -491,12 +491,13 @@ func setEventStatus(eventId: Int, status: Int, category: String) = {
   let s_newEvent = (oldEventStatus == E_NOT_FOUND && (status == E_OPEN || status == E_REJECTED))
   let s_openEvent = (oldEventStatus == E_OPEN && (status != E_NOT_FOUND))
   let s_stoppedEvent = (oldEventStatus == E_STOPPED && (status == E_OPEN))
+  let s_expiredEvent = (oldEventStatus == E_EXPIRED && (status != E_NOT_FOUND))
 
   strict check = [
     isEventAdmin(callerAddress) || throwErr("setEventStatus: permission denied"),
     isEventExist(sEventId) || throwErr("event id is not found"),
     VALID_STATUSES.containsElement(status) || throwErr("new status is not valid"),
-    s_newEvent || s_openEvent || s_stoppedEvent || isAdmin(callerAddress) || throw("old status is final"),
+    s_newEvent || s_openEvent || s_stoppedEvent || s_expiredEvent || isAdmin(callerAddress) || throw("old status is final"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
   ]
 
