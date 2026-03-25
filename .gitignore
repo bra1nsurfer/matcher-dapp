@@ -4,4 +4,5 @@ src/*.js
 deploy/*.js
 tests/*.js
 .env.testnet
+.env.mainnet
 .markdownlint.json

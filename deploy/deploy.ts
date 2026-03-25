@@ -1,7 +1,6 @@
 import { nodeInteraction, setScript } from "@waves/waves-transactions";
 import { readFileSync } from 'node:fs';
 import { create } from "@waves/node-api-js";
-import Bottleneck from "bottleneck";
 import 'dotenv/config'
 
 type Account = {
@@ -34,8 +33,8 @@ function getScript(address: string) {
 };
 
 function broadcastNewScript(newScriptFilename: string, account: Account) {
-    if (account.seed == "") return Promise.reject(new Error(`${newScriptFilename}: empty seed`))
-    if (account.address == "") return Promise.reject(new Error(`${newScriptFilename}: empty address`))
+    if (account.seed == "") return Promise.resolve(new Error(`${newScriptFilename}: empty seed`));
+    if (account.address == "") return Promise.resolve(new Error(`${newScriptFilename}: empty address`));
 
     return getScript(account.address).then(oldScript => {
         return compile(newScriptFilename).then(newScript => {
@@ -116,9 +115,7 @@ const deployPromises = [
     broadcastNewScript('./ride/matcher-eventmanager.ride', eventManager),
     broadcastNewScript('./ride/legacy-prediction/legacy-prediction.ride', legacyPrediction),
 ]
-const limiter = new Bottleneck({ maxConcurrent: 2, minTime: 1000 });
-const tasks = deployPromises.map(p => limiter.schedule(() => p));
 
-Promise.all(tasks)
+Promise.all(deployPromises)
     .then(res => console.log(res))
     .catch(e => console.error(e));

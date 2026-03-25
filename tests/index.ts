@@ -1,7 +1,6 @@
 import { create } from "@waves/node-api-js";
 import { expect } from "expect";
 import 'dotenv/config'
-import Bottleneck from "bottleneck";
 
 type Account = {
     address: string,
