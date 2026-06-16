@@ -105,6 +105,7 @@ func kGroupCreator(groupId: String)       = ["%s%s%d", "group", "creator", group
 func kGroupCategory(groupId: String)      = ["%s%s%d", "group", "category", groupId].makeString(SEP)
 func kGroupEvents(groupId: String)        = ["%s%s%d", "group", "events", groupId].makeString(SEP)
 func kGroupRejectedCount(groupId: String) = ["%s%s%d", "group", "rejectedCount", groupId].makeString(SEP)
+func kGroupUnlimited(groupId: String)     = ["%s%s%d", "group", "unlimited", groupId].makeString(SEP)
 
 func getGroupEvents(groupId: String) = match (this.getString(kGroupEvents(groupId))) {
     case str:String => str.split_51C(SEP)
@@ -176,6 +177,10 @@ func isGroupExist(groupId: String) = {
     }
 }
 
+func isGroupUnlimited(groupId: String) = {
+  this.getBoolean(kGroupUnlimited(groupId)).valueOrElse(false)
+}
+
 func editGroupHelper(groupId: String, name: String, description: String, category: String, imgSrc: String, source: String, creator: String) = {
   let nameEntry     = if(name.size() > 0)        then [StringEntry(kGroupName(groupId), name)] else []
   let descEntry     = if(description.size() > 0) then [StringEntry(kGroupDesc(groupId), description)] else []
@@ -217,14 +222,14 @@ func eventGroupIdHelper(eventId: String, groupId: String) = {
         case _ => prevGroupOldEvents
       }
       let prevGroupAction = if(prevGroupNewEvents.size() > 0)
-        then StringEntry(kGroupEvents(oldGroupId), prevGroupNewEvents.makeString(SEP))
+        then StringEntry(kGroupEvents(oldGroupId), prevGroupNewEvents.makeString_11C(SEP))
         else DeleteEntry(kGroupEvents(oldGroupId))
 
       [prevGroupAction]
     }
   let nextGroupEvents = getGroupEvents(groupId) :+ eventId
   let nextGroupActions = if(groupId.size() != 0 && groupId != oldGroupId) 
-    then [StringEntry(kGroupEvents(groupId), nextGroupEvents.makeString(SEP))] 
+    then [StringEntry(kGroupEvents(groupId), nextGroupEvents.makeString_11C(SEP))] 
     else []
 
   let oldGroupRejected = getRejectedCount(oldGroupId)
@@ -299,11 +304,12 @@ func massEventHelper(
 
     let infoActions = editEventInfoHelper(localEventId, groupId, eNamesList[arrInd], endDatetime, creator)
     let tokensActions = eventTokensActions(localEventId)
+    let approveActions = if (isGroupUnlimited(groupId)) then [ IntegerEntry(kEventStatus(localEventId), E_OPEN) ] else []
 
     (
       CONST_DATA,
       eventIds :+ localEventId,
-      actions ++ infoActions ++ tokensActions, 
+      actions ++ infoActions ++ tokensActions ++ approveActions, 
       localEventIdInt
     )
   }
@@ -572,11 +578,25 @@ func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creat
   strict check = [
     isEventAdmin(i.caller.toString()) || throwErr("editEvent: permission denied"),
     isEventExist(sEventId) || throwErr("eventId is not found"),
-    groupId == 0 || isGroupExist(sGroupId) || throwErr("groupId not found"),
+    groupId == 0 || isGroupExist(sGroupId) || throwErr("groupId is not found"),
     this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
   ]
   
   editEventHelper(sEventId, sGroupId, name, endDatetime, creator)
+}
+
+@Callable(i)
+func setGroupUnlimited(groupId: Int, isUnlimited: Boolean) = {
+  let sGroupId = groupId.toString()
+  strict check = [
+    isEventAdmin(i.caller.toString()) || throwErr("editGroup: permission denied"),
+    isGroupExist(sGroupId) || throwErr("groupId is not found"),
+    this.getString(kGroupName(sGroupId)).valueOrErrorMessage(wrapErr("groupId is not found"))
+  ]
+
+  [
+    BooleanEntry(kGroupUnlimited(sGroupId), isUnlimited)
+  ]
 }
 
 @Callable(i)
@@ -609,7 +629,7 @@ func newGroupAndEvents(
     totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
   ]
 
-  let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString(SEP))] 
+  let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString_11C(SEP))] 
   let transferFeeAction = if (totalFee > 0) 
     then [ScriptTransfer(feeGetter, totalFee, i.payments[0].assetId)]
     else []
@@ -641,14 +661,15 @@ func newEvents(
     !forceStop || throwErr("contract is temporary stopped"),
     totalFee == 0 || i.payments.size() == 1 || throwErr("payment not found"),
     totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
-    totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
+    totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" ")),
+    !isGroupUnlimited(sGroupId) || isEventAdmin(creator) || throwErr("permission denied (unlimited group)")
   ]
 
   let oldGroupEventIds = getGroupEvents(sGroupId)
   let groupNewTotalEventsCount = oldGroupEventIds.size() + newGroupEventIds.size()
   let groupRejectedEventsCount = getRejectedCount(sGroupId)
-  let groupEventIdsActions = if (groupNewTotalEventsCount - groupRejectedEventsCount <= MAX_GROUP_EVENTS) 
-    then [StringEntry(kGroupEvents(sGroupId), (oldGroupEventIds ++ newGroupEventIds).makeString(SEP))]
+  let groupEventIdsActions = if (isGroupUnlimited(sGroupId) || groupNewTotalEventsCount - groupRejectedEventsCount <= MAX_GROUP_EVENTS) 
+    then [StringEntry(kGroupEvents(sGroupId), (oldGroupEventIds ++ newGroupEventIds).makeString_11C(SEP))]
     else throwErr(["max", MAX_GROUP_EVENTS.toString(), "events in group"].makeString(" "))
 
   let transferFeeAction = if (totalFee > 0) 

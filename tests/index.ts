@@ -158,9 +158,9 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
             const closedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__2").toString();
             const closedEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__2").toString();
 
-            // Assume event with Id = 3 is Expired
-            const expiredEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__3").toString();
-            const expiredEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__3").toString();
+            // Assume event with Id = 75 is Expired
+            const expiredEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__75").toString();
+            const expiredEventNoToken = getFromState(state, "%s%s%d__event__noAssetId__75").toString();
 
             // Assume event with Id = 4 is Stopped
             const stoppedEventYesToken = getFromState(state, "%s%s%d__event__yesAssetId__4").toString();
@@ -203,11 +203,11 @@ function getConfig(dapp: Account): Promise<PredictionConfig> {
                     groupId: "1",
                 },
                 expiredEvent: {
-                    id: 3,
+                    id: 75,
                     yesToken: expiredEventYesToken,
                     noToken: expiredEventNoToken,
                     mintedAmount: 0,
-                    groupId: "1",
+                    groupId: "5",
                 },
                 stoppedEvent: {
                     id: 4,
