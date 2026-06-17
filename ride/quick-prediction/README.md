@@ -38,10 +38,18 @@ Keys:
 
 ## User keys
 
-| Key                                    |    Type | Value Description                   |
-|:---------------------------------------|--------:|-------------------------------------|
-| `%s%s%d__userUp__{address}__{index}`   | Integer | User amount of Waves voted for UP   |
-| `%s%s%d__userDown__{address}__{index}` | Integer | User amount of Waves voted for DOWN |
+| Key                                            |    Type | Value Description                                                           |
+|:-----------------------------------------------|--------:|-----------------------------------------------------------------------------|
+| `%s%s%d__userUp__{address}__{index}`           | Integer | User amount of Waves voted for UP                                           |
+| `%s%s%d__userDown__{address}__{index}`         | Integer | User amount of Waves voted for DOWN                                         |
+| `%s%s%d__userClaimHistory__{address}__{index}` | Integer | User claim history. Format: `{userUp}__{userDown}__{UP\|DOWN}__{winAmount}` |
+
+Example
+```json
+{
+    "%s%s%d__userClaimHistory__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__55": "10000001__20000002__UP__30000003"
+}
+```
 
 ## Index/Timestamp calculations
 

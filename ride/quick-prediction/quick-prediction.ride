@@ -24,6 +24,13 @@ func keyUpTotalAmountAtIndex(index: Int)                   = ["%s%d", "totalUp",
 func keyDownTotalAmountAtIndex(index: Int)                 = ["%s%d", "totalDown", index.toString()].makeString(SEP)
 func keyUpUserAmountAtIndex(address: String, index: Int)   = ["%s%s%d", "userUp", address, index.toString()].makeString(SEP)
 func keyDownUserAmountAtIndex(address: String, index: Int) = ["%s%s%d", "userDown", address, index.toString()].makeString(SEP)
+func keyUserClaimHistory(address: String, index: Int)      = ["%s%s%d", "userClaimHistory", address, index.toString()].makeString(SEP)
+
+func keyUserClaimHistoryValue(upAmount: Int, downAmount: Int, isUp: Boolean, winAmount: Int) = {
+    let dir = if(isUp) then "UP" else "DOWN"
+    
+    [upAmount.toString(), downAmount.toString(), dir, winAmount.toString()].makeString(SEP)
+}
 
 let genesisTime    = this.getInteger(keyGenesisTime).valueOrErrorMessage(wrapErr("genesis time is not set"))
 let interval       = this.getInteger(keyInterval).valueOrErrorMessage(wrapErr("interval is not set"))
@@ -164,25 +171,22 @@ func claim(index: Int) = {
     let startPrice = this.getInteger(keyPriceAtIndex(index)).valueOrErrorMessage("start price is not found")
     let endPrice = this.getInteger(keyPriceAtIndex(index + 1)).valueOrErrorMessage("end price is not found")
 
-    let actions = if (endPrice > startPrice) then {
-        # UP
-        let winAmount = if (userUp > 0) then fraction((totalUp + totalDown), userUp, totalUp, DOWN) else throwErr("nothing to claim")
+    let IS_UP = (endPrice > startPrice)
 
-        [ 
-            ScriptTransfer(user.addressFromStringValue(), winAmount, unit),
-            DeleteEntry(keyUpUserAmountAtIndex(user, index))
-        ]
+    let winAmount = if(IS_UP) then {
+        if (userUp > 0) then fraction((totalUp + totalDown), userUp, totalUp, DOWN) else 0
     } else {
-        # DOWN
-        let winAmount = if(userDown > 0) then fraction((totalUp + totalDown), userDown, totalDown, DOWN) else throwErr("nothing to claim")
-
-        [
-            ScriptTransfer(user.addressFromStringValue(), winAmount, unit),
-            DeleteEntry(keyDownUserAmountAtIndex(user, index))
-        ]
+        if(userDown > 0) then fraction((totalUp + totalDown), userDown, totalDown, DOWN) else 0
     }
 
-    actions
+    let transferActions = if (winAmount > 0) then [ScriptTransfer(user.addressFromStringValue(), winAmount, unit)] else []
+
+    transferActions ++
+    [
+        StringEntry(keyUserClaimHistory(user, index), keyUserClaimHistoryValue(userUp, userDown, IS_UP, winAmount)),
+        DeleteEntry(keyUpUserAmountAtIndex(user, index)),
+        DeleteEntry(keyDownUserAmountAtIndex(user, index))
+    ]
 }
 
 @Callable(i)
