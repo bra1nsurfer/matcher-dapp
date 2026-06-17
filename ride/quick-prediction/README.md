@@ -1,0 +1,164 @@
+# Quick prediction
+
+Testnet dApp: `3N2UNrC7Ae53vhaSbVhWqg9yK6318G9HzzZ`
+
+## Table of Content
+
+- [Quick prediction](#quick-prediction)
+  - [Table of Content](#table-of-content)
+  - [Config](#config)
+  - [Period keys](#period-keys)
+  - [User keys](#user-keys)
+  - [Index/Timestamp calculations](#indextimestamp-calculations)
+    - [Index from Timestamp](#index-from-timestamp)
+    - [Timestamp from Index](#timestamp-from-index)
+  - [Functions](#functions)
+    - [Bet function](#bet-function)
+    - [Claim function](#claim-function)
+    - [Submit price](#submit-price)
+
+## Config
+
+Keys:
+
+| Key                  |    Type | Example                  | Value Description                 |
+|:---------------------|--------:|--------------------------|-----------------------------------|
+| `%s__genesisTime`    | Integer | `1781685300000`          | Genesis timestamp in Milliseconds |
+| `%s__intervalMs`     | Integer | `300000`                 | Period interval in Milliseconds   |
+| `%s__lastPriceIndex` | Integer | `0`                      | Last period index with set Price  |
+| `%s__eventAdminList` |  String | `{Address1}__{Address2}` | Only admin can set Period prices  |
+
+## Period keys
+
+| Key                        |    Type | Value Description                    |
+|:---------------------------|--------:|--------------------------------------|
+| `%s%d__price__{index}`     | Integer | Period price                         |
+| `%s%d__totalUp__{index}`   | Integer | Total amount of Waves voted for UP   |
+| `%s%d__totalDown__{index}` | Integer | Total amount of Waves voted for DOWN |
+
+## User keys
+
+| Key                                    |    Type | Value Description                   |
+|:---------------------------------------|--------:|-------------------------------------|
+| `%s%s%d__userUp__{address}__{index}`   | Integer | User amount of Waves voted for UP   |
+| `%s%s%d__userDown__{address}__{index}` | Integer | User amount of Waves voted for DOWN |
+
+## Index/Timestamp calculations
+
+### Index from Timestamp
+
+`((timestamp - genesisTime) / interval)`
+
+Examples:
+
+```txt
+Genesis Time: 1781685300000
+Interval: 300000 (5 min)
+===
+Timestamp: 1781685300001 -> Index: 0
+Timestamp: 1781685600001 -> Index: 1
+Timestamp: 1781692499999 -> Index: 23
+Timestamp: 1781692500000 -> Index: 24
+```
+
+### Timestamp from Index
+
+`(index * interval + genesisTime)`
+
+- Calculated timestamp equal _Period Start Time_
+
+Examples:
+
+```txt
+Genesis Time: 1781685300000
+Interval: 300000 (5 min)
+===
+Index: 33 -> Timestamp: 1781695200000
+Index: 34 -> Timestamp: 1781695500000 
+```
+
+## Functions
+
+### Bet function
+
+```js
+@Callable(i)
+func bet(up: Boolean)
+```
+
+- Can be called by anyone
+- All arguments is required
+- Must be with 1 payment
+- Payment must be in Waves
+- All previous period must be settled
+
+Example:
+
+```json
+{
+    "type": 16,
+    "version": 2,
+    "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+    "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+    "dApp": "3N2UNrC7Ae53vhaSbVhWqg9yK6318G9HzzZ",
+    "payment": [
+        {
+            "amount": 100000000,
+            "assetId": null
+        }
+    ],
+    "call": {
+        "function": "bet",
+        "args": [
+            {
+                "type": "boolean",
+                "value": true
+            }
+        ]
+    }
+}
+```
+
+### Claim function
+
+```js
+@Callable(i)
+func claim(index: Int)
+```
+
+- Can be called by anyone
+- All arguments is required
+- Index must be less than `%s__lastPriceIndex`
+
+Example:
+
+```json
+{
+    "type": 16,
+    "version": 2,
+    "sender": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB",
+    "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+    "dApp": "3N2UNrC7Ae53vhaSbVhWqg9yK6318G9HzzZ",
+    "payment": [],
+    "call": {
+        "function": "claim",
+        "args": [
+            {
+                "type": "integer",
+                "value": 2
+            }
+        ]
+    }
+}
+```
+
+### Submit price
+
+```js
+@Callable(i)
+func submitPrice(index: Int, price: Int)
+```
+
+- Can be called only by Admin
+- `index` must be less than _current index_ (`((current_timestamp - genesisTime) / interval)`)
+- `price` must be positive

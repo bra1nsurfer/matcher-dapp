@@ -1,0 +1,220 @@
+{-# STDLIB_VERSION 7 #-}
+{-# CONTENT_TYPE DAPP #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+
+let SEP           = "__"
+let CONTRACT_NAME = "quick-prediction.ride"
+let WAVES         = "WAVES"
+let DEC8          = 1_0000_0000
+
+func wrapErr(s: String) = {
+  CONTRACT_NAME + ": " + s
+}
+
+func throwErr(s: String) = {
+  throw(wrapErr(s))
+}
+
+let keyGenesisTime    = ["%s", "genesisTime"].makeString(SEP)
+let keyInterval       = ["%s", "intervalMs"].makeString(SEP)
+let keyLastPriceIndex = ["%s", "lastPriceIndex"].makeString(SEP)
+
+func keyPriceAtIndex(index: Int)                           = ["%s%d", "price", index.toString()].makeString(SEP)
+func keyUpTotalAmountAtIndex(index: Int)                   = ["%s%d", "totalUp", index.toString()].makeString(SEP)
+func keyDownTotalAmountAtIndex(index: Int)                 = ["%s%d", "totalDown", index.toString()].makeString(SEP)
+func keyUpUserAmountAtIndex(address: String, index: Int)   = ["%s%s%d", "userUp", address, index.toString()].makeString(SEP)
+func keyDownUserAmountAtIndex(address: String, index: Int) = ["%s%s%d", "userDown", address, index.toString()].makeString(SEP)
+
+let genesisTime    = this.getInteger(keyGenesisTime).valueOrErrorMessage(wrapErr("genesis time is not set"))
+let interval       = this.getInteger(keyInterval).valueOrErrorMessage(wrapErr("interval is not set"))
+let lastPriceIndex = this.getInteger(keyLastPriceIndex).valueOrElse(0)
+let now            = lastBlock.timestamp
+
+func timestampToIndex(timestamp: Int) = {
+    strict check = [
+        timestamp > genesisTime || throwErr("timestamp must be greater than genesis")
+    ]
+
+    ((timestamp - genesisTime) / interval)
+}
+
+func indexToTimestamp(index: Int) = {
+    strict check = [
+        index >= 0 || throwErr("index cannot be negative")
+    ]
+
+    (index * interval + genesisTime)
+}
+
+let currentIndex = timestampToIndex(now)
+
+let kEventAdminList = ["%s", "eventAdminList"].makeString(SEP)
+let eventAdminList  = match (this.getString(kEventAdminList)) {
+    case str:String => str.split(SEP)
+    case _ => []
+  }
+
+func keyManagerPublicKey() = "%s__managerPublicKey"
+func keyManagerVaultAddress() = "%s__managerVaultAddress"
+
+func getManagerVaultAddressOrThis() = {
+  match keyManagerVaultAddress().getString() {
+    case s:String => s.addressFromStringValue()
+    case _=> this
+  }
+}
+
+func managerPublicKeyOrUnit() = {
+  let managerVaultAddress = getManagerVaultAddressOrThis()
+  match managerVaultAddress.getString(keyManagerPublicKey()) {
+    case s: String => s.fromBase58String()
+    case _: Unit => unit
+  }
+}
+
+func isAdmin(callerAddress: String) = {
+  let targetAddress = match managerPublicKeyOrUnit() {
+    case pk: ByteVector => pk.addressFromPublicKey()
+    case _: Unit => this
+  }
+
+  callerAddress == targetAddress.toString()
+}
+
+func isEventAdmin(callerAddress: String) = {
+  isAdmin(callerAddress) || eventAdminList.containsElement(callerAddress)
+}
+
+
+@Callable(i)
+func init(nGenesisTime: Int, nIntervalMs: Int, nGenesisPrice: Int) = {
+    strict check = [
+        i.caller == this || throwErr("permission denied"),
+        nGenesisTime > 0 || throwErr("new genesis time must be positive"),
+        nIntervalMs > 0 || throwErr("new interval must be positive"),
+        nGenesisPrice > 0 || throwErr("new genesis price must be positive")
+    ]
+
+    [
+        IntegerEntry(keyGenesisTime, nGenesisTime),
+        IntegerEntry(keyInterval, nIntervalMs),
+        IntegerEntry(keyPriceAtIndex(0), nGenesisPrice)
+    ]
+}
+
+@Callable(i)
+func submitPrice(index: Int, price: Int) = {
+    strict check = [
+        isEventAdmin(i.caller.toString()) || throwErr("submitPrice: permission denied"),
+        index > lastPriceIndex || throwErr("period is already settled"),
+        lastPriceIndex + 1 == index || throwErr("previous index price is not set"),
+        index <= currentIndex || throwErr("current epoch is not finished"),
+        price > 0 || throwErr("price cannot be negative")
+    ]
+
+    [
+        IntegerEntry(keyPriceAtIndex(index), price),
+        IntegerEntry(keyLastPriceIndex, index)
+    ]
+}
+
+@Callable(i)
+func bet(up: Boolean) = {
+    strict check = [
+        lastPriceIndex == currentIndex || throwErr("previous round is not settled yet"),
+        i.payments.size() == 1 || throwErr("must be with 1 payment"),
+        i.payments[0].assetId == unit || throwErr("payment must be in Waves")
+    ]
+
+    let user = i.caller.toString()
+    let amount = i.payments[0].amount
+
+    if (up) then {
+        let totalUp = this.getInteger(keyUpTotalAmountAtIndex(currentIndex)).valueOrElse(0)
+        let userUp = this.getInteger(keyUpUserAmountAtIndex(user, currentIndex)).valueOrElse(0)
+
+        [
+            IntegerEntry(keyUpTotalAmountAtIndex(currentIndex), totalUp + amount),
+            IntegerEntry(keyUpUserAmountAtIndex(user, currentIndex), userUp + amount)
+        ]
+    } else {
+        let totalDown = this.getInteger(keyDownTotalAmountAtIndex(currentIndex)).valueOrElse(0)
+        let userDown = this.getInteger(keyDownUserAmountAtIndex(user, currentIndex)).valueOrElse(0)
+
+        [
+            IntegerEntry(keyDownTotalAmountAtIndex(currentIndex), totalDown + amount),
+            IntegerEntry(keyDownUserAmountAtIndex(user, currentIndex), userDown + amount)
+        ]
+    }
+}
+
+@Callable(i)
+func claim(index: Int) = {
+    let user      = i.caller.toString()
+    let totalUp   = this.getInteger(keyUpTotalAmountAtIndex(index)).valueOrElse(0)
+    let totalDown = this.getInteger(keyDownTotalAmountAtIndex(index)).valueOrElse(0)
+    let userUp    = this.getInteger(keyUpUserAmountAtIndex(user, index)).valueOrElse(0)
+    let userDown  = this.getInteger(keyDownUserAmountAtIndex(user, index)).valueOrElse(0)
+
+    strict check = [
+        index < lastPriceIndex || throwErr("round is not settled yet"),
+        userUp + userDown > 0 || throwErr("bet is not found")
+    ]
+
+    let startPrice = this.getInteger(keyPriceAtIndex(index)).valueOrErrorMessage("start price is not found")
+    let endPrice = this.getInteger(keyPriceAtIndex(index + 1)).valueOrErrorMessage("end price is not found")
+
+    let actions = if (endPrice > startPrice) then {
+        # UP
+        let winAmount = if (userUp > 0) then fraction((totalUp + totalDown), userUp, totalUp, DOWN) else throwErr("nothing to claim")
+
+        [ 
+            ScriptTransfer(user.addressFromStringValue(), winAmount, unit),
+            DeleteEntry(keyUpUserAmountAtIndex(user, index))
+        ]
+    } else {
+        # DOWN
+        let winAmount = if(userDown > 0) then fraction((totalUp + totalDown), userDown, totalDown, DOWN) else throwErr("nothing to claim")
+
+        [
+            ScriptTransfer(user.addressFromStringValue(), winAmount, unit),
+            DeleteEntry(keyDownUserAmountAtIndex(user, index))
+        ]
+    }
+
+    actions
+}
+
+@Callable(i)
+func addEventAdmin(address: String) = {
+  strict check = [
+    isAdmin(i.caller.toString()) || throwErr("addEventAdmin: permission denied")
+  ]
+
+  let newAdminList = eventAdminList :+ address
+  let sNewAdminList = newAdminList.makeString(SEP)
+
+  [
+    StringEntry(kEventAdminList, sNewAdminList)
+  ]
+}
+
+@Callable(i)
+func removeEventAdmin(address: String) = {
+  strict check = [
+    isAdmin(i.caller.toString()) || throwErr("removeEventAdmin: permission denied")
+  ]
+
+  let newAdminList = match (eventAdminList.indexOf(address)) {
+      case ind:Int => eventAdminList.removeByIndex(ind)
+      case _ => eventAdminList
+    }
+  
+  let resultAction = if(newAdminList.size() > 0) 
+    then StringEntry(kEventAdminList, newAdminList.makeString(SEP))
+    else DeleteEntry(kEventAdminList)
+
+  [
+    resultAction
+  ]
+}

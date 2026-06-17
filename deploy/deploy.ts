@@ -103,6 +103,11 @@ const legacyPrediction: Account = {
     address: e.LEGACYPREDICTION_ADDRESS ? e.LEGACYPREDICTION_ADDRESS : "",
 }
 
+const quickPrediction: Account = {
+    seed: e.QUICKPREDICTION_SEED ? e.QUICKPREDICTION_SEED : "",
+    address: e.QUICKPREDICTION_ADDRESS ? e.QUICKPREDICTION_ADDRESS : "",
+}
+
 const deployPromises = [
     broadcastNewScript('./ride/matcher-validator.ride', validator),
     broadcastNewScript('./ride/matcher-factory.ride', factory),
@@ -114,6 +119,7 @@ const deployPromises = [
     broadcastNewScript('./ride/prediction-validator.ride', predictionValidator),
     broadcastNewScript('./ride/matcher-eventmanager.ride', eventManager),
     broadcastNewScript('./ride/legacy-prediction/legacy-prediction.ride', legacyPrediction),
+    broadcastNewScript('./ride/quick-prediction/quick-prediction.ride', quickPrediction),
 ]
 
 Promise.all(deployPromises)
