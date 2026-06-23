@@ -7,6 +7,9 @@ let CONTRACT_NAME = "quick-prediction.ride"
 let WAVES         = "WAVES"
 let DEC8          = 1_0000_0000
 
+let DIR_UP   = "UP"
+let DIR_DOWN = "DOWN"
+
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
 }
@@ -18,16 +21,22 @@ func throwErr(s: String) = {
 let keyGenesisTime    = ["%s", "genesisTime"].makeString(SEP)
 let keyInterval       = ["%s", "intervalMs"].makeString(SEP)
 let keyLastPriceIndex = ["%s", "lastPriceIndex"].makeString(SEP)
+let keyMinBetAmount   = ["%s", "minBetAmount"].makeString(SEP)
+let keyFeeRate        = ["%s", "feeRate"].makeString(SEP)
 
 func keyPriceAtIndex(index: Int)                           = ["%s%d", "price", index.toString()].makeString(SEP)
 func keyUpTotalAmountAtIndex(index: Int)                   = ["%s%d", "totalUp", index.toString()].makeString(SEP)
 func keyDownTotalAmountAtIndex(index: Int)                 = ["%s%d", "totalDown", index.toString()].makeString(SEP)
+func keyClosedDirAtIndex(index: Int)                       = ["%s%d", "closedDir", index.toString()].makeString(SEP)
+func keyVotedUpCountAtIndex(index: Int)                    = ["%s%d", "votedUp", index.toString()].makeString(SEP)
+func keyVotedDownCountAtIndex(index: Int)                  = ["%s%d", "votedDown", index.toString()].makeString(SEP)
+
 func keyUpUserAmountAtIndex(address: String, index: Int)   = ["%s%s%d", "userUp", address, index.toString()].makeString(SEP)
 func keyDownUserAmountAtIndex(address: String, index: Int) = ["%s%s%d", "userDown", address, index.toString()].makeString(SEP)
 func keyUserClaimHistory(address: String, index: Int)      = ["%s%s%d", "userClaimHistory", address, index.toString()].makeString(SEP)
 
 func keyUserClaimHistoryValue(upAmount: Int, downAmount: Int, isUp: Boolean, winAmount: Int) = {
-    let dir = if(isUp) then "UP" else "DOWN"
+    let dir = if(isUp) then DIR_UP else DIR_DOWN
     
     [upAmount.toString(), downAmount.toString(), dir, winAmount.toString()].makeString(SEP)
 }
@@ -36,6 +45,9 @@ let genesisTime    = this.getInteger(keyGenesisTime).valueOrErrorMessage(wrapErr
 let interval       = this.getInteger(keyInterval).valueOrErrorMessage(wrapErr("interval is not set"))
 let lastPriceIndex = this.getInteger(keyLastPriceIndex).valueOrElse(0)
 let now            = lastBlock.timestamp
+
+let MIN_BET  = this.getInteger(keyMinBetAmount).valueOrElse(1)
+let FEE_RATE = this.getInteger(keyFeeRate).valueOrElse(0)
 
 func timestampToIndex(timestamp: Int) = {
     strict check = [
@@ -51,6 +63,10 @@ func indexToTimestamp(index: Int) = {
     ]
 
     (index * interval + genesisTime)
+}
+
+func isDirUp(startPrice: Int, endPrice: Int) = {
+  (endPrice > startPrice)
 }
 
 let currentIndex = timestampToIndex(now)
@@ -119,40 +135,46 @@ func submitPrice(index: Int, price: Int) = {
         price > 0 || throwErr("price cannot be negative")
     ]
 
+    let prevIndex = index - 1
+    let prevPrice = this.getIntegerValue(keyPriceAtIndex(prevIndex))
+    let dirString = if (isDirUp(prevPrice, price)) then DIR_UP else DIR_DOWN
+
     [
         IntegerEntry(keyPriceAtIndex(index), price),
-        IntegerEntry(keyLastPriceIndex, index)
+        IntegerEntry(keyLastPriceIndex, index),
+        StringEntry(keyClosedDirAtIndex(prevIndex), dirString)
     ]
 }
 
 @Callable(i)
 func bet(up: Boolean) = {
     strict check = [
-        lastPriceIndex == currentIndex || throwErr("previous round is not settled yet"),
+        # lastPriceIndex == currentIndex || throwErr("previous round is not settled yet"),
         i.payments.size() == 1 || throwErr("must be with 1 payment"),
-        i.payments[0].assetId == unit || throwErr("payment must be in Waves")
+        i.payments[0].assetId == unit || throwErr("payment must be in Waves"),
+        i.payments[0].amount >= MIN_BET || throwErr(["min bet amount: ", MIN_BET.toString()].makeString(""))
     ]
 
     let user = i.caller.toString()
     let amount = i.payments[0].amount
+    let betIndex = currentIndex + 1
 
-    if (up) then {
-        let totalUp = this.getInteger(keyUpTotalAmountAtIndex(currentIndex)).valueOrElse(0)
-        let userUp = this.getInteger(keyUpUserAmountAtIndex(user, currentIndex)).valueOrElse(0)
-
-        [
-            IntegerEntry(keyUpTotalAmountAtIndex(currentIndex), totalUp + amount),
-            IntegerEntry(keyUpUserAmountAtIndex(user, currentIndex), userUp + amount)
-        ]
+    let (keyTotalAmount, keyUserAmount, keyVoted) = if (up) then {
+      (keyUpTotalAmountAtIndex(betIndex), keyUpUserAmountAtIndex(user, betIndex), keyVotedUpCountAtIndex(betIndex))
     } else {
-        let totalDown = this.getInteger(keyDownTotalAmountAtIndex(currentIndex)).valueOrElse(0)
-        let userDown = this.getInteger(keyDownUserAmountAtIndex(user, currentIndex)).valueOrElse(0)
-
-        [
-            IntegerEntry(keyDownTotalAmountAtIndex(currentIndex), totalDown + amount),
-            IntegerEntry(keyDownUserAmountAtIndex(user, currentIndex), userDown + amount)
-        ]
+      (keyDownTotalAmountAtIndex(betIndex), keyDownUserAmountAtIndex(user, betIndex), keyVotedDownCountAtIndex(betIndex))
     }
+
+    let totalAmount = this.getInteger(keyTotalAmount).valueOrElse(0)
+    let userAmount  = this.getInteger(keyUserAmount).valueOrElse(0)
+    let votedCount  = this.getInteger(keyVoted).valueOrElse(0)
+    let votedAdd = if (userAmount == 0) then 1 else 0
+
+    [
+        IntegerEntry(keyTotalAmount, totalAmount + amount),
+        IntegerEntry(keyUserAmount, userAmount + amount),
+        IntegerEntry(keyVoted, votedCount + votedAdd)
+    ]
 }
 
 @Callable(i)
@@ -171,14 +193,17 @@ func claim(index: Int) = {
     let startPrice = this.getInteger(keyPriceAtIndex(index)).valueOrErrorMessage("start price is not found")
     let endPrice = this.getInteger(keyPriceAtIndex(index + 1)).valueOrErrorMessage("end price is not found")
 
-    let IS_UP = (endPrice > startPrice)
+    let IS_UP = isDirUp(endPrice, startPrice)
 
-    let winAmount = if(IS_UP) then {
-        if (userUp > 0) then fraction((totalUp + totalDown), userUp, totalUp, DOWN) else 0
+    let (rawWinAmount, betAmount) = if(IS_UP) then {
+        if (userUp > 0) then (fraction((totalUp + totalDown), userUp, totalUp, DOWN), userUp) else (0, 0)
     } else {
-        if(userDown > 0) then fraction((totalUp + totalDown), userDown, totalDown, DOWN) else 0
+        if (userDown > 0) then (fraction((totalUp + totalDown), userDown, totalDown, DOWN), userDown) else (0, 0)
     }
 
+    let feeAmount = fraction(rawWinAmount, FEE_RATE, DEC8, DOWN)
+    let winAmountWithoutFee = rawWinAmount - feeAmount
+    let winAmount = if (winAmountWithoutFee > betAmount) then winAmountWithoutFee else rawWinAmount
     let transferActions = if (winAmount > 0) then [ScriptTransfer(user.addressFromStringValue(), winAmount, unit)] else []
 
     transferActions ++

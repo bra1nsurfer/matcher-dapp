@@ -21,20 +21,25 @@ Testnet dApp: `3N2UNrC7Ae53vhaSbVhWqg9yK6318G9HzzZ`
 
 Keys:
 
-| Key                  |    Type | Example                  | Value Description                 |
-|:---------------------|--------:|--------------------------|-----------------------------------|
-| `%s__genesisTime`    | Integer | `1781685300000`          | Genesis timestamp in Milliseconds |
-| `%s__intervalMs`     | Integer | `300000`                 | Period interval in Milliseconds   |
-| `%s__lastPriceIndex` | Integer | `0`                      | Last period index with set Price  |
-| `%s__eventAdminList` |  String | `{Address1}__{Address2}` | Only admin can set Period prices  |
+| Key                  |    Type | Example                  | Value Description                                                  |
+|:---------------------|--------:|--------------------------|--------------------------------------------------------------------|
+| `%s__genesisTime`    | Integer | `1781685300000`          | Genesis timestamp in Milliseconds                                  |
+| `%s__intervalMs`     | Integer | `300000`                 | Period interval in Milliseconds                                    |
+| `%s__lastPriceIndex` | Integer | `0`                      | Last period index with set Price                                   |
+| `%s__eventAdminList` |  String | `{Address1}__{Address2}` | Only admin can set Period prices                                   |
+| `%s__minBetAmount`   | Integer | `12345`                  | Minimum bet amount (default: 1 wavelet)                            |
+| `%s__feeRate`        | Integer | `0`                      | Fee rate in dec8 (Example: 1.0 == `1_0000_0000`, 0.5 = `500_0000`) |
 
 ## Period keys
 
-| Key                        |    Type | Value Description                    |
-|:---------------------------|--------:|--------------------------------------|
-| `%s%d__price__{index}`     | Integer | Period price                         |
-| `%s%d__totalUp__{index}`   | Integer | Total amount of Waves voted for UP   |
-| `%s%d__totalDown__{index}` | Integer | Total amount of Waves voted for DOWN |
+| Key                        |    Type | Value Description                                             |
+|:---------------------------|--------:|---------------------------------------------------------------|
+| `%s%d__price__{index}`     | Integer | Period price                                                  |
+| `%s%d__totalUp__{index}`   | Integer | Total amount of Waves voted for UP                            |
+| `%s%d__totalDown__{index}` | Integer | Total amount of Waves voted for DOWN                          |
+| `%s%d__closedDir__{index}` |  String | Price direction for Closed period (Value: `"UP"` or `"DOWN"`) |
+| `%s%d__votedUp__{index}`   | Integer | Amount of unique voted UP users                               |
+| `%s%d__votedDown__{index}` | Integer | Amount of unique voted DOWN users                             |
 
 ## User keys
 
@@ -45,6 +50,7 @@ Keys:
 | `%s%s%d__userClaimHistory__{address}__{index}` | Integer | User claim history. Format: `{userUp}__{userDown}__{UP\|DOWN}__{winAmount}` |
 
 Example
+
 ```json
 {
     "%s%s%d__userClaimHistory__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__55": "10000001__20000002__UP__30000003"
@@ -137,6 +143,7 @@ func claim(index: Int)
 - Can be called by anyone
 - All arguments is required
 - Index must be less than `%s__lastPriceIndex`
+- When price is equal it is treated as `DOWN`
 
 Example:
 
