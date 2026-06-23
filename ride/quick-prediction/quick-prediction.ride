@@ -193,7 +193,7 @@ func claim(index: Int) = {
     let startPrice = this.getInteger(keyPriceAtIndex(index)).valueOrErrorMessage("start price is not found")
     let endPrice = this.getInteger(keyPriceAtIndex(index + 1)).valueOrErrorMessage("end price is not found")
 
-    let IS_UP = isDirUp(endPrice, startPrice)
+    let IS_UP = isDirUp(startPrice, endPrice)
 
     let (rawWinAmount, betAmount) = if(IS_UP) then {
         if (userUp > 0) then (fraction((totalUp + totalDown), userUp, totalUp, DOWN), userUp) else (0, 0)
