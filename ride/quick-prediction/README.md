@@ -16,6 +16,9 @@ Testnet dApp: `3N2UNrC7Ae53vhaSbVhWqg9yK6318G9HzzZ`
     - [Bet function](#bet-function)
     - [Claim function](#claim-function)
     - [Submit price](#submit-price)
+  - [Readonly functions](#readonly-functions)
+    - [Current index](#current-index)
+    - [Claim preview](#claim-preview)
 
 ## Config
 
@@ -177,3 +180,129 @@ func submitPrice(index: Int, price: Int)
 - Can be called only by Admin
 - `index` must be less than _current index_ (`((current_timestamp - genesisTime) / interval)`)
 - `price` must be positive
+
+## Readonly functions
+
+### Current index
+
+```js
+@Callable(i)
+func currentIndexREADONLY()
+```
+
+Response:
+
+- `_2` - current index
+
+```json
+{
+  "result": {
+    "type": "Tuple",
+    "value": {
+      "_1": {
+        "type": "Array",
+        "value": []
+      },
+      "_2": {
+        "type": "Int",
+        "value": 2059
+      }
+    }
+  },
+  ...
+```
+
+### Claim preview
+
+```js
+@Callable(i)
+func claimREADONLY(address: String, indexes: String)
+```
+
+- `indexes` - List of indexes, separated by `"__"` up to 100 values
+
+Response:
+
+- `_2` - Array of Tuples with claim preview data `List[(Int, Int, Int, Int, String)]`
+  - `_1` - win amount
+  - `_2` - fee amount
+  - `_3` - user up votes
+  - `_4` - user down votes
+  - `_5` - period closed direction (`"UP"` or `"DOWN"`)
+
+Example:
+
+```json
+{
+  "expr": "claimREADONLY(\"3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB\", \"2061__2060\")"
+}
+```
+
+```json
+{
+  "result": {
+    "type": "Tuple",
+    "value": {
+      "_1": {
+        "type": "Array",
+        "value": []
+      },
+      "_2": {
+        "type": "Array",
+        "value": [
+          {
+            "type": "Tuple",
+            "value": {
+              "_1": {
+                "type": "Int",
+                "value": 308456789
+              },
+              "_2": {
+                "type": "Int",
+                "value": 16234567
+              },
+              "_3": {
+                "type": "Int",
+                "value": 0
+              },
+              "_4": {
+                "type": "Int",
+                "value": 212345678
+              },
+              "_5": {
+                "type": "String",
+                "value": "DOWN"
+              }
+            }
+          },
+          {
+            "type": "Tuple",
+            "value": {
+              "_1": {
+                "type": "Int",
+                "value": 0
+              },
+              "_2": {
+                "type": "Int",
+                "value": 0
+              },
+              "_3": {
+                "type": "Int",
+                "value": 0
+              },
+              "_4": {
+                "type": "Int",
+                "value": 0
+              },
+              "_5": {
+                "type": "String",
+                "value": "UP"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```

@@ -108,20 +108,52 @@ func isEventAdmin(callerAddress: String) = {
   isAdmin(callerAddress) || eventAdminList.containsElement(callerAddress)
 }
 
+func calcClaim(user: String, index: Int) = {
+  let totalUp   = this.getInteger(keyUpTotalAmountAtIndex(index)).valueOrElse(0)
+  let totalDown = this.getInteger(keyDownTotalAmountAtIndex(index)).valueOrElse(0)
+  let userUp    = this.getInteger(keyUpUserAmountAtIndex(user, index)).valueOrElse(0)
+  let userDown  = this.getInteger(keyDownUserAmountAtIndex(user, index)).valueOrElse(0)
+
+  strict check = [
+      index < lastPriceIndex || throwErr("round is not settled yet")
+      # userUp + userDown > 0 || throwErr("bet is not found")
+  ]
+
+  let startPrice = this.getInteger(keyPriceAtIndex(index)).valueOrErrorMessage("start price is not found")
+  let endPrice = this.getInteger(keyPriceAtIndex(index + 1)).valueOrErrorMessage("end price is not found")
+
+  let IS_UP = isDirUp(startPrice, endPrice)
+
+  let (rawWinAmount, betAmount) = if(IS_UP) then {
+      if (userUp > 0) then (fraction((totalUp + totalDown), userUp, totalUp, DOWN), userUp) else (0, 0)
+  } else {
+      if (userDown > 0) then (fraction((totalUp + totalDown), userDown, totalDown, DOWN), userDown) else (0, 0)
+  }
+
+  let feeAmount = fraction(rawWinAmount, FEE_RATE, DEC8, DOWN)
+  let winAmountWithoutFee = rawWinAmount - feeAmount
+  let winAmount = if (winAmountWithoutFee > betAmount) then winAmountWithoutFee else rawWinAmount
+
+  (IS_UP, winAmount, feeAmount, userUp, userDown)
+}
 
 @Callable(i)
-func init(nGenesisTime: Int, nIntervalMs: Int, nGenesisPrice: Int) = {
+func init(nGenesisTime: Int, nIntervalMs: Int, nGenesisPrice: Int, minBetAmount: Int, feeRate: Int) = {
     strict check = [
         i.caller == this || throwErr("permission denied"),
         nGenesisTime > 0 || throwErr("new genesis time must be positive"),
         nIntervalMs > 0 || throwErr("new interval must be positive"),
-        nGenesisPrice > 0 || throwErr("new genesis price must be positive")
+        nGenesisPrice > 0 || throwErr("new genesis price must be positive"),
+        minBetAmount > 0 || throwErr("min bet amount must be positive"),
+        feeRate >= 0 || throwErr("fee rate must be positive")
     ]
 
     [
         IntegerEntry(keyGenesisTime, nGenesisTime),
         IntegerEntry(keyInterval, nIntervalMs),
-        IntegerEntry(keyPriceAtIndex(0), nGenesisPrice)
+        IntegerEntry(keyPriceAtIndex(0), nGenesisPrice),
+        IntegerEntry(keyMinBetAmount, minBetAmount),
+        IntegerEntry(keyFeeRate, feeRate)
     ]
 }
 
@@ -179,39 +211,45 @@ func bet(up: Boolean) = {
 
 @Callable(i)
 func claim(index: Int) = {
-    let user      = i.caller.toString()
-    let totalUp   = this.getInteger(keyUpTotalAmountAtIndex(index)).valueOrElse(0)
-    let totalDown = this.getInteger(keyDownTotalAmountAtIndex(index)).valueOrElse(0)
-    let userUp    = this.getInteger(keyUpUserAmountAtIndex(user, index)).valueOrElse(0)
-    let userDown  = this.getInteger(keyDownUserAmountAtIndex(user, index)).valueOrElse(0)
+    let user = i.caller.toString()
+    let (IS_UP, winAmount, feeAmount, userUp, userDown) = calcClaim(user, index)
 
-    strict check = [
-        index < lastPriceIndex || throwErr("round is not settled yet"),
-        userUp + userDown > 0 || throwErr("bet is not found")
-    ]
-
-    let startPrice = this.getInteger(keyPriceAtIndex(index)).valueOrErrorMessage("start price is not found")
-    let endPrice = this.getInteger(keyPriceAtIndex(index + 1)).valueOrErrorMessage("end price is not found")
-
-    let IS_UP = isDirUp(startPrice, endPrice)
-
-    let (rawWinAmount, betAmount) = if(IS_UP) then {
-        if (userUp > 0) then (fraction((totalUp + totalDown), userUp, totalUp, DOWN), userUp) else (0, 0)
-    } else {
-        if (userDown > 0) then (fraction((totalUp + totalDown), userDown, totalDown, DOWN), userDown) else (0, 0)
-    }
-
-    let feeAmount = fraction(rawWinAmount, FEE_RATE, DEC8, DOWN)
-    let winAmountWithoutFee = rawWinAmount - feeAmount
-    let winAmount = if (winAmountWithoutFee > betAmount) then winAmountWithoutFee else rawWinAmount
-    let transferActions = if (winAmount > 0) then [ScriptTransfer(user.addressFromStringValue(), winAmount, unit)] else []
-
+    let transferActions = if (winAmount > 0) 
+      then [ScriptTransfer(user.addressFromStringValue(), winAmount, unit)] 
+      else []
+    let historyActions = if (userUp + userDown > 0) 
+      then [StringEntry(keyUserClaimHistory(user, index), keyUserClaimHistoryValue(userUp, userDown, IS_UP, winAmount))] 
+      else []
+    
     transferActions ++
+    historyActions ++
     [
-        StringEntry(keyUserClaimHistory(user, index), keyUserClaimHistoryValue(userUp, userDown, IS_UP, winAmount)),
         DeleteEntry(keyUpUserAmountAtIndex(user, index)),
         DeleteEntry(keyDownUserAmountAtIndex(user, index))
     ]
+}
+
+@Callable(i)
+func claimREADONLY(address: String, indexes: String) = {
+  let user = address
+  let index_list = indexes.split_51C(SEP)
+
+  func helper(acc: List[(Int, Int, Int, Int, String)], next: String) = {
+    let index = next.parseIntValue()
+    let (IS_UP, winAmount, feeAmount, userUp, userDown) = calcClaim(address, index)
+    let dir = if (IS_UP) then DIR_UP else DIR_DOWN
+
+    acc :+ (winAmount, feeAmount, userUp, userDown, dir)
+  }
+
+  let allData = FOLD<100>(index_list, [] , helper)
+
+  (nil, allData)
+}
+
+@Callable(i)
+func currentIndexREADONLY() = {
+  (nil, currentIndex)
 }
 
 @Callable(i)
