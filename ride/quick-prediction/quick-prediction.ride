@@ -23,6 +23,7 @@ let keyInterval       = ["%s", "intervalMs"].makeString(SEP)
 let keyLastPriceIndex = ["%s", "lastPriceIndex"].makeString(SEP)
 let keyMinBetAmount   = ["%s", "minBetAmount"].makeString(SEP)
 let keyFeeRate        = ["%s", "feeRate"].makeString(SEP)
+let keyForceStop      = ["%s", "forceStop"].makeString(SEP)
 
 func keyPriceAtIndex(index: Int)                           = ["%s%d", "price", index.toString()].makeString(SEP)
 func keyUpTotalAmountAtIndex(index: Int)                   = ["%s%d", "totalUp", index.toString()].makeString(SEP)
@@ -36,9 +37,9 @@ func keyDownUserAmountAtIndex(address: String, index: Int) = ["%s%s%d", "userDow
 func keyUserClaimHistory(address: String, index: Int)      = ["%s%s%d", "userClaimHistory", address, index.toString()].makeString(SEP)
 
 func keyUserClaimHistoryValue(upAmount: Int, downAmount: Int, isUp: Boolean, winAmount: Int) = {
-    let dir = if(isUp) then DIR_UP else DIR_DOWN
-    
-    [upAmount.toString(), downAmount.toString(), dir, winAmount.toString()].makeString(SEP)
+  let dir = if(isUp) then DIR_UP else DIR_DOWN
+  
+  [upAmount.toString(), downAmount.toString(), dir, winAmount.toString()].makeString(SEP)
 }
 
 let genesisTime    = this.getInteger(keyGenesisTime).valueOrErrorMessage(wrapErr("genesis time is not set"))
@@ -46,23 +47,24 @@ let interval       = this.getInteger(keyInterval).valueOrErrorMessage(wrapErr("i
 let lastPriceIndex = this.getInteger(keyLastPriceIndex).valueOrElse(0)
 let now            = lastBlock.timestamp
 
-let MIN_BET  = this.getInteger(keyMinBetAmount).valueOrElse(1)
-let FEE_RATE = this.getInteger(keyFeeRate).valueOrElse(0)
+let FORCE_STOP = this.getBoolean(keyForceStop).valueOrElse(false)
+let MIN_BET    = this.getInteger(keyMinBetAmount).valueOrElse(1)
+let FEE_RATE   = this.getInteger(keyFeeRate).valueOrElse(0)
 
 func timestampToIndex(timestamp: Int) = {
-    strict check = [
-        timestamp > genesisTime || throwErr("timestamp must be greater than genesis")
-    ]
+  strict check = [
+      timestamp > genesisTime || throwErr("timestamp must be greater than genesis")
+  ]
 
-    ((timestamp - genesisTime) / interval)
+  ((timestamp - genesisTime) / interval)
 }
 
 func indexToTimestamp(index: Int) = {
-    strict check = [
-        index >= 0 || throwErr("index cannot be negative")
-    ]
+  strict check = [
+      index >= 0 || throwErr("index cannot be negative")
+  ]
 
-    (index * interval + genesisTime)
+  (index * interval + genesisTime)
 }
 
 func isDirUp(startPrice: Int, endPrice: Int) = {
@@ -115,8 +117,8 @@ func calcClaim(user: String, index: Int) = {
   let userDown  = this.getInteger(keyDownUserAmountAtIndex(user, index)).valueOrElse(0)
 
   strict check = [
-      index < lastPriceIndex || throwErr("round is not settled yet")
-      # userUp + userDown > 0 || throwErr("bet is not found")
+    index < lastPriceIndex || throwErr("round is not settled yet")
+    # userUp + userDown > 0 || throwErr("bet is not found")
   ]
 
   let startPrice = this.getInteger(keyPriceAtIndex(index)).valueOrErrorMessage("start price is not found")
@@ -180,53 +182,58 @@ func submitPrice(index: Int, price: Int) = {
 
 @Callable(i)
 func bet(up: Boolean) = {
-    strict check = [
-        # lastPriceIndex == currentIndex || throwErr("previous round is not settled yet"),
-        i.payments.size() == 1 || throwErr("must be with 1 payment"),
-        i.payments[0].assetId == unit || throwErr("payment must be in Waves"),
-        i.payments[0].amount >= MIN_BET || throwErr(["min bet amount: ", MIN_BET.toString()].makeString(""))
-    ]
+  strict check = [
+    !FORCE_STOP || throwErr("contract is temporary stopped"),
+    # lastPriceIndex == currentIndex || throwErr("previous round is not settled yet"),
+    i.payments.size() == 1 || throwErr("must be with 1 payment"),
+    i.payments[0].assetId == unit || throwErr("payment must be in Waves"),
+    i.payments[0].amount >= MIN_BET || throwErr(["min bet amount: ", MIN_BET.toString()].makeString(""))
+  ]
 
-    let user = i.caller.toString()
-    let amount = i.payments[0].amount
-    let betIndex = currentIndex + 1
+  let user = i.caller.toString()
+  let amount = i.payments[0].amount
+  let betIndex = currentIndex + 1
 
-    let (keyTotalAmount, keyUserAmount, keyVoted) = if (up) then {
-      (keyUpTotalAmountAtIndex(betIndex), keyUpUserAmountAtIndex(user, betIndex), keyVotedUpCountAtIndex(betIndex))
-    } else {
-      (keyDownTotalAmountAtIndex(betIndex), keyDownUserAmountAtIndex(user, betIndex), keyVotedDownCountAtIndex(betIndex))
-    }
+  let (keyTotalAmount, keyUserAmount, keyVoted) = if (up) then {
+    (keyUpTotalAmountAtIndex(betIndex), keyUpUserAmountAtIndex(user, betIndex), keyVotedUpCountAtIndex(betIndex))
+  } else {
+    (keyDownTotalAmountAtIndex(betIndex), keyDownUserAmountAtIndex(user, betIndex), keyVotedDownCountAtIndex(betIndex))
+  }
 
-    let totalAmount = this.getInteger(keyTotalAmount).valueOrElse(0)
-    let userAmount  = this.getInteger(keyUserAmount).valueOrElse(0)
-    let votedCount  = this.getInteger(keyVoted).valueOrElse(0)
-    let votedAdd = if (userAmount == 0) then 1 else 0
+  let totalAmount = this.getInteger(keyTotalAmount).valueOrElse(0)
+  let userAmount  = this.getInteger(keyUserAmount).valueOrElse(0)
+  let votedCount  = this.getInteger(keyVoted).valueOrElse(0)
+  let votedAdd = if (userAmount == 0) then 1 else 0
 
-    [
-        IntegerEntry(keyTotalAmount, totalAmount + amount),
-        IntegerEntry(keyUserAmount, userAmount + amount),
-        IntegerEntry(keyVoted, votedCount + votedAdd)
-    ]
+  [
+      IntegerEntry(keyTotalAmount, totalAmount + amount),
+      IntegerEntry(keyUserAmount, userAmount + amount),
+      IntegerEntry(keyVoted, votedCount + votedAdd)
+  ]
 }
 
 @Callable(i)
 func claim(index: Int) = {
-    let user = i.caller.toString()
-    let (IS_UP, winAmount, feeAmount, userUp, userDown) = calcClaim(user, index)
+  strict check = [
+    !FORCE_STOP || throwErr("contract is temporary stopped")
+  ]
 
-    let transferActions = if (winAmount > 0) 
-      then [ScriptTransfer(user.addressFromStringValue(), winAmount, unit)] 
-      else []
-    let historyActions = if (userUp + userDown > 0) 
-      then [StringEntry(keyUserClaimHistory(user, index), keyUserClaimHistoryValue(userUp, userDown, IS_UP, winAmount))] 
-      else []
+  let user = i.caller.toString()
+  let (IS_UP, winAmount, feeAmount, userUp, userDown) = calcClaim(user, index)
+
+  let transferActions = if (winAmount > 0) 
+    then [ScriptTransfer(user.addressFromStringValue(), winAmount, unit)] 
+    else []
+  let historyActions = if (userUp + userDown > 0) 
+    then [StringEntry(keyUserClaimHistory(user, index), keyUserClaimHistoryValue(userUp, userDown, IS_UP, winAmount))] 
+    else []
     
-    transferActions ++
-    historyActions ++
-    [
-        DeleteEntry(keyUpUserAmountAtIndex(user, index)),
-        DeleteEntry(keyDownUserAmountAtIndex(user, index))
-    ]
+  transferActions ++
+  historyActions ++
+  [
+      DeleteEntry(keyUpUserAmountAtIndex(user, index)),
+      DeleteEntry(keyDownUserAmountAtIndex(user, index))
+  ]
 }
 
 @Callable(i)
@@ -283,5 +290,16 @@ func removeEventAdmin(address: String) = {
 
   [
     resultAction
+  ]
+}
+
+@Callable(i)
+func forceStop(val: Boolean) = {
+  strict check = [
+        isEventAdmin(i.caller.toString()) || throwErr("forceStop: permission denied")
+  ]
+
+  [
+    BooleanEntry(keyForceStop, val)
   ]
 }

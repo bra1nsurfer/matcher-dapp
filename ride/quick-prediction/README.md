@@ -16,6 +16,7 @@ Testnet dApp: `3N2UNrC7Ae53vhaSbVhWqg9yK6318G9HzzZ`
     - [Bet function](#bet-function)
     - [Claim function](#claim-function)
     - [Submit price](#submit-price)
+    - [Force stop](#force-stop)
   - [Readonly functions](#readonly-functions)
     - [Current index](#current-index)
     - [Claim preview](#claim-preview)
@@ -180,6 +181,15 @@ func submitPrice(index: Int, price: Int)
 - Can be called only by Admin
 - `index` must be less than _current index_ (`((current_timestamp - genesisTime) / interval)`)
 - `price` must be positive
+
+### Force stop
+
+```js
+@Callable(i)
+func forceStop(val: Boolean)
+```
+
+- Can be called only by Admin
 
 ## Readonly functions
 
