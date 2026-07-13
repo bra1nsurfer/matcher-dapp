@@ -155,7 +155,8 @@ func init(nGenesisTime: Int, nIntervalMs: Int, nGenesisPrice: Int, minBetAmount:
         IntegerEntry(keyInterval, nIntervalMs),
         IntegerEntry(keyPriceAtIndex(0), nGenesisPrice),
         IntegerEntry(keyMinBetAmount, minBetAmount),
-        IntegerEntry(keyFeeRate, feeRate)
+        IntegerEntry(keyFeeRate, feeRate),
+        IntegerEntry(keyLastPriceIndex, 0)
     ]
 }
 
