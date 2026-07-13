@@ -36,11 +36,11 @@ let factoryAddress  = sFactoryAddress.addressFromString().valueOrErrorMessage("i
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
 
-let kPredictionValidatorAddress = ["%s", "predictionValidatorAddress"].makeString(SEP)
-let predictionValidatorAddress  = factoryAddress.getString(kPredictionValidatorAddress).valueOrElse("")
-let kTreasuryAddress            = ["%s", "treasuryAddress"].makeString(SEP)
-let sTreasuryAddress            = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
-let treasuryAddress             = sTreasuryAddress.addressFromStringValue()
+let kValidatorAddress = ["%s", "validatorAddress"].makeString(SEP)
+let validatorAddress  = factoryAddress.getString(kValidatorAddress).valueOrElse("")
+let kTreasuryAddress  = ["%s", "treasuryAddress"].makeString(SEP)
+let sTreasuryAddress  = factoryAddress.getString(kTreasuryAddress).valueOrElse("")
+let treasuryAddress   = sTreasuryAddress.addressFromStringValue()
 
 let kMatcherPublicKey = ["%s", "matcherPublicKey"].makeString(SEP)
 let sMatcherPublicKey = factoryAddress.getString(kMatcherPublicKey).valueOrErrorMessage("matcher public key is not set")
@@ -67,7 +67,7 @@ func exchange(
   makerPriceAmount: Int,
   makerPriceAsset : String,
   makerDir        : String,
-  makerFlags      : Int,
+  makerFlags      : ByteVector,
   takerAddress    : String,
   takerFeeAsset   : String,
   takerFeeAmount  : Int,
@@ -76,11 +76,11 @@ func exchange(
   takerPriceAmount: Int,
   takerPriceAsset : String,
   takerDir        : String,
-  takerFlags      : Int
+  takerFlags      : ByteVector
   ) = {
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
-    i.caller.toString() == predictionValidatorAddress || throwErr("permission denied")
+    i.caller.toString() == validatorAddress || throwErr("permission denied")
   ]
 
   let (makerAmountBalanceAction, makerPriceBalanceAction) = if (makerDir == ORDER_DIR_BUY)

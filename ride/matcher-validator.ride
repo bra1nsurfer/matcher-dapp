@@ -74,7 +74,7 @@ let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
 let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
 let predictionPriceAsset     = factoryAddress.getString(kPredictionPriceAsset).valueOrElse(WAVES)
 let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
-let PREDICTION_PRICE_UNIT    = if (predictionPriceAsset != WAVES) then pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN) else 8
+let PREDICTION_PRICE_UNIT    = if (predictionPriceAsset != WAVES) then pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN) else DEC8
 
 func kEventStatus(eventId: String)        = ["%s%s", "eventStatus", eventId].makeString(SEP)
 func getEventStatus(eventId: String)      = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
@@ -695,7 +695,7 @@ func matchOrders(
   let (makerRawRemaining, _makerFilled) = getRemainingAmount(makerOrderId, makerOrderFullAmount)
   let (takerRawRemaining, _takerFilled) = getRemainingAmount(takerOrderId, takerOrderFullAmount)
 
-  let amountAssetDecimals = getAssetDecimals(makerOrderAmountAsset)
+  let amountAssetDecimals = if (makerOrderType == O_PREDICTION) then 0 else getAssetDecimals(makerOrderAmountAsset)
 
   # If order fee asset is the same as order sending asset
   # decrease order amount by fee
@@ -744,10 +744,26 @@ func matchOrders(
     then (takerOrderPriceAsset, matchAmountInPriceAsset, takerOrderAmountAsset, realMatchAmount)
     else (takerOrderAmountAsset, realMatchAmount, takerOrderPriceAsset, matchAmountInPriceAsset)
 
+  let defaultMakerData = (makerOrderSenderAddress.toString(), makerSendAmount, makerSendAmount, makerGetAsset, makerGetAmount, makerOrderFlags, makerOrderDir)
+  let defaultTakerData = (takerOrderSenderAddress.toString(), takerSendAmount, takerSendAmount, takerGetAsset, takerGetAmount, takerOrderFlags, takerOrderDir)
+
+  let makerFinalEventId = [makerEventId, makerPredDir].makeString("-")
+  let makerFinalPriceAmount = if (makerPredDir == P_DIR_YES)
+    then matchAmountInPriceAsset
+    else amountAssetToPriceAsset(realMatchAmount, PREDICTION_PRICE_UNIT-matchPrice, 0)
+
+  let takerFinalEventId = [takerEventId, takerPredDir].makeString("-")
+  let takerFinalPriceAmount = if (takerPredDir == P_DIR_YES)
+    then matchAmountInPriceAsset
+    else amountAssetToPriceAsset(realMatchAmount, PREDICTION_PRICE_UNIT-matchPrice, 0)
+
+  let predictionMakerData = (makerOrderSenderAddress.toString(), makerFinalEventId, realMatchAmount, makerOrderPriceAsset, makerFinalPriceAmount, makerOrderFlags, makerOrderDir)
+  let predictionTakerData = (takerOrderSenderAddress.toString(), takerFinalEventId, realMatchAmount, takerOrderPriceAsset, takerFinalPriceAmount, takerOrderFlags, takerOrderDir)
+
   (
     makerOrderType,
-    (makerOrderSenderAddress.toString(), makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount, makerOrderFlags, makerOrderDir),
-    (takerOrderSenderAddress.toString(), takerSendAsset, takerSendAmount, takerGetAsset, takerGetAmount, takerOrderFlags, takerOrderDir),
+    if (makerOrderType == O_PREDICTION) then predictionMakerData else defaultMakerData,
+    if (takerOrderType == O_PREDICTION) then predictionTakerData else defaultTakerData,
     (makerOrderId, newMakerFilled, newMakerRemaining, makerPriceAssetRem), 
     (takerOrderId, newTakerFilled, newTakerRemaining, takerPriceAssetRem)
   )
@@ -819,16 +835,16 @@ func validateAndExchange(
   let takerFlags      = takerStateChanges._6
 
   # Matched values for Prediction orders
-  let makerMatchAmount = makerStateChanges._2
-  let makerEventId     = makerStateChanges._3
-  let makerPriceAmount = makerStateChanges._4
-  let makerPriceAsset  = makerStateChanges._5
+  let makerEventId     = makerStateChanges._2
+  let makerMatchAmount = makerStateChanges._3
+  let makerPriceAsset  = makerStateChanges._4
+  let makerPriceAmount = makerStateChanges._5
   let makerDir         = makerStateChanges._7
 
-  let takerMatchAmount = takerStateChanges._2
-  let takerEventId     = takerStateChanges._3
-  let takerPriceAmount = takerStateChanges._4
-  let takerPriceAsset  = takerStateChanges._5
+  let takerEventId     = takerStateChanges._2
+  let takerMatchAmount = takerStateChanges._3
+  let takerPriceAsset  = takerStateChanges._4
+  let takerPriceAmount = takerStateChanges._5
   let takerDir         = takerStateChanges._7
 
   strict checks = [
