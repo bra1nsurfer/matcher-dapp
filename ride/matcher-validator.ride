@@ -18,11 +18,9 @@ let PENDING       = "PENDING"
 let WAVES         = "WAVES"
 let wavesSignType = "waves-sign"
 let ecdsaSignType = "ecdsa-sign"
-let orderDirBuy   = "buy"
-let orderDirSell  = "sell"
 let MAKER         = "maker"
 let TAKER         = "taker"
-let dec8          = 1_0000_0000
+let DEC8          = 1_0000_0000
 
 # ORDER STATUS
 let O_OPEN     = 0
@@ -30,13 +28,31 @@ let O_FILLED   = 1
 let O_CANCELED = 2
 
 # ORDER TYPE
-let O_SPOT     = 0
-let O_LEVERAGE = 1
-let O_MARGIN   = 2
+let O_SPOT       = 0
+let O_LEVERAGE   = 1
+let O_MARGIN     = 2
+let O_PREDICTION = 3
+
+# ORDER DIRECTION
+let ORDER_DIR_BUY  = "buy"
+let ORDER_DIR_SELL = "sell"
+
+# PREDICTION DIR
+let P_DIR_YES = "yes"
+let P_DIR_NO  = "no"
+
+# EVENT STATUS
+let E_NOT_FOUND  = -1
+let E_OPEN       = 0
+let E_CLOSED_YES = 1
+let E_CLOSED_NO  = 2
+let E_STOPPED    = 3
+let E_EXPIRED    = 4
+let E_REJECTED   = 5
 
 let kFactoryAddress = ["%s", "factoryAddress"].makeString(SEP)
-let factoryAddressString = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
-let factoryAddress = factoryAddressString.addressFromString().valueOrErrorMessage("invalid factory address")
+let sFactoryAddress = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
+let factoryAddress  = sFactoryAddress.addressFromString().valueOrErrorMessage("invalid factory address")
 
 let kForceStop = ["%s", "forceStop"].makeString(SEP)
 let forceStop  = factoryAddress.getBoolean(kForceStop).valueOrElse(false)
@@ -51,9 +67,19 @@ let (NETWORK, CUR_TIMESTAMP) = match (blockInfoByHeight(height)) {
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (factoryAddress.getString(kAllowedAssets)) {
-    case s:String => s.split_4C(SEP)
-    case _ => []
-  }
+  case s:String => [WAVES] ++ s.split_4C(SEP) 
+  case _ => [WAVES]
+}
+
+let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
+let predictionPriceAsset     = factoryAddress.getString(kPredictionPriceAsset).valueOrElse(WAVES)
+let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
+let PREDICTION_PRICE_UNIT    = if (predictionPriceAsset != WAVES) then pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN) else 8
+
+func kEventStatus(eventId: String)        = ["%s%s", "eventStatus", eventId].makeString(SEP)
+func getEventStatus(eventId: String)      = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
+func kEventEndDatetime(eventId: String)   = ["%s%s", "eventEndDatetime", eventId].makeString(SEP)
+func getEventEndDatetime(eventId: String) = factoryAddress.getInteger(kEventEndDatetime(eventId)).valueOrElse(0)
 
 let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
@@ -97,9 +123,67 @@ func toUint256(n: ByteVector) = {
   (pad + n)
 }
 
+func isValidPredictionOrderPrices(
+  matchYesPrice: Int,
+  makerPrice   : Int,
+  makerOrderDir: String,
+  makerPredDir : String,
+  takerPrice   : Int,
+  takerOrderDir: String,
+  takerPredDir : String
+  ) = {
+
+  ###
+  # YP -- Matched Yes Price
+  # NP -- Matched No Price
+  #
+  # mYP -- Maker Yes Price
+  # mNP -- Maker No Price
+  #
+  # tYP -- Taker Yes Price
+  # tNP -- Taker No Price
+  ###
+  let NP = PREDICTION_PRICE_UNIT - matchYesPrice
+  let YP = matchYesPrice
+  let (mYP, mNP) = (makerPrice, PREDICTION_PRICE_UNIT - makerPrice)
+  let (tYP, tNP) = (takerPrice, PREDICTION_PRICE_UNIT - takerPrice)
+
+  let priceValidationMap = [
+    # (YES/YES)            # (NO/NO)            # (YES/NO)            # (NO/YES)
+      [false,                false,               (YP<=mYP && NP<=tNP), (NP<=mNP && YP<=tYP) ], # (BUY/BUY)
+      [false,                false,               (YP>=mYP && NP>=tNP), (NP>=mNP && YP>=tYP) ], # (SELL/SELL)
+      [(YP<=mYP && YP>=tYP), (NP<=mNP && NP>=tNP), false,               false                ], # (BUY/SELL)
+      [(YP>=mYP && YP<=tYP), (NP>=mNP && NP<=tNP), false,               false                ]  # (SELL/BUY)
+    ]       
+  
+  let col = if (makerOrderDir == takerOrderDir) 
+    then if (makerOrderDir == ORDER_DIR_BUY) 
+      then 0
+      else 1
+    else if (makerOrderDir == ORDER_DIR_BUY)
+      then 2
+      else 3
+
+  let row = if (makerPredDir == takerPredDir) 
+    then if (makerPredDir == P_DIR_YES) 
+      then 0
+      else 1
+    else if (makerPredDir == P_DIR_YES)
+      then 2
+      else 3
+
+  priceValidationMap[col][row]
+}
+
 func toShort(val: ByteVector) = (0.toBytes() + val).takeRight(2)
 func getLenAsShort(val: ByteVector) = val.size().toBytes().takeRight(2)
 func getBytesWithLen(val: ByteVector) = (val.getLenAsShort() + val)
+
+func checkDirections(o1PredictionDir: String, o2PredictionDir: String, o1OrderDir: String, o2OrderDir: String) = {
+  if (o1PredictionDir == o2PredictionDir) 
+    then (o1OrderDir == ORDER_DIR_BUY && o2OrderDir == ORDER_DIR_SELL) || (o1OrderDir == ORDER_DIR_SELL && o2OrderDir == ORDER_DIR_BUY)
+    else (o1OrderDir == ORDER_DIR_BUY && o2OrderDir == ORDER_DIR_BUY) || (o1OrderDir == ORDER_DIR_SELL && o2OrderDir == ORDER_DIR_SELL)
+}
 
 func getAssetDecimals(assetId: String) = {
   match (assetId.stringToAssetId()) {
@@ -408,7 +492,7 @@ func parseOrderV1(orderBytes: ByteVector) = {
   let data9 = data8.drop(1)
 
   let orderDirByte = data9.take(1).bytesToInt()
-  let orderDir = if (orderDirByte == 0) then orderDirBuy else orderDirSell
+  let orderDir = if (orderDirByte == 0) then ORDER_DIR_BUY else ORDER_DIR_SELL
   let data10 = data9.drop(1)
 
   let amount = data10.take(8).bytesToInt()
@@ -425,27 +509,33 @@ func parseOrderV1(orderBytes: ByteVector) = {
 
   let flags = data14.take(8)
   
+  let (p_dir, p_realPrice) = if (flags.takeRight(1).bytesToInt() == 1) then (P_DIR_NO, PREDICTION_PRICE_UNIT-price) else (P_DIR_YES, price)
+  
   (
-    networkByte,
-    pubKeyType,
-    senderBytes,
-    matcherBytes,
-    amountAsset,
-    priceAsset,
-    orderType,
-    orderDir,
-    amount,
-    price,
-    timestamp,
-    expiration,
-    flags
+    (
+      networkByte,
+      pubKeyType,
+      senderBytes,
+      matcherBytes,
+      amountAsset,
+      priceAsset,
+      orderType,
+      orderDir,
+      amount,
+      price,
+      timestamp,
+      expiration,
+      flags
+    ),
+    p_dir,
+    p_realPrice
   )
 }
 
 func parseOrder(orderBytes: ByteVector, proof: ByteVector) = {
   let version = orderBytes.take(1).bytesToInt()
 
-  let orderData = if (version == 1 || version == 2) 
+  let (orderData, p_dir, p_realPrice) = if (version == 1 || version == 2) 
     then parseOrderV1(orderBytes) 
     else throwErr("order version is not supported")
   let orderId = sha256(orderBytes).toBase58String()
@@ -462,7 +552,7 @@ func parseOrder(orderBytes: ByteVector, proof: ByteVector) = {
     signCheck || throwErr(["order proof is not valid ", orderId].makeString(" "))
   ]
 
-  (orderData, orderId, orderStatus)
+  (orderData, orderId, orderStatus, p_dir, p_realPrice)
 }
 
 func getRemainingAmount(orderId: String, fullAmount: Int) = {
@@ -485,7 +575,7 @@ func matchOrders(
   takerFeeAmount: Int
   ) = {
 
-  ### parseOrder struct
+  ### parseOrder._1 struct
   #   ._1  networkByte,
   #   ._2  pubKeyType,
   #   ._3  senderBytes,
@@ -499,8 +589,11 @@ func matchOrders(
   #   ._11 timestamp (nonce)
   #   ._12 expiration | 0
   #   ._13 flags
-  let (makerOrder, makerOrderId, makerOrderStatus) = parseOrder(o1Bytes, o1proof)
-  let (takerOrder, takerOrderId, takerOrderStatus) = parseOrder(o2Bytes, o2proof)
+  let o1 = parseOrder(o1Bytes, o1proof)
+  let o2 = parseOrder(o2Bytes, o2proof)
+
+  let (makerOrder, makerOrderId, makerOrderStatus, makerPredDir, makerPredictionPrice) = o1
+  let (takerOrder, takerOrderId, takerOrderStatus, takerPredDir, takerPredictionPrice) = o2
 
   let makerOrderNetwork      = makerOrder._1
   let makerOrderPubKeyType   = makerOrder._2
@@ -511,10 +604,11 @@ func matchOrders(
   let makerOrderType         = makerOrder._7
   let makerOrderDir          = makerOrder._8
   let makerOrderFullAmount   = makerOrder._9
-  let makerOrderPrice        = makerOrder._10
+  let makerOrderPrice        = if (makerOrderType == O_PREDICTION) then makerPredictionPrice else makerOrder._10
   let makerOrderNonce        = makerOrder._11
   let makerOrderExpiration   = makerOrder._12
   let makerOrderFlags        = makerOrder._13
+  let makerEventId           = makerOrder._5.assetIdToString()
   
   let takerOrderNetwork      = takerOrder._1
   let takerOrderPubKeyType   = takerOrder._2
@@ -525,12 +619,25 @@ func matchOrders(
   let takerOrderType         = takerOrder._7
   let takerOrderDir          = takerOrder._8
   let takerOrderFullAmount   = takerOrder._9
-  let takerOrderPrice        = takerOrder._10
+  let takerOrderPrice        = if (takerOrderType == O_PREDICTION) then takerPredictionPrice else takerOrder._10
   let takerOrderNonce        = takerOrder._11
   let takerOrderExpiration   = takerOrder._12
   let takerOrderFlags        = takerOrder._13
+  let takerEventId           = takerOrder._5.assetIdToString()
 
-  strict validation = [
+  let eventStatus = getEventStatus(makerEventId)
+  let eventEndDatetime = getEventEndDatetime(makerEventId)
+  let isExchangeValid = isValidPredictionOrderPrices(
+    matchPrice, 
+    makerOrderPrice, 
+    makerOrderDir, 
+    makerPredDir, 
+    takerOrderPrice, 
+    takerOrderDir, 
+    takerPredDir
+  )
+
+  let defaultValidation = [
     (makerOrderNetwork == NETWORK && takerOrderNetwork == NETWORK) || throwErr("network byte is not valid"),
     (makerOrderMatcherBytes == matcherPublicKey) || throwErr("maker order matcher bytes does not match"),
     (takerOrderMatcherBytes == matcherPublicKey) || throwErr("taker order matcher bytes does not match"),
@@ -538,8 +645,8 @@ func matchOrders(
     (makerOrderPriceAsset == takerOrderPriceAsset) || throwErr("price asset Id does not match"),
     (makerOrderType == takerOrderType) || throwErr("order type does not match"),
     (makerOrderDir != takerOrderDir) || throwErr("order direction bytes is not valid"),
-    (makerOrderDir == orderDirBuy && matchPrice <= makerOrderPrice) || (makerOrderDir == orderDirSell && matchPrice >= makerOrderPrice) || throwErr("maker order price error"),
-    (takerOrderDir == orderDirBuy && matchPrice <= takerOrderPrice) || (takerOrderDir == orderDirSell && matchPrice >= takerOrderPrice) || throwErr("taker order price error"),
+    (makerOrderDir == ORDER_DIR_BUY && matchPrice <= makerOrderPrice) || (makerOrderDir == ORDER_DIR_SELL && matchPrice >= makerOrderPrice) || throwErr("maker order price error"),
+    (takerOrderDir == ORDER_DIR_BUY && matchPrice <= takerOrderPrice) || (takerOrderDir == ORDER_DIR_SELL && matchPrice >= takerOrderPrice) || throwErr("taker order price error"),
     (makerOrderExpiration == 0 || makerOrderExpiration >= CUR_TIMESTAMP) || throwErr("maker order is expired"),
     (takerOrderExpiration == 0 || takerOrderExpiration >= CUR_TIMESTAMP) || throwErr("taker order is expired"),
     (makerOrderStatus == O_OPEN) || throwErr("maker order is closed"),
@@ -549,6 +656,32 @@ func matchOrders(
     (allowedAssets.containsElement(makerOrderAmountAsset)) || throwErr("amount asset not in the allowed list"),
     (allowedAssets.containsElement(makerOrderPriceAsset)) || throwErr("price asset not in the allowed list")
   ]
+
+  let predictionValidation = [
+    (makerOrderNetwork == NETWORK && takerOrderNetwork == NETWORK) || throwErr("network byte is not valid"),
+    (makerOrderMatcherBytes == matcherPublicKey) || throwErr("maker order matcher bytes does not match"),
+    (takerOrderMatcherBytes == matcherPublicKey) || throwErr("taker order matcher bytes does not match"),
+    (makerEventId == takerEventId) || throwErr("event id does not match"),
+    (eventStatus != E_NOT_FOUND) || throwErr("event id is not found"),
+    (eventStatus == E_OPEN) || throwErr("event is closed"),
+    (makerEventId.stringToAssetId() != unit) || throwErr("invalid event id"),
+    (makerOrderPriceAsset == takerOrderPriceAsset) || throwErr("price asset id does not match"),
+    (makerOrderPriceAsset == predictionPriceAsset) || throwErr("price asset is not allowed"),
+    (makerOrderPrice <= PREDICTION_PRICE_UNIT && makerOrderPrice > 0) || throwErr("invalid maker order price"),
+    (takerOrderPrice <= PREDICTION_PRICE_UNIT && takerOrderPrice > 0) || throwErr("invalid taker order price"),
+    (makerOrderExpiration == 0 || makerOrderExpiration >= CUR_TIMESTAMP) || throwErr("maker order is expired"),
+    (takerOrderExpiration == 0 || takerOrderExpiration >= CUR_TIMESTAMP) || throwErr("taker order is expired"),
+    (makerOrderStatus == O_OPEN) || throwErr("maker order is closed"),
+    (takerOrderStatus == O_OPEN) || throwErr("taker order is closed"),
+    (makerOrderId != takerOrderId) || throwErr("maker order and taker order are the same"),
+    (allowedAssets.containsElement(makerOrderPriceAsset)) || throwErr("price asset not in the allowed list"),
+    (makerOrderType == O_PREDICTION) || throwErr("maker order type must be prediction"),
+    (takerOrderType == O_PREDICTION) || throwErr("taker order type must be prediction"),
+    isExchangeValid || throwErr("price or direction mismatch, exchange is not valid"),
+    (eventEndDatetime == 0 || eventEndDatetime >= CUR_TIMESTAMP) || throwErr("event is expired")
+  ]
+
+  strict check = if (makerOrderType == O_PREDICTION) then predictionValidation else defaultValidation
 
   let makerOrderSenderAddress = 
     if(makerOrderPubKeyType == ecdsaSignType) 
@@ -567,16 +700,16 @@ func matchOrders(
   # If order fee asset is the same as order sending asset
   # decrease order amount by fee
   let makerRemaining = 
-    if (makerOrderDir == orderDirSell && makerOrderAmountAsset == makerFeeAsset)
+    if (makerOrderDir == ORDER_DIR_SELL && makerOrderAmountAsset == makerFeeAsset)
       then makerRawRemaining - makerFeeAmount
-      else if (makerOrderDir == orderDirBuy && makerOrderPriceAsset == makerFeeAsset) 
+      else if (makerOrderDir == ORDER_DIR_BUY && makerOrderPriceAsset == makerFeeAsset) 
         then (makerRawRemaining - priceAssetToAmountAsset(makerFeeAmount, makerOrderPrice, amountAssetDecimals)) 
         else makerRawRemaining
 
   let takerRemaining = 
-    if (takerOrderDir == orderDirSell && takerOrderAmountAsset == takerFeeAsset)
+    if (takerOrderDir == ORDER_DIR_SELL && takerOrderAmountAsset == takerFeeAsset)
       then takerRawRemaining - takerFeeAmount
-      else if (takerOrderDir == orderDirBuy && takerOrderPriceAsset == takerFeeAsset) 
+      else if (takerOrderDir == ORDER_DIR_BUY && takerOrderPriceAsset == takerFeeAsset) 
         then (takerRawRemaining - priceAssetToAmountAsset(takerFeeAmount, takerOrderPrice, amountAssetDecimals)) 
         else takerRawRemaining
 
@@ -602,19 +735,19 @@ func matchOrders(
   let takerPriceAssetRem = amountAssetToPriceAsset(newTakerRemaining, takerOrderPrice, amountAssetDecimals)
 
   let (makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount) = 
-    if (makerOrderDir == orderDirBuy)
+    if (makerOrderDir == ORDER_DIR_BUY)
     then (makerOrderPriceAsset, matchAmountInPriceAsset, makerOrderAmountAsset, realMatchAmount)
     else (makerOrderAmountAsset, realMatchAmount, makerOrderPriceAsset, matchAmountInPriceAsset)
 
   let (takerSendAsset, takerSendAmount, takerGetAsset, takerGetAmount) = 
-    if (takerOrderDir == orderDirBuy)
+    if (takerOrderDir == ORDER_DIR_BUY)
     then (takerOrderPriceAsset, matchAmountInPriceAsset, takerOrderAmountAsset, realMatchAmount)
     else (takerOrderAmountAsset, realMatchAmount, takerOrderPriceAsset, matchAmountInPriceAsset)
 
   (
     makerOrderType,
-    (makerOrderSenderAddress.toString(), makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount, makerOrderFlags),
-    (takerOrderSenderAddress.toString(), takerSendAsset, takerSendAmount, takerGetAsset, takerGetAmount, takerOrderFlags),
+    (makerOrderSenderAddress.toString(), makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount, makerOrderFlags, makerOrderDir),
+    (takerOrderSenderAddress.toString(), takerSendAsset, takerSendAmount, takerGetAsset, takerGetAmount, takerOrderFlags, takerOrderDir),
     (makerOrderId, newMakerFilled, newMakerRemaining, makerPriceAssetRem), 
     (takerOrderId, newTakerFilled, newTakerRemaining, takerPriceAssetRem)
   )
@@ -685,6 +818,19 @@ func validateAndExchange(
   let takerGetAmount  = takerStateChanges._5
   let takerFlags      = takerStateChanges._6
 
+  # Matched values for Prediction orders
+  let makerMatchAmount = makerStateChanges._2
+  let makerEventId     = makerStateChanges._3
+  let makerPriceAmount = makerStateChanges._4
+  let makerPriceAsset  = makerStateChanges._5
+  let makerDir         = makerStateChanges._7
+
+  let takerMatchAmount = takerStateChanges._2
+  let takerEventId     = takerStateChanges._3
+  let takerPriceAmount = takerStateChanges._4
+  let takerPriceAsset  = takerStateChanges._5
+  let takerDir         = takerStateChanges._7
+
   strict checks = [
     # TODO: Enable after testing
     # i.callerPublicKey == matcherPublicKey || throwErr("permission denied"),
@@ -712,7 +858,7 @@ func validateAndExchange(
 
   let orderTypeContract = getOrderTypeContract(orderType).valueOrErrorMessage("order type contract error")
 
-  strict exchange = [
+  let defaultExchange = [
     orderTypeContract.invoke(
       "exchange",
       [
@@ -736,6 +882,36 @@ func validateAndExchange(
       []
     )
   ]
+
+  let predictionExchange = [
+    orderTypeContract.invoke(
+      "exchange",
+      [
+        makerAddress,
+        makerFeeAsset,
+        makerFeeAmount,
+        makerMatchAmount,
+        makerEventId,
+        makerPriceAmount,
+        makerPriceAsset,
+        makerDir,
+        makerFlags,
+
+        takerAddress,
+        takerFeeAsset,
+        takerFeeAmount,
+        takerMatchAmount,
+        takerEventId,
+        takerPriceAmount,
+        takerPriceAsset,
+        takerDir,
+        takerFlags
+      ],
+      []
+    )
+  ]
+
+  strict exchange = if (orderType == O_PREDICTION) then predictionExchange else defaultExchange
 
   # Set remaining amount to `0` if it's fully filled
   let (makerOrderStatusAction, makerOrderRealRemaining) = 
