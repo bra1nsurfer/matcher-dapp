@@ -131,8 +131,6 @@ const WX_PROVIDER_URL = "https://testnet.wx.network/signer";
 const ADDRESS_DATA_END = "/addresses/data/";
 const EVAL_END = "/utils/script/evaluate/";
 
-var PREDICTION_MODE = false;
-
 const EVENT_STATUS = [
     "OPEN",
     "CLOSED_YES",
@@ -207,7 +205,6 @@ const taker = {
 const factoryAddressElement = document.getElementById("factoryAddress") as HTMLSpanElement;
 const factoryMatcherPubKeyElement = document.getElementById("factoryMatcherPubKey") as HTMLSpanElement;
 const validatorAddressElement = document.getElementById("validatorAddress") as HTMLSpanElement;
-const predictionValidatorAddressElement = document.getElementById("predictionValidatorAddress") as HTMLSpanElement;
 const spotAddressElement = document.getElementById("spotAddress") as HTMLSpanElement;
 const leverageAddressElement = document.getElementById("leverageAddress") as HTMLSpanElement;
 const predictionAddressElement = document.getElementById("predictionAddress") as HTMLSpanElement;
@@ -342,12 +339,10 @@ function getWithdrawMatcherSignData(txId: string, userAddress: string, assetId: 
 
 function updateOrder(order: Order) {
     if (order.orderTypeElement.value == "3") {
-        PREDICTION_MODE = true;
         order.predictionStatusElement.hidden = false;
         const flags = Number(order.flagsElement.value)
         order.predictionStatusElement.innerText = `Prediction: ${(flags & 0xFF) == 1 ? "NO" : "YES"}`;
     } else {
-        PREDICTION_MODE = false;
         order.predictionStatusElement.hidden = true;
     }
 
@@ -422,7 +417,6 @@ function getContracts() {
 
     const kMatcherPubKey = "%s__matcherPublicKey";
     const kValidatorAddress = "%s__validatorAddress";
-    const kPredictionValidatorAddress = "%s__predictionValidatorAddress";
     const kTreasuryAddress = "%s__treasuryAddress";
     const kPoolAddress = "%s__poolAddress";
     const kSpotAddress = "%s__spotAddress";
@@ -432,7 +426,6 @@ function getContracts() {
 
     factoryMatcherPubKeyElement.innerText = "LOADING...";
     validatorAddressElement.innerText = "LOADING...";
-    predictionValidatorAddressElement.innerText = "LOADING...";
     treasuryAddressElement.innerText = "LOADING...";
     poolAddressElement.innerText = "LOADING...";
     spotAddressElement.innerText = "LOADING...";
@@ -445,7 +438,6 @@ function getContracts() {
         .then(state => {
             factoryMatcherPubKeyElement.innerText = getFromState(state, kMatcherPubKey).toString();
             validatorAddressElement.innerText = getFromState(state, kValidatorAddress).toString();
-            predictionValidatorAddressElement.innerText = getFromState(state, kPredictionValidatorAddress).toString();
             treasuryAddressElement.innerText = getFromState(state, kTreasuryAddress).toString();
             poolAddressElement.innerText = getFromState(state, kPoolAddress).toString();
             spotAddressElement.innerText = getFromState(state, kSpotAddress).toString();
@@ -737,7 +729,7 @@ signExchangeElement.addEventListener("click", () => {
     exchangeOutputElement.innerText = "";
 
     maker.signer.invoke({
-        dApp: PREDICTION_MODE ? predictionValidatorAddressElement.innerText : validatorAddressElement.innerText,
+        dApp: validatorAddressElement.innerText,
         call: {
             function: "validateAndExchange",
             args: [
