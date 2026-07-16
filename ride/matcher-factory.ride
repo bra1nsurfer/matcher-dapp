@@ -5,13 +5,6 @@
 let SEP = "__"
 let CONTRACT_NAME = "matcher-factory.ride"
 
-# EVENT STATUS
-let E_NOT_FOUND  = -1
-let E_OPEN       = 0
-let E_CLOSED_YES = 1
-let E_CLOSED_NO  = 2
-let E_STOPPED    = 3
-
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
 }
@@ -20,16 +13,16 @@ func throwErr(s: String) = {
   throw(wrapErr(s))
 }
 
-let kForceStop                  = ["%s", "forceStop"].makeString(SEP)
-let kMatcherPublicKey           = ["%s", "matcherPublicKey"].makeString(SEP)
-let kValidatorAddress           = ["%s", "validatorAddress"].makeString(SEP)
-let kTreasuryAddress            = ["%s", "treasuryAddress"].makeString(SEP)
-let kPoolAddress                = ["%s", "poolAddress"].makeString(SEP)
-let kSpotAddress                = ["%s", "spotAddress"].makeString(SEP)
-let kLeverageAddress            = ["%s", "leverageAddress"].makeString(SEP)
-let kMarginAddress              = ["%s", "marginAddress"].makeString(SEP)
-let kPredictionAddress          = ["%s", "predictionAddress"].makeString(SEP)
-let kWithdrawDelay              = ["%s", "withdrawDelay"].makeString(SEP)
+let kForceStop         = ["%s", "forceStop"].makeString(SEP)
+let kMatcherPublicKey  = ["%s", "matcherPublicKey"].makeString(SEP)
+let kValidatorAddress  = ["%s", "validatorAddress"].makeString(SEP)
+let kTreasuryAddress   = ["%s", "treasuryAddress"].makeString(SEP)
+let kPoolAddress       = ["%s", "poolAddress"].makeString(SEP)
+let kSpotAddress       = ["%s", "spotAddress"].makeString(SEP)
+let kLeverageAddress   = ["%s", "leverageAddress"].makeString(SEP)
+let kMarginAddress     = ["%s", "marginAddress"].makeString(SEP)
+let kPredictionAddress = ["%s", "predictionAddress"].makeString(SEP)
+let kWithdrawDelay     = ["%s", "withdrawDelay"].makeString(SEP)
 
 let kAllowedAssets = ["%s", "allowedAssets"].makeString(SEP)
 let allowedAssets  = match (this.getString(kAllowedAssets)) {
@@ -37,12 +30,10 @@ let allowedAssets  = match (this.getString(kAllowedAssets)) {
     case _ => []
   }
 
-let  kEventCreationFeeAmount            = ["%s", "eventCreationFeeAmount"].makeString(SEP)
-let  kGroupCreationFeeAmount            = ["%s", "groupCreationFeeAmount"].makeString(SEP)
-let  kPredictionMintFeeRate             = ["%s", "predictionMintFeeRate"].makeString(SEP)
-let  kPredictionPriceAsset              = ["%s", "predictionPriceAsset"].makeString(SEP)
-func kEventStatus(eventId: String)      = ["%s%s", "eventStatus", eventId].makeString(SEP)
-func kEventEndDatetime(eventId: String) = ["%s%s", "eventEndDatetime", eventId].makeString(SEP)
+let kEventCreationFeeAmount = ["%s", "eventCreationFeeAmount"].makeString(SEP)
+let kGroupCreationFeeAmount = ["%s", "groupCreationFeeAmount"].makeString(SEP)
+let kPredictionMintFeeRate  = ["%s", "predictionMintFeeRate"].makeString(SEP)
+let kPredictionPriceAsset   = ["%s", "predictionPriceAsset"].makeString(SEP)
 
 let kLeverageValue = ["%s", "maxLeverageValue"].makeString(SEP)
 let maxLeverageValue  = this.getInteger(kLeverageValue).valueOrElse(1)
@@ -200,25 +191,6 @@ func setPredictionPriceAsset(assetId: String) = {
   [
     StringEntry(kPredictionPriceAsset, assetId)
   ]
-}
-
-@Callable(i)
-func setEventStatus(eventId: String, status: Int) = {
-  
-  strict check = [
-    i.caller == this || i.caller.toString() == predictionAddress || throwErr("setEventStatus: permission denied")
-  ]
-
-  [IntegerEntry(kEventStatus(eventId), status)]
-}
-
-@Callable(i)
-func setEventEndDatetime(eventId: String, endDatetime: Int) = {
-  strict check = [
-    i.caller == this || i.caller.toString() == predictionAddress || throwErr("setEndDatetime: permission denied")
-  ]
-
-  [IntegerEntry(kEventEndDatetime(eventId), endDatetime)]
 }
 
 @Callable(i)

@@ -41,15 +41,6 @@ let ORDER_DIR_SELL = "sell"
 let P_DIR_YES = "yes"
 let P_DIR_NO  = "no"
 
-# EVENT STATUS
-let E_NOT_FOUND  = -1
-let E_OPEN       = 0
-let E_CLOSED_YES = 1
-let E_CLOSED_NO  = 2
-let E_STOPPED    = 3
-let E_EXPIRED    = 4
-let E_REJECTED   = 5
-
 let kFactoryAddress = ["%s", "factoryAddress"].makeString(SEP)
 let sFactoryAddress = this.getString(kFactoryAddress).valueOrErrorMessage("factory address is not set")
 let factoryAddress  = sFactoryAddress.addressFromString().valueOrErrorMessage("invalid factory address")
@@ -75,11 +66,6 @@ let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
 let predictionPriceAsset     = factoryAddress.getString(kPredictionPriceAsset).valueOrElse(WAVES)
 let predictionPriceAssetInfo = assetInfo(predictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
 let PREDICTION_PRICE_UNIT    = if (predictionPriceAsset != WAVES) then pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN) else DEC8
-
-func kEventStatus(eventId: String)        = ["%s%s", "eventStatus", eventId].makeString(SEP)
-func getEventStatus(eventId: String)      = factoryAddress.getInteger(kEventStatus(eventId)).valueOrElse(E_NOT_FOUND)
-func kEventEndDatetime(eventId: String)   = ["%s%s", "eventEndDatetime", eventId].makeString(SEP)
-func getEventEndDatetime(eventId: String) = factoryAddress.getInteger(kEventEndDatetime(eventId)).valueOrElse(0)
 
 let keyIdCounter = ["%s", "counter"].makeString(SEP)
 let O_COUNTER = this.getInteger(keyIdCounter).valueOrElse(0)
@@ -625,8 +611,6 @@ func matchOrders(
   let takerOrderFlags        = takerOrder._13
   let takerEventId           = takerOrder._5.assetIdToString()
 
-  let eventStatus = getEventStatus(makerEventId)
-  let eventEndDatetime = getEventEndDatetime(makerEventId)
   let isExchangeValid = isValidPredictionOrderPrices(
     matchPrice, 
     makerOrderPrice, 
@@ -662,8 +646,6 @@ func matchOrders(
     (makerOrderMatcherBytes == matcherPublicKey) || throwErr("maker order matcher bytes does not match"),
     (takerOrderMatcherBytes == matcherPublicKey) || throwErr("taker order matcher bytes does not match"),
     (makerEventId == takerEventId) || throwErr("event id does not match"),
-    (eventStatus != E_NOT_FOUND) || throwErr("event id is not found"),
-    (eventStatus == E_OPEN) || throwErr("event is closed"),
     (makerEventId.stringToAssetId() != unit) || throwErr("invalid event id"),
     (makerOrderPriceAsset == takerOrderPriceAsset) || throwErr("price asset id does not match"),
     (makerOrderPriceAsset == predictionPriceAsset) || throwErr("price asset is not allowed"),
@@ -677,8 +659,7 @@ func matchOrders(
     (allowedAssets.containsElement(makerOrderPriceAsset)) || throwErr("price asset not in the allowed list"),
     (makerOrderType == O_PREDICTION) || throwErr("maker order type must be prediction"),
     (takerOrderType == O_PREDICTION) || throwErr("taker order type must be prediction"),
-    isExchangeValid || throwErr("price or direction mismatch, exchange is not valid"),
-    (eventEndDatetime == 0 || eventEndDatetime >= CUR_TIMESTAMP) || throwErr("event is expired")
+    isExchangeValid || throwErr("price or direction mismatch, exchange is not valid")
   ]
 
   strict check = if (makerOrderType == O_PREDICTION) then predictionValidation else defaultValidation
