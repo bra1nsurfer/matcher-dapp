@@ -656,6 +656,34 @@ func mergeTokens(eventId: Int, mergeAmount: Int) = {
 }
 
 @Callable(i)
+func withdrawTokens(eventId: Int, amount: Int) = {
+  let sEventId = eventId.toString()
+  let eventStatus = getEventStatus(sEventId)
+  let userAddress = i.caller.toString()
+
+  let finalEventAssetId = if (eventStatus == E_CLOSED_YES)
+    then this.getStringValue(kEventYesAssetId(sEventId))
+    else if eventStatus == E_CLOSED_NO
+      then this.getStringValue(kEventNoAssetId(sEventId))
+      else throwErr("invalid event status")
+
+  strict check = [
+    amount > 0 || throwErr("amount cannot be negative"),
+    eventStatus == E_CLOSED_YES || eventStatus == E_CLOSED_NO || throwErr("event is not closed")
+  ]
+
+  let priceAssetAmount = amountAssetToPriceAsset(amount, PREDICTION_PRICE_UNIT)
+
+  (
+    [],
+    [
+      treasuryAddress.invoke("subBalance", [userAddress, finalEventAssetId, amount], []),
+      treasuryAddress.invoke("addBalance", [userAddress, sPredictionPriceAsset, priceAssetAmount], [])
+    ]
+  )
+}
+
+@Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
     i.caller == this || throwErr("permission denied")
