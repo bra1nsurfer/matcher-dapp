@@ -5,10 +5,37 @@
 let SEP           = "__"
 let CONTRACT_NAME = "matcher-prediction.ride"
 let WAVES         = "WAVES"
+let DEC8          = 1_0000_0000
 
 # ORDER DIRECTION
 let ORDER_DIR_BUY  = "buy"
 let ORDER_DIR_SELL = "sell"
+
+# PREDICTION DIR
+let P_DIR_YES = "yes"
+let P_DIR_NO  = "no"
+
+# EVENT STATUS
+let E_NOT_FOUND  = -1
+let E_OPEN       = 0
+let E_CLOSED_YES = 1
+let E_CLOSED_NO  = 2
+let E_STOPPED    = 3
+let E_EXPIRED    = 4
+let E_REJECTED   = 5
+
+let VALID_STATUSES = [ 
+  E_OPEN, 
+  E_CLOSED_NO, 
+  E_CLOSED_YES, 
+  E_STOPPED, 
+  E_EXPIRED, 
+  E_REJECTED
+]
+
+### Do not forget to update `FOLD<>` in mass creation functions
+let INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+let MAX_FOLD_EVENTS = INDEXES.size()
 
 func wrapErr(s: String) = {
   CONTRACT_NAME + ": " + s
@@ -48,6 +75,576 @@ let matcherPublicKey  = sMatcherPublicKey.fromBase58String()
 let matcherAddress    = matcherPublicKey.addressFromPublicKey()
 let sMatcherAddress   = matcherAddress.toString()
 
+let kEventCreationFeeAmount  = ["%s", "eventCreationFeeAmount"].makeString(SEP)
+let eventCreationFeeAmount   = factoryAddress.getInteger(kEventCreationFeeAmount).valueOrElse(0)
+let kGroupCreationFeeAmount  = ["%s", "groupCreationFeeAmount"].makeString(SEP)
+let groupCreationFeeAmount   = factoryAddress.getInteger(kGroupCreationFeeAmount).valueOrElse(0)
+let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
+let sPredictionPriceAsset    = factoryAddress.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
+let predictionPriceAsset     = sPredictionPriceAsset.stringToAssetId()
+let predictionPriceAssetInfo = assetInfo(sPredictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
+let kEventMintFeeRate        = ["%s", "predictionMintFeeRate"].makeString(SEP)
+let eventMintFeeRate         = factoryAddress.getInteger(kEventMintFeeRate).valueOrElse(0)
+
+let kLastEventIndex = ["%s", "lastEventIndex"].makeString(SEP)
+let lastEventIndex  = this.getInteger(kLastEventIndex).valueOrElse(0)
+
+let kEventAdminList = ["%s", "eventAdminList"].makeString(SEP)
+let eventAdminList  = this.getString(kEventAdminList).valueOrElse("").split(SEP)
+
+let currentDatetime = lastBlock.timestamp
+
+# Calc price asset single token decimals or DEC8 for Waves
+let PREDICTION_PRICE_UNIT = match (predictionPriceAsset) {
+    case t:ByteVector => pow(10, 0, predictionPriceAssetInfo.decimals, 0, 0, DOWN)
+    case _ => DEC8
+  }
+
+let kLastGroupIndex = ["%s", "lastGroupIndex"].makeString(SEP)
+let lastGroupIndex = this.getInteger(kLastGroupIndex).valueOrElse(0)
+
+let kMaxEventsInGroup = ["%s", "maxEventsInGroup"].makeString(SEP)
+let MAX_GROUP_EVENTS  = this.getInteger(kMaxEventsInGroup).valueOrElse(20)
+
+func kEventName(eventId: String)         = ["%s%s%d", "event", "name", eventId].makeString(SEP)
+func kEventEndDatetime(eventId: String)  = ["%s%s%d", "event", "endDatetime", eventId].makeString(SEP)
+func kEventStatus(eventId: String)       = ["%s%s%d", "event", "status", eventId].makeString(SEP)
+func kEventYesAssetId(eventId: String)   = ["%s%s%d", "event", "yesAssetId", eventId].makeString(SEP)
+func kEventNoAssetId(eventId: String)    = ["%s%s%d", "event", "noAssetId", eventId].makeString(SEP)
+func kEventTokensMinted(eventId: String) = ["%s%s%d", "event", "tokensMinted", eventId].makeString(SEP)
+func kEventGroupId(eventId: String)      = ["%s%s%d", "event", "groupId", eventId].makeString(SEP)
+func kEventCreator(eventId: String)      = ["%s%s%d", "event", "creator", eventId].makeString(SEP)
+
+func kGroupName(groupId: String)          = ["%s%s%d", "group", "name", groupId].makeString(SEP)
+func kGroupDesc(groupId: String)          = ["%s%s%d", "group", "description", groupId].makeString(SEP)
+func kGroupImgSrc(groupId: String)        = ["%s%s%d", "group", "imgSrc", groupId].makeString(SEP)
+func kGroupSource(groupId: String)        = ["%s%s%d", "group", "source", groupId].makeString(SEP)
+func kGroupCreator(groupId: String)       = ["%s%s%d", "group", "creator", groupId].makeString(SEP)
+func kGroupCategory(groupId: String)      = ["%s%s%d", "group", "category", groupId].makeString(SEP)
+func kGroupEvents(groupId: String)        = ["%s%s%d", "group", "events", groupId].makeString(SEP)
+func kGroupRejectedCount(groupId: String) = ["%s%s%d", "group", "rejectedCount", groupId].makeString(SEP)
+func kGroupUnlimited(groupId: String)     = ["%s%s%d", "group", "unlimited", groupId].makeString(SEP)
+
+func toUint256(n: ByteVector) = {
+  # 32 zeroes
+  let z = base58'11111111111111111111111111111111'
+  let pad = z.drop(n.size())
+  (pad + n)
+}
+
+func intToEventId(eventIndex: Int) = {
+  toUint256(eventIndex.toBytes())
+}
+
+func intToEventAsset(eventIndex: Int) = {
+  let fullEventId = intToEventId(eventIndex).toBase58String()
+  let yesAssetId  = [fullEventId, P_DIR_YES].makeString("-")
+  let noAssetId   = [fullEventId, P_DIR_NO].makeString("-")
+
+  (fullEventId, yesAssetId, noAssetId)
+}
+
+func uint256toInt(n: ByteVector) = {
+  n.drop(24).toInt()
+}
+
+# Parse eventId asset id (example: 11111111111111111111111111111111-yes / 11111111111111111111111111111111-no)
+func parseEventAssetId(eventId: String) = {
+  let splitData = eventId.split("-")
+  let sEventId = splitData[0].fromBase58String()
+  let predictionDir = splitData[1]
+  let shortEventId = sEventId.uint256toInt()
+
+  (shortEventId.toString(), predictionDir)
+}
+
+func isAdmin(callerAddress: String) = {
+  callerAddress == this.toString()
+}
+
+func isEventAdmin(callerAddress: String) = {
+  isAdmin(callerAddress) || eventAdminList.containsElement(callerAddress)
+}
+
+func getGroupEvents(groupId: String) = match (this.getString(kGroupEvents(groupId))) {
+    case str:String => str.split_51C(SEP)
+    case _ => []
+  }
+
+func getEventStatus(eventId: String) = {
+  match (this.getInteger(kEventStatus(eventId))) {
+      case STATUS:Int => {
+        let endDatetime = this.getInteger(kEventEndDatetime(eventId)).valueOrElse(0)
+        if (STATUS == E_OPEN && endDatetime < currentDatetime) then E_EXPIRED else STATUS
+      }
+      case _ => E_NOT_FOUND
+    }
+}
+
+func getRejectedCount(groupId: String) = this.getInteger(kGroupRejectedCount(groupId)).valueOrElse(0)
+
+func amountAssetToPriceAsset(amount: Int, price: Int) = {
+  fraction(amount, price, 1, DOWN)
+}
+
+func priceAssetToAmountAsset(priceAssetAmount: Int, price: Int) = {
+  fraction(priceAssetAmount, 1, price, DOWN)
+}
+
+func isEventExist(eventId: String) = {
+  match (this.getString(kEventName(eventId))) {
+      case t:String => true
+      case _ => false
+    }
+}
+
+func isGroupExist(groupId: String) = {
+  match (this.getString(kGroupName(groupId))) {
+      case t:String => true
+      case _ => false
+    }
+}
+
+func isGroupUnlimited(groupId: String) = {
+  this.getBoolean(kGroupUnlimited(groupId)).valueOrElse(false)
+}
+
+func editGroupHelper(groupId: String, name: String, description: String, category: String, imgSrc: String, source: String, creator: String) = {
+  let nameEntry     = if(name.size() > 0)        then [StringEntry(kGroupName(groupId), name)] else []
+  let descEntry     = if(description.size() > 0) then [StringEntry(kGroupDesc(groupId), description)] else []
+  let categoryEntry = if(category.size() > 0)    then [StringEntry(kGroupCategory(groupId), category)] else []
+  let imgEntry      = if(imgSrc.size() > 0)      then [StringEntry(kGroupImgSrc(groupId), imgSrc)] else []
+  let sourceEntry   = if(source.size() > 0)      then [StringEntry(kGroupSource(groupId), source)] else []
+  let creatorEntry  = if(creator.size() > 0)     then [StringEntry(kGroupCreator(groupId), creator)] else []
+
+  nameEntry ++ 
+  descEntry ++ 
+  categoryEntry ++ 
+  imgEntry ++ 
+  sourceEntry ++ 
+  creatorEntry
+}
+
+func editEventInfoHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
+  let nameEntry    = if(name.size() > 0)    then [StringEntry(kEventName(eventId), name)] else []
+  let endEntry     = if(endDatetime != 0)   then [IntegerEntry(kEventEndDatetime(eventId), endDatetime)] else []
+  let groupEntry   = if(groupId.size() > 0) then [StringEntry(kEventGroupId(eventId), groupId)] else []
+  let creatorEntry = if(creator.size() > 0) then [StringEntry(kEventCreator(eventId), creator)] else []
+
+  nameEntry ++ 
+  endEntry ++ 
+  creatorEntry ++
+  groupEntry
+}
+
+# Change groupId for event
+# Update list of events for old and new group
+func eventGroupIdHelper(eventId: String, groupId: String) = {
+  let oldGroupId = this.getString(kEventGroupId(eventId)).valueOrElse("NULL")
+  let prevGroupActions = if(groupId == oldGroupId || oldGroupId == "NULL" || groupId.size() == 0)
+    then []
+    else {
+      let prevGroupOldEvents = getGroupEvents(oldGroupId)
+      let prevGroupNewEvents = match(prevGroupOldEvents.indexOf(eventId)) {
+        case ind:Int => prevGroupOldEvents.removeByIndex(ind)
+        case _ => prevGroupOldEvents
+      }
+      let prevGroupAction = if(prevGroupNewEvents.size() > 0)
+        then StringEntry(kGroupEvents(oldGroupId), prevGroupNewEvents.makeString_11C(SEP))
+        else DeleteEntry(kGroupEvents(oldGroupId))
+
+      [prevGroupAction]
+    }
+  let nextGroupEvents = getGroupEvents(groupId) :+ eventId
+  let nextGroupActions = if(groupId.size() != 0 && groupId != oldGroupId) 
+    then [StringEntry(kGroupEvents(groupId), nextGroupEvents.makeString_11C(SEP))] 
+    else []
+
+  let oldGroupRejected = getRejectedCount(oldGroupId)
+  let newGroupRejected = getRejectedCount(groupId)
+  let eventStatus = getEventStatus(eventId)
+
+  let rejectedCountActions = if (eventStatus == E_REJECTED && groupId != oldGroupId)
+    then [
+      IntegerEntry(kGroupRejectedCount(oldGroupId), oldGroupRejected - 1),
+      IntegerEntry(kGroupRejectedCount(groupId), newGroupRejected + 1)
+    ]
+    else []
+
+  prevGroupActions ++ 
+  nextGroupActions ++
+  rejectedCountActions
+}
+
+func editEventHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
+  let infoActions = editEventInfoHelper(eventId, groupId, name, endDatetime, creator)
+  let groupIdActions = eventGroupIdHelper(eventId, groupId)
+
+  infoActions ++ groupIdActions
+}
+
+func eventTokensActions(eventId: String) = {
+  let (_fullEventId, yesAssetId, noAssetId) = intToEventAsset(eventId.parseIntValue())
+
+  [
+    StringEntry(kEventYesAssetId(eventId), yesAssetId),
+    StringEntry(kEventNoAssetId(eventId), noAssetId),
+    IntegerEntry(kEventTokensMinted(eventId), 0)
+  ]
+}
+
+func massEventHelper(
+    acc: (
+      (
+        String,
+        String,
+        Int,
+        List[String],
+        List[String]
+      ),
+      List[String],
+      List[StringEntry|IntegerEntry],
+      Int
+    ), 
+    arrInd: Int
+  ) = {
+  let (CONST_DATA, eventIds, actions, localLastIndex) = acc
+  let (groupId, creator, eNamesCount, eNamesList, eEndList) = CONST_DATA
+
+  if (arrInd < eNamesCount) then {
+    let localEventIdInt = localLastIndex + 1
+    let localEventId = localEventIdInt.toString()
+    let endDatetime = eEndList[arrInd].parseInt().valueOrErrorMessage("massAddEvent: cannot parse timestamp")
+
+    strict localCheck = [
+      endDatetime > currentDatetime || throwErr(["wrong end date. Now:", currentDatetime.toString()].makeString(" "))
+    ]
+
+    let infoActions = editEventInfoHelper(localEventId, groupId, eNamesList[arrInd], endDatetime, creator)
+    let tokensActions = eventTokensActions(localEventId)
+    let approveActions = if (isGroupUnlimited(groupId)) then [ IntegerEntry(kEventStatus(localEventId), E_OPEN) ] else []
+
+    (
+      CONST_DATA,
+      eventIds :+ localEventId,
+      actions ++ infoActions ++ tokensActions ++ approveActions, 
+      localEventIdInt
+    )
+  }
+  else acc
+}
+
+func massNewEventsHelper(
+  creator      : String,
+  groupId      : String,
+  eNames       : String,
+  eEndDatetimes: String
+) = {
+  let eNamesList = eNames.split_51C(SEP)
+  let eNamesCount = eNamesList.size()
+  let eEndList = eEndDatetimes.split_51C(SEP)
+  let eEndCount = eEndList.size()
+
+  let eTotalFee = eventCreationFeeAmount * eNamesCount
+
+  strict check = [
+    eNames.size() > 0 || throwErr("event cannot be empty"),
+    eEndDatetimes.size() > 0 || throwErr("event end datetimes cannot be empty"),
+    eNamesCount <= min([MAX_FOLD_EVENTS, MAX_GROUP_EVENTS]) || throwErr("too many events"),
+    eNamesCount == eEndCount || throwErr("invalid events end datetime amount")
+  ]
+
+  ### Main `FOLD<>`
+  let CONST_DATA = (groupId, creator, eNamesCount, eNamesList, eEndList)
+  let (_a, groupEventIds, allEventsActions, newLastEventIndex) = FOLD<10>(INDEXES, (CONST_DATA, [], [], lastEventIndex), massEventHelper)
+  ###
+
+  ( 
+    groupEventIds,
+    eTotalFee,
+    allEventsActions ++ [IntegerEntry(kLastEventIndex, newLastEventIndex)]
+  )
+}
+
+func isEventOpen(eventId: String) = {
+  let eventStatus = getEventStatus(eventId)
+
+  strict check = [ 
+    eventStatus != E_NOT_FOUND || throwErr("event is not approved"),
+    eventStatus != E_EXPIRED || throwErr("event is expired"),
+    eventStatus != E_STOPPED || throwErr("event is stopped"),
+    eventStatus != E_REJECTED || throwErr("event is rejected"),
+    (eventStatus != E_CLOSED_NO && eventStatus != E_CLOSED_YES) || throwErr("event is closed")
+  ]
+
+  eventStatus == E_OPEN
+}
+
+@Callable(i)
+func setEventStatus(eventId: Int, status: Int, category: String) = {
+  let callerAddress = i.caller.toString()
+  let sEventId = eventId.toString()
+  let groupId = this.getString(kEventGroupId(sEventId)).valueOrErrorMessage(wrapErr("invalid group id in event"))
+
+  let oldRejectedCount = getRejectedCount(groupId)
+  let oldEventStatus = getEventStatus(sEventId)
+
+  let s_newEvent = (oldEventStatus == E_NOT_FOUND && (status == E_OPEN || status == E_REJECTED))
+  let s_openEvent = (oldEventStatus == E_OPEN && (status != E_NOT_FOUND))
+  let s_stoppedEvent = (oldEventStatus == E_STOPPED && (status == E_OPEN))
+  let s_expiredEvent = (oldEventStatus == E_EXPIRED && (status != E_NOT_FOUND))
+
+  strict check = [
+    isEventAdmin(callerAddress) || throwErr("setEventStatus: permission denied"),
+    isEventExist(sEventId) || throwErr("event id is not found"),
+    VALID_STATUSES.containsElement(status) || throwErr("new status is not valid"),
+    s_newEvent || s_openEvent || s_stoppedEvent || s_expiredEvent || isAdmin(callerAddress) || throw("old status is final"),
+    this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
+  ]
+
+  let groupActions = editGroupHelper(groupId, "", "", category, "", "", "")
+  let groupRejectedActions = if (oldEventStatus == E_REJECTED)
+    then {
+      if (status != E_REJECTED) 
+      then [IntegerEntry(kGroupRejectedCount(groupId), oldRejectedCount - 1)]
+      else []
+    }
+    else {
+      if (status == E_REJECTED) 
+      then [IntegerEntry(kGroupRejectedCount(groupId), oldRejectedCount + 1)]
+      else []
+    }
+
+  [ IntegerEntry(kEventStatus(sEventId), status) ] ++ 
+  groupActions ++
+  groupRejectedActions
+}
+
+@Callable(i)
+func addEventAdmin(address: String) = {
+  strict check = [
+    isAdmin(i.caller.toString()) || throwErr("addEventAdmin: permission denied")
+  ]
+
+  let newAdminList = eventAdminList :+ address
+  let sNewAdminList = newAdminList.makeString(SEP)
+
+  [
+    StringEntry(kEventAdminList, sNewAdminList)
+  ]
+}
+
+@Callable(i)
+func removeEventAdmin(address: String) = {
+  strict check = [
+    isAdmin(i.caller.toString()) || throwErr("removeEventAdmin: permission denied")
+  ]
+
+  let newAdminList = match (eventAdminList.indexOf(address)) {
+      case ind:Int => eventAdminList.removeByIndex(ind)
+      case _ => eventAdminList
+    }
+  
+  let resultAction = if(newAdminList.size() > 0) 
+    then StringEntry(kEventAdminList, newAdminList.makeString(SEP))
+    else DeleteEntry(kEventAdminList)
+
+  [
+    resultAction
+  ]
+}
+
+@Callable(i)
+func editGroup(groupId: Int, name: String, description: String, category: String, imgSrc: String, source: String, creator: String) = {
+  let sGroupId = groupId.toString()
+  strict check = [
+    isEventAdmin(i.caller.toString()) || throwErr("editGroup: permission denied"),
+    isGroupExist(sGroupId) || throwErr("groupId is not found"),
+    this.getString(kGroupName(sGroupId)).valueOrErrorMessage(wrapErr("groupId is not found"))
+  ]
+
+  editGroupHelper(sGroupId, name, description, category, imgSrc, source, creator)
+}
+
+@Callable(i)
+func editEvent(eventId: Int, groupId: Int, name: String, endDatetime: Int, creator: String) = {
+  let sEventId = eventId.toString()
+  let sGroupId = if (groupId > 0) then groupId.toString() else ""
+  strict check = [
+    isEventAdmin(i.caller.toString()) || throwErr("editEvent: permission denied"),
+    isEventExist(sEventId) || throwErr("eventId is not found"),
+    groupId == 0 || isGroupExist(sGroupId) || throwErr("groupId is not found"),
+    this.getString(kEventName(sEventId)).valueOrErrorMessage(wrapErr("eventId is not found"))
+  ]
+  
+  editEventHelper(sEventId, sGroupId, name, endDatetime, creator)
+}
+
+@Callable(i)
+func setGroupUnlimited(groupId: Int, isUnlimited: Boolean) = {
+  let sGroupId = groupId.toString()
+  strict check = [
+    isEventAdmin(i.caller.toString()) || throwErr("editGroup: permission denied"),
+    isGroupExist(sGroupId) || throwErr("groupId is not found"),
+    this.getString(kGroupName(sGroupId)).valueOrErrorMessage(wrapErr("groupId is not found"))
+  ]
+
+  [
+    BooleanEntry(kGroupUnlimited(sGroupId), isUnlimited)
+  ]
+}
+
+@Callable(i)
+func newGroupAndEvents(
+  gName        : String,
+  gDescription : String,
+  gImgSrc      : String,
+  gSource      : String,
+  eNames       : String,
+  eEndDatetimes: String
+) = {
+  let newGroupIndex = lastGroupIndex + 1
+  let groupId = newGroupIndex.toString()
+
+  let creator = i.caller.toString()
+  let groupActions = editGroupHelper(groupId, gName, gDescription, "", gImgSrc, gSource, creator) ++ 
+    [IntegerEntry(kLastGroupIndex, newGroupIndex)]
+
+  let (groupEventIds, eTotalFee, eventsActions) = massNewEventsHelper(creator, groupId, eNames, eEndDatetimes)
+  let totalFee = groupCreationFeeAmount + eTotalFee
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    gName.size() > 0 || throwErr("group name is required"),
+    gDescription.size() > 0 || throwErr("group description is required"),
+    gImgSrc.size() > 0 || throwErr("group image source is required"),
+    gSource.size() > 0 || throwErr("group source is required"),
+    totalFee == 0 || i.payments.size() == 1 || throwErr("payment not found"),
+    totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
+    totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
+  ]
+
+  let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString_11C(SEP))] 
+  let transferFeeAction = if (totalFee > 0) 
+    then [ScriptTransfer(matcherAddress, totalFee, i.payments[0].assetId)]
+    else []
+  let feeExcess = i.payments[0].amount - totalFee
+  let returnExcessFeeAction = if (feeExcess > 0)
+    then [ScriptTransfer(i.caller, feeExcess, i.payments[0].assetId)]
+    else []
+
+  groupActions ++
+  groupEventIdsActions ++
+  eventsActions ++
+  transferFeeAction ++
+  returnExcessFeeAction
+}
+
+@Callable(i)
+func newEvents(
+  groupId      : Int,
+  eNames       : String,
+  eEndDatetimes: String
+) = {
+  let sGroupId = groupId.toString()
+  let creator = i.caller.toString()
+
+  let (newGroupEventIds, totalFee, eventsActions) = massNewEventsHelper(creator, sGroupId, eNames, eEndDatetimes)
+
+  strict check = [
+    isGroupExist(sGroupId) || throwErr("groupId no found"),
+    !forceStop || throwErr("contract is temporary stopped"),
+    totalFee == 0 || i.payments.size() == 1 || throwErr("payment not found"),
+    totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
+    totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" ")),
+    !isGroupUnlimited(sGroupId) || isEventAdmin(creator) || throwErr("permission denied (unlimited group)")
+  ]
+
+  let oldGroupEventIds = getGroupEvents(sGroupId)
+  let groupNewTotalEventsCount = oldGroupEventIds.size() + newGroupEventIds.size()
+  let groupRejectedEventsCount = getRejectedCount(sGroupId)
+  let groupEventIdsActions = if (isGroupUnlimited(sGroupId) || groupNewTotalEventsCount - groupRejectedEventsCount <= MAX_GROUP_EVENTS) 
+    then [StringEntry(kGroupEvents(sGroupId), (oldGroupEventIds ++ newGroupEventIds).makeString_11C(SEP))]
+    else throwErr(["max", MAX_GROUP_EVENTS.toString(), "events in group"].makeString(" "))
+
+  let transferFeeAction = if (totalFee > 0) 
+    then [ScriptTransfer(matcherAddress, totalFee, i.payments[0].assetId)]
+    else []
+  let feeExcess = i.payments[0].amount - totalFee
+  let returnExcessFeeAction = if (feeExcess > 0)
+    then [ScriptTransfer(i.caller, feeExcess, i.payments[0].assetId)]
+    else []
+
+  groupEventIdsActions ++
+  eventsActions ++
+  transferFeeAction ++
+  returnExcessFeeAction
+}
+
+@Callable(i)
+func mintTokens(eventId: Int, mintAmount: Int) = {
+  let userAddress = i.caller.toString()
+  let sEventId = eventId.toString()
+  let paymentAmount = amountAssetToPriceAsset(mintAmount, PREDICTION_PRICE_UNIT)
+  let minMintFeeAmount = fraction(paymentAmount, eventMintFeeRate, DEC8)
+
+  strict check1 = [
+    !forceStop || throwErr("contract is temporary stopped"),
+    this.getString(kEventName(sEventId)).valueOrElse("").size() > 0 || throwErr("eventId is not found"),
+    isEventOpen(sEventId) || throwErr("invalid event status"),
+    mintAmount > 0 || throwErr("mint amount cannot be negative")
+  ]
+
+  let transferMintFeeAction = if(minMintFeeAmount > 0) 
+    then [
+        treasuryAddress.invoke("subBalance", [userAddress, sPredictionPriceAsset, minMintFeeAmount], []),
+        treasuryAddress.invoke("transferTo", [sMatcherAddress, sPredictionPriceAsset, minMintFeeAmount], [])
+      ]
+    else []
+
+  let oldTotalMinted = this.getInteger(kEventTokensMinted(sEventId)).valueOrElse(0)
+  let newTotalMinted = oldTotalMinted + mintAmount
+
+  let (_fullEventId, yesAssetId, noAssetId)  = intToEventAsset(eventId)
+  
+  (
+    [
+      IntegerEntry(kEventTokensMinted(sEventId), newTotalMinted)
+    ],
+    [
+      treasuryAddress.invoke("subBalance", [userAddress, sPredictionPriceAsset, paymentAmount], []),
+      treasuryAddress.invoke("addBalance", [userAddress, yesAssetId, mintAmount], []),
+      treasuryAddress.invoke("addBalance", [userAddress, noAssetId, mintAmount], [])
+    ] ++ transferMintFeeAction
+  )
+}
+
+@Callable(i)
+func mergeTokens(eventId: Int, mergeAmount: Int) = {
+  let sEventId = eventId.toString()
+  let userAddress = i.caller.toString()
+  let (_fullEventId, yesAssetId, noAssetId) = intToEventAsset(eventId)
+
+  strict check = [
+    !forceStop || throwErr("contract is temporary stopped")
+  ]  
+
+  let sendAmount = amountAssetToPriceAsset(mergeAmount, PREDICTION_PRICE_UNIT)
+  let oldTotalMinted = this.getInteger(kEventTokensMinted(sEventId)).valueOrElse(0)
+  let newTotalMinted = oldTotalMinted - mergeAmount
+
+  (
+    [
+      IntegerEntry(kEventTokensMinted(sEventId), newTotalMinted)
+    ],
+    [
+      treasuryAddress.invoke("addBalance", [userAddress, predictionPriceAsset.assetIdToString(), sendAmount], []),
+      treasuryAddress.invoke("subBalance", [userAddress, yesAssetId, mergeAmount], []),
+      treasuryAddress.invoke("subBalance", [userAddress, noAssetId, mergeAmount], [])
+    ]
+  )
+}
+
 @Callable(i)
 func init(matcherFactory: String) = {
   strict check = [
@@ -83,6 +680,18 @@ func exchange(
     i.caller.toString() == validatorAddress || throwErr("permission denied")
   ]
 
+  let (makerShortEventId, makerPredDir) = parseEventAssetId(makerEventId)
+  let (takerShortEventId, takerPredDir) = parseEventAssetId(takerEventId)
+
+  let diffDir = if (makerDir == ORDER_DIR_BUY) then 1 else -1
+  let oldTotalMinted = this.getInteger(kEventTokensMinted(makerShortEventId)).valueOrElse(0)
+  let newTotalMinted = oldTotalMinted + (diffDir * makerMatchAmount)
+  let totalMintedAction = if (makerDir == takerDir) then {
+    [ IntegerEntry(kEventTokensMinted(makerShortEventId), newTotalMinted) ]
+  } else {
+    []
+  }
+
   let (makerAmountBalanceAction, makerPriceBalanceAction) = if (makerDir == ORDER_DIR_BUY)
     then ("addBalance", "subBalance")
     else ("subBalance", "addBalance")
@@ -92,7 +701,7 @@ func exchange(
     else ("subBalance", "addBalance")
 
   (
-    [],
+    totalMintedAction,
     [
       # Maker balance actions
       treasuryAddress.invoke(makerAmountBalanceAction, [makerAddress, makerEventId, makerMatchAmount], []),
