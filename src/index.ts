@@ -395,19 +395,22 @@ function getFromState(state: ContractState, key: string) {
 }
 
 function getEventsFromState(state: ContractState) {
-    let allEvents: { eventId: string, status: string, endDatetime: number }[] = [];
-    const events = state.filter((val) => val.key.includes("eventStatus"));
+    let allEvents: { eventId: string, status: string, endDatetime: number, fullEventId: string }[] = [];
+    const events = state.filter((val) => val.key.includes("%s%s%d__event__status__"));
 
     for (const ev of events) {
-        const eventId = ev.key.split("__")[2];
+        const eventId = ev.key.split("__")[3];
+        const fullEventIdBytes = new Uint8Array(32);
+        fullEventIdBytes[31] = parseInt(eventId);
+        const fullEventId = binary_to_base58(fullEventIdBytes);
         var status = "INVALID";
         if (typeof (ev.value) == "number") {
             status = EVENT_STATUS[ev.value]
         }
-        const endKey = state.filter((val) => val.key.includes(`eventEndDatetime__${eventId}`));
+        const endKey = state.filter((val) => val.key.includes(`endDatetime__${eventId}`));
         const endDatetime = endKey.length > 0 ? endKey[0].value as number : 0
 
-        allEvents.push({ eventId, status, endDatetime });
+        allEvents.push({ eventId, status, endDatetime, fullEventId });
     }
 
     return allEvents;
@@ -443,12 +446,16 @@ function getContracts() {
             leverageAddressElement.innerText = getFromState(state, kLeverageAddress).toString();
             predictionAddressElement.innerText = getFromState(state, kPredictionAddress).toString();
 
-            for (const ev of getEventsFromState(state)) {
-                const eventElement = document.createElement("div");
-                const isExpired = ev.endDatetime < Date.now() && ev.endDatetime != 0;
-                eventElement.innerText = `${ev.eventId} -> (${ev.endDatetime}) -> ${(isExpired && ev.status == "OPEN") ? "EXPIRED" : ev.status}`;
-                eventStatusesBlockElement.appendChild(eventElement);
-            }
+            fetch(NODE_URL + ADDRESS_DATA_END + predictionAddressElement.innerText)
+                .then(res => res.json() as Promise<ContractState>)
+                .then(state => {
+                    for (const ev of getEventsFromState(state)) {
+                        const eventElement = document.createElement("div");
+                        const isExpired = ev.endDatetime < Date.now() && ev.endDatetime != 0;
+                        eventElement.innerText = `${ev.eventId} (${ev.fullEventId}) -> (${ev.endDatetime}) -> ${(isExpired && ev.status == "OPEN") ? "EXPIRED" : ev.status}`;
+                        eventStatusesBlockElement.appendChild(eventElement);
+                    }
+                })
 
             const depositLinkElement = document.createElement("a");
             const depositUrl = `https://waves-dapp.com/${getFromState(state, kTreasuryAddress).toString()}#deposit`;
