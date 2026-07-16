@@ -136,6 +136,8 @@ const EVENT_STATUS = [
     "CLOSED_YES",
     "CLOSED_NO",
     "STOPPED",
+    "EXPIRED",
+    "REJECTED",
 ]
 
 const maker = {
@@ -393,7 +395,7 @@ function getFromState(state: ContractState, key: string) {
 }
 
 function getEventsFromState(state: ContractState) {
-    let allEvents: { eventId: string, status: string, endDatetime: number}[] = [];
+    let allEvents: { eventId: string, status: string, endDatetime: number }[] = [];
     const events = state.filter((val) => val.key.includes("eventStatus"));
 
     for (const ev of events) {
@@ -404,7 +406,7 @@ function getEventsFromState(state: ContractState) {
         }
         const endKey = state.filter((val) => val.key.includes(`eventEndDatetime__${eventId}`));
         const endDatetime = endKey.length > 0 ? endKey[0].value as number : 0
-        
+
         allEvents.push({ eventId, status, endDatetime });
     }
 
