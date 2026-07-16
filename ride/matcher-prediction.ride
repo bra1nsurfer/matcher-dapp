@@ -227,9 +227,15 @@ func editGroupHelper(groupId: String, name: String, description: String, categor
 
 func editEventInfoHelper(eventId: String, groupId: String, name: String, endDatetime: Int, creator: String) = {
   let nameEntry    = if(name.size() > 0)    then [StringEntry(kEventName(eventId), name)] else []
-  let endEntry     = if(endDatetime != 0)   then [IntegerEntry(kEventEndDatetime(eventId), endDatetime)] else []
   let groupEntry   = if(groupId.size() > 0) then [StringEntry(kEventGroupId(eventId), groupId)] else []
   let creatorEntry = if(creator.size() > 0) then [StringEntry(kEventCreator(eventId), creator)] else []
+  let endEntry     = if(endDatetime != 0)   then 
+    { 
+      let fullEventId = intToEventId(eventId.parseIntValue()).toBase58String()
+      strict setEventEndDate = factoryAddress.invoke("setEventEndDatetime", [fullEventId, endDatetime], [])
+
+      [IntegerEntry(kEventEndDatetime(eventId), endDatetime)] 
+    } else []
 
   nameEntry ++ 
   endEntry ++ 
@@ -414,10 +420,14 @@ func setEventStatus(eventId: Int, status: Int, category: String) = {
       then [IntegerEntry(kGroupRejectedCount(groupId), oldRejectedCount + 1)]
       else []
     }
-
-  [ IntegerEntry(kEventStatus(sEventId), status) ] ++ 
-  groupActions ++
-  groupRejectedActions
+  let fullEventId = intToEventId(eventId).toBase58String()
+  (
+    [ IntegerEntry(kEventStatus(sEventId), status) ] ++ 
+    groupActions ++
+    groupRejectedActions,
+    # Send status info to Factory for matcher validation
+    [ factoryAddress.invoke("setEventStatus", [fullEventId, status], []) ]
+  )
 }
 
 @Callable(i)
