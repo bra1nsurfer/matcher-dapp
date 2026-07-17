@@ -400,8 +400,10 @@ function getEventsFromState(state: ContractState) {
 
     for (const ev of events) {
         const eventId = ev.key.split("__")[3];
-        const fullEventIdBytes = new Uint8Array(32);
-        fullEventIdBytes[31] = parseInt(eventId);
+        const dataView = new DataView(new ArrayBuffer(32), 0);
+        // EventId is long max in Ride (8 bytes)
+        dataView.setBigInt64(24, BigInt(eventId));
+        const fullEventIdBytes = new Uint8Array(dataView.buffer);
         const fullEventId = binary_to_base58(fullEventIdBytes);
         var status = "INVALID";
         if (typeof (ev.value) == "number") {
