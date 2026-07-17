@@ -76,15 +76,15 @@ let matcherAddress    = matcherPublicKey.addressFromPublicKey()
 let sMatcherAddress   = matcherAddress.toString()
 
 let kEventCreationFeeAmount  = ["%s", "eventCreationFeeAmount"].makeString(SEP)
-let eventCreationFeeAmount   = factoryAddress.getInteger(kEventCreationFeeAmount).valueOrElse(0)
+let eventCreationFeeAmount   = this.getInteger(kEventCreationFeeAmount).valueOrElse(0)
 let kGroupCreationFeeAmount  = ["%s", "groupCreationFeeAmount"].makeString(SEP)
-let groupCreationFeeAmount   = factoryAddress.getInteger(kGroupCreationFeeAmount).valueOrElse(0)
+let groupCreationFeeAmount   = this.getInteger(kGroupCreationFeeAmount).valueOrElse(0)
 let kPredictionPriceAsset    = ["%s", "predictionPriceAsset"].makeString(SEP)
-let sPredictionPriceAsset    = factoryAddress.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
+let sPredictionPriceAsset    = this.getString(kPredictionPriceAsset).valueOrElse("prediction price asset is not set")
 let predictionPriceAsset     = sPredictionPriceAsset.stringToAssetId()
 let predictionPriceAssetInfo = assetInfo(sPredictionPriceAsset.fromBase58String()).valueOrErrorMessage("prediction price asset is not found")
 let kEventMintFeeRate        = ["%s", "predictionMintFeeRate"].makeString(SEP)
-let eventMintFeeRate         = factoryAddress.getInteger(kEventMintFeeRate).valueOrElse(0)
+let eventMintFeeRate         = this.getInteger(kEventMintFeeRate).valueOrElse(0)
 
 let kLastEventIndex = ["%s", "lastEventIndex"].makeString(SEP)
 let lastEventIndex  = this.getInteger(kLastEventIndex).valueOrElse(0)
@@ -674,12 +674,18 @@ func withdrawTokens(eventId: Int, amount: Int) = {
 }
 
 @Callable(i)
-func init(matcherFactory: String) = {
+func init(matcherFactory: String, basePriceAsset: String, eventCreationFeeAmount: Int, groupCreationFeeAmount: Int, mintFeeRate: Int) = {
   strict check = [
-    i.caller == this || throwErr("permission denied")
+    isAdmin(i.caller.toString()) || throwErr("init: permission denied")
   ]
 
-  [StringEntry(kFactoryAddress, matcherFactory)]
+  [
+    StringEntry(kFactoryAddress, matcherFactory),
+    StringEntry(kPredictionPriceAsset, basePriceAsset),
+    IntegerEntry(kEventCreationFeeAmount, eventCreationFeeAmount),
+    IntegerEntry(kGroupCreationFeeAmount, groupCreationFeeAmount),
+    IntegerEntry(kEventMintFeeRate, mintFeeRate)
+  ]
 }
 
 @Callable(i)
