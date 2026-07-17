@@ -10,8 +10,7 @@
   - [Demo](#demo)
   - [Table of Content](#table-of-content)
   - [Matcher Exchange](#matcher-exchange)
-    - [Spot/Leverage/Margin Validator](#spotleveragemargin-validator)
-    - [Prediction Validator](#prediction-validator)
+    - [Spot/Leverage/Margin/Prediction Validator](#spotleveragemarginprediction-validator)
     - [Exchange invoke tx](#exchange-invoke-tx)
   - [Order Bytes Structure](#order-bytes-structure)
   - [Proof Order V1](#proof-order-v1)
@@ -28,45 +27,47 @@
     - [EIP-712 (Metamask) Order V2](#eip-712-metamask-order-v2)
       - [Signing Order V2 for EIP-712 (Metamask)](#signing-order-v2-for-eip-712-metamask)
       - [Verify Order for V2 EIP-712 (Metamask)](#verify-order-for-v2-eip-712-metamask)
-  - [User Balance](#user-balance)
-  - [Delayed Withdraw](#delayed-withdraw)
-    - [User Withdraw Request](#user-withdraw-request)
-    - [User Withdraw Unlock](#user-withdraw-unlock)
-    - [Cancel Withdraw Request](#cancel-withdraw-request)
-  - [Fast Withdraw](#fast-withdraw)
-    - [User Invoke (fast withdraw)](#user-invoke-fast-withdraw)
-    - [Matcher approval](#matcher-approval)
-      - [Withdraw Request Bytes](#withdraw-request-bytes)
-  - [Deposit](#deposit)
+  - [Treasury contract](#treasury-contract)
+    - [User Balance](#user-balance)
+    - [Delayed Withdraw](#delayed-withdraw)
+      - [User Withdraw Request](#user-withdraw-request)
+      - [User Withdraw Unlock](#user-withdraw-unlock)
+      - [Cancel Withdraw Request](#cancel-withdraw-request)
+    - [Fast Withdraw](#fast-withdraw)
+      - [User Invoke (fast withdraw)](#user-invoke-fast-withdraw)
+      - [Matcher approval](#matcher-approval)
+        - [Withdraw Request Bytes](#withdraw-request-bytes)
+    - [Deposit](#deposit)
   - [Prediction Market](#prediction-market)
-    - [Prediction Market base price asset](#prediction-market-base-price-asset)
     - [Prediction Order Bytes](#prediction-order-bytes)
     - [Event Id](#event-id)
-    - [Withdraw from Closed Event](#withdraw-from-closed-event)
+    - [Prediction market contract config](#prediction-market-contract-config)
+    - [Group keys](#group-keys)
+    - [Event Keys](#event-keys)
+    - [Functions](#functions)
+      - [New Group with Events](#new-group-with-events)
+      - [Add new Events to existing Group](#add-new-events-to-existing-group)
+      - [Mint Tokens from Event](#mint-tokens-from-event)
+      - [Merge Tokens from Event](#merge-tokens-from-event)
+      - [Withdraw Tokens from Event](#withdraw-tokens-from-event)
+    - [Set Event Status](#set-event-status)
+      - [Edit group info](#edit-group-info)
+      - [Edit event info](#edit-event-info)
 
 ## Matcher Exchange
 
-### Spot/Leverage/Margin Validator
+### Spot/Leverage/Margin/Prediction Validator
 
 Spot/Leverage/Margin Validator address is stored in the Factory state.
 
 - key: `%s__validatorAddress`
-
-### Prediction Validator
-
-Prediction market has a different Validator.
-
-Validator address is stored in the Factory state.
-
-- key: `%s__predictionValidatorAddress`
 
 ### Exchange invoke tx
 
 After matching two orders, matcher should invoke `validateAndExchange()` function to Validator contract
 
 1. Get Validator address from Factory state
-    - key: `%s__validatorAddress` or
-    - key: `%s__predictionValidatorAddress`
+    - key: `%s__validatorAddress`
 1. Matcher prepares exchange InvokeTx
 1. Matcher broadcast exchange InvokeTx
 
@@ -518,7 +519,9 @@ const recoveredWavesAddress = ethAddress2waves(recoveredEthAddress);
 return (userAddress == recoveredWavesAddress);
 ```
 
-## User Balance
+## Treasury contract
+
+### User Balance
 
 1. Get Treasury address from Factory state
     - key: `%s__treasuryAddress`
@@ -543,7 +546,7 @@ User Balance Example:
 %s%s%s__balance__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB__11111111111111111111111111111112-no
 ```
 
-## Delayed Withdraw
+### Delayed Withdraw
 
 Withdraw have two steps
 
@@ -553,7 +556,7 @@ Withdraw have two steps
 Delay length (in blocks) is stored in Factory state or zero (0)
     - key: `%s__withdrawDelay`
 
-### User Withdraw Request
+#### User Withdraw Request
 
 1. Get Treasury address from Factory state
     - key: `%s__treasuryAddress`
@@ -571,7 +574,7 @@ Result in Treasury state:
 - key: `%s%s%s__withdraw__{user}__{txId}`
 - value: `%s%d%d__{assetId}__{amount}__{unlockHeight}`
 
-### User Withdraw Unlock
+#### User Withdraw Unlock
 
 1. Get Treasury address from Factory
     - key: `%s__treasuryAddress`
@@ -595,7 +598,7 @@ func userUnlockWithdrawFor(userAddress: String, txId: String)
 
 Result: Assets is transferred to user address
 
-### Cancel Withdraw Request
+#### Cancel Withdraw Request
 
 1. Get Treasury address from Factory
     - key: `%s__treasuryAddress`
@@ -618,11 +621,11 @@ func matcherCancelWithdraw(user: String, txId: String)
 
 Result: Withdraw request is removed, assets is returned to user balance
 
-## Fast Withdraw
+### Fast Withdraw
 
 Withdraw in one step can be performed with Matcher approval
 
-### User Invoke (fast withdraw)
+#### User Invoke (fast withdraw)
 
 1. Get Treasury address from Factory
     - key: `%s__treasuryAddress`
@@ -643,9 +646,9 @@ func fastWithdraw(assetId: String, amount: Int, matcherSignature: String)
 
 Result: Assets is transferred to user address
 
-### Matcher approval
+#### Matcher approval
 
-#### Withdraw Request Bytes
+##### Withdraw Request Bytes
 
 | # | Bytes Length | Value Description                                             |
 |--:|-------------:|---------------------------------------------------------------|
@@ -659,7 +662,7 @@ Result: Assets is transferred to user address
 1. Matcher sign withdraw request
 1. Matcher return signature as approval
 
-## Deposit
+### Deposit
 
 1. Get allowed assets list from Factory state
     - key: `%s__allowedAssets`
@@ -687,13 +690,6 @@ Result: Assets is transferred to Treasury, user balance is updated
 
 ## Prediction Market
 
-(!) Prediction market uses a different [Validator](#prediction-validator)
-
-### Prediction Market base price asset
-
-1. Get prediction price asset from Factory state
-    - `%s__predictionPriceAsset`
-
 ### Prediction Order Bytes
 
 Prediction order bytes structure follows the same structure as [ordinary order](#order-bytes-structure).
@@ -707,33 +703,441 @@ Prediction order bytes structure follows the same structure as [ordinary order](
 
 ### Event Id
 
-`EventID` is 32 bytes, like asset id
+`EventID` represented as 32 bytes, like asset id
 
-Event Id status is stored in Factory state.
+Last 8 byte contains eventId
 
-1. Get event status from Factory state
-    - key: `%s%s__eventStatus__{base58:eventId}`
-1. Value is `Integer` type
-1. Possible values:
-    - `0` - Open
-    - `1` - Closed with YES
-    - `2` - Closed with NO
-    - `3` - Stopped (closed without result)
+Example
 
-If event status key is not found, `EventId` is not valid.
+```text
+EventId 1                   -> Base58'11111111111111111111111111111112'
+EventId 6                   -> Base58'11111111111111111111111111111117'
+EventId 1000001             -> Base58'1111111111111111111111111111168GQ'
+EventId 9223372036854775807 -> Base58'111111111111111111111111NQm6nKp8qFC'
+```
 
-### Withdraw from Closed Event
+Base58 conversion:
 
-If event status id closed with YES (`1`) or NO (`2`), user can exchange event tokens for price asset.
+```js
+const eventId: number;
+const dataView = new DataView(new ArrayBuffer(32), 0);
+// EventId is long max in Ride (8 bytes)
+dataView.setBigInt64(24, BigInt(eventId));
+const fullEventIdBytes = new Uint8Array(dataView.buffer);
+const fullEventId = binary_to_base58(fullEventIdBytes);
+```
 
-1. Get Treasury address from Factory state
-    - key: `%s__treasuryAddress`
-1. Construct `withdrawPrediction` Invoke TX to Treasury
-1. Withdraw price assets from Treasury
+### Prediction market contract config
+
+Keys:
+
+|                          Key |    Type | Example                                                                     | Value Description                                                                                         |
+|-----------------------------:|--------:|-----------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+|            `%s__mintFeeRate` | Integer | `1000000`                                                                   | Yes/No token mint fee rate (example: 1% or 0.01 * 10^8. If user mint for 2.0 USDT fee is equal 0.02 USDT) |
+| `%s__groupCreationFeeAmount` | Integer | `500000`                                                                    | Group creation fee (example: 0.5 USDT)                                                                    |
+| `%s__eventCreationFeeAmount` | Integer | `1000000`                                                                   | Event creation fee (example: 1.0 USDT)                                                                    |
+|         `%s__eventAdminList` |  String | `"N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG__3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB"` | Event admin list. Admin can set event status, edit event/group info                                       |
+|   `%s__predictionPriceAsset` |  String | `"25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"`                            | Base price asset id                                                                                       |
+
+### Group keys
+
+| Key                                       |    Type | Value Description           |
+|:------------------------------------------|--------:|-----------------------------|
+| `%s%s%d__group__name__{groupId}`          |  String | Group name                  |
+| `%s%s%d__group__description__{groupId}`   |  String | Group description           |
+| `%s%s%d__group__category__{groupId}`      |  String | Group category list         |
+| `%s%s%d__group__imgSrc__{groupId}`        |  String | Group image source          |
+| `%s%s%d__group__creator__{groupId}`       |  String | Group creator               |
+| `%s%s%d__group__source__{groupId}`        |  String | Group settlement source     |
+| `%s%s%d__group__events__{groupId}`        |  String | Group events list           |
+| `%s%s%d__group__rejectedCount__{groupId}` | Integer | Group rejected events count |
+
+Example:
+
+```json
+[
+  {
+    "key": "%s%s%d__group__name__1",
+    "type": "string",
+    "value": "Group 1"
+  },
+  {
+    "key": "%s%s%d__group__description__1",
+    "type": "string",
+    "value": "Group description 1"
+  },
+  {
+    "key": "%s%s%d__group__imgSrc__1",
+    "type": "string",
+    "value": "https://www.gstatic.com/marketing-cms/assets/images/d5/dc/cfe9ce8b4425b410b49b7f2dd3f3/g.webp"
+  },
+  {
+    "key": "%s%s%d__group__creator__1",
+    "type": "string",
+    "value": "3N8xY1SPSrts3MSVQZRZPEc8JuuDYhALRCG"
+  },
+  {
+    "key": "%s%s%d__group__source__1",
+    "type": "string",
+    "value": "https://google.com"
+  },
+  {
+    "key": "%s%s%d__group__events__1",
+    "type": "string",
+    "value": "1__3__5"
+  },
+  {
+      "key": "%s%s%d__group__category__1",
+      "type": "string",
+      "value": "Category 1__Category 2",
+  },
+  {
+    "key": "%s%s%d__group__rejectedCount__1",
+    "type": "integer",
+    "value": 1
+  },
+]
+```
+
+### Event Keys
+
+| Key                                      |    Type | Value Description         |
+|:-----------------------------------------|--------:|---------------------------|
+| `%s%s%d__event__name__{eventId}`         |  String | Event name                |
+| `%s%s%d__event__groupId__{eventId}`      |  String | Event group Id            |
+| `%s%s%d__event__yesAssetId__{eventId}`   |  String | Event YES token asset id  |
+| `%s%s%d__event__noAssetId__{eventId}`    |  String | Event NO token asset id   |
+| `%s%s%d__event__creator__{eventId}`      |  String | Event creator             |
+| `%s%s%d__event__status__{eventId}`       | Integer | Event status              |
+| `%s%s%d__event__endDatetime__{eventId}`  | Integer | Event end timestamp       |
+| `%s%s%d__event__tokensMinted__{eventId}` | Integer | Event total tokens minted |
+
+```txt
+# EVENT STATUS
+E_NOT_FOUND  = -1
+E_OPEN       = 0
+E_CLOSED_YES = 1
+E_CLOSED_NO  = 2
+E_STOPPED    = 3
+E_EXPIRED    = 4
+E_REJECTED   = 5
+```
+
+Example:
+
+```json
+[
+  {
+    "key": "%s%s%d__event__endDatetime__2",
+    "type": "integer",
+    "value": 1767225600000
+  },
+  {
+    "key": "%s%s%d__event__groupId__2",
+    "type": "string",
+    "value": "2"
+  },
+  {
+    "key": "%s%s%d__event__creator__2",
+    "type": "string",
+    "value": "3Mps7CZqB9nUbEirYyCMMoA7VbqrxLvJFSB"
+  },
+  {
+    "key": "%s%s%d__event__name__2",
+    "type": "string",
+    "value": "Event 2"
+  },
+  {
+    "key": "%s%s%d__event__noAssetId__2",
+    "type": "string",
+    "value": "CsirBazpjKvQZ3xH6FAerZ9DgQfMFoNvv4rVjMASuxg9"
+  },
+  {
+    "key": "%s%s%d__event__status__2",
+    "type": "integer",
+    "value": 0
+  },
+  {
+    "key": "%s%s%d__event__tokensMinted__2",
+    "type": "integer",
+    "value": 0
+  },
+  {
+    "key": "%s%s%d__event__yesAssetId__2",
+    "type": "string",
+    "value": "2a9CQ9nyKJjJiRik82PTLBjg4Fpsiq9cUpEhgborcowi"
+  }
+]
+```
+
+### Functions
+
+#### New Group with Events
 
 ```js
 @Callable(i)
-func withdrawPrediction(eventId: String, amount: Int)
+func newGroupAndEvents(
+  gName        : String,
+  gDescription : String,
+  gImgSrc      : String,
+  gSource      : String,
+  eNames       : String,
+  eEndDatetimes: String
+)
 ```
 
-Result: Resulting event token is exchange to price asset (1.0 TOKEN == 1.0 PRICE ASSET)
+- Can be called by anyone
+- All arguments is required
+- `eNames` is a list of Event names separated with `__`
+- `eEndDatetimes` is a list of Event end timestamps separated with `__`
+- Amount of elements in `eNames` and `eEndDatetimes` lists must be equal
+- Up to 10 events can be created with single invoke
+- If `%s__groupCreationFeeAmount` is NOT zero, must include payment with fee
+- If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee for every event
+- Fee assetId is `%s__predictionPriceAsset`
+
+Example:
+
+```json
+{
+    "type": 16,
+    "fee": 500000,
+    "feeAssetId": null,
+    "version": 2,
+    "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+    "dApp": "3Mt472nizh8hsEWBzuiGJSmtbHUinHEA6Kh",
+    "payment": [
+        {
+            "amount": 10500000,
+            "assetId": "25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"
+        }
+    ],
+    "call": {
+        "function": "newGroupAndEvents",
+        "args": [
+            {
+                "type": "string",
+                "value": "NEW GROUP!"
+            },
+            {
+                "type": "string",
+                "value": "Lorem ipsum"
+            },
+            {
+                "type": "string",
+                "value": "https://www.gstatic.com/marketing-cms/assets/images/ef/8c/be724dfe44f88ea9f229c060dd0d/chrome-dino.webp"
+            },
+            {
+                "type": "string",
+                "value": "https://google.com"
+            },
+            {
+                "type": "string",
+                "value": "Event 01 from group__Event 02 from group__Event 03 from group__Event 04 from group__Event 05 from group__Event 06 from group__Event 07 from group__Event 08 from group__Event 09 from group__Event 10 from group"
+            },
+            {
+                "type": "string",
+                "value": "1772323200000__1772496000000__1773100800000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000"
+            }
+        ]
+    }
+}
+```
+
+#### Add new Events to existing Group
+
+```js
+@Callable(i)
+func newEvents(
+  groupId      : Int,
+  eNames       : String,
+  eEndDatetimes: String
+)
+```
+
+- Can be called by anyone
+- All arguments is required
+- Up to 10 events can be created with single invoke
+- If `%s__eventCreationFeeAmount` is NOT zero, must include payment with fee
+- Fee assetId is `%s__predictionPriceAsset`
+
+Example:
+
+```json
+{
+    "type": 16,
+    "fee": 500000,
+    "feeAssetId": null,
+    "version": 2,
+    "senderPublicKey": "FB5ErjREo817duEBBQUqUdkgoPctQJEYuG3mU7w3AYjc",
+    "dApp": "3Mt472nizh8hsEWBzuiGJSmtbHUinHEA6Kh",
+    "payment": [
+        {
+            "amount": 10000000,
+            "assetId": "25FEqEjRkqK6yCkiT7Lz6SAYz7gUFCtxfCChnrVFD5AT"
+        }
+    ],
+    "call": {
+        "function": "newEvents",
+        "args": [
+            {
+                "type": "integer",
+                "value": 4
+            },
+            {
+                "type": "string",
+                "value": "Event 01 from group__Event 02 from group__Event 03 from group__Event 04 from group__Event 05 from group__Event 06 from group__Event 07 from group__Event 08 from group__Event 09 from group__Event 10 from group"
+            },
+            {
+                "type": "string",
+                "value": "1772323200000__1772496000000__1773100800000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000__1772496000000"
+            }
+        ]
+    }
+}
+```
+
+#### Mint Tokens from Event
+
+```js
+@Callable(i)
+func mintTokens(eventId: Int, amount: Int)
+```
+
+- `amount` is in event tokens
+- Only if event status `E_OPEN` (`0`)
+- Buying rate is `1.0 Price token == (1 YES + 1 NO)`
+- YES and NO decimals is 0
+- Mint fee is equal `Price amount * mint fee rate`
+- Mint fee is deducted from Treasury balance
+
+Example 1:
+
+- `%s__mintFeeRate` == `1000000` (1% or 0.01 * 10^8)
+- `amount` == 2
+- Payment for mint == 2.0 USDT
+- Mint fee == 0.02 USDT
+- Get: 2 YES token
+- Get: 2 NO token
+
+#### Merge Tokens from Event
+
+```js
+@Callable(i)
+func mergeTokens(eventId: Int, amount: Int)
+```
+
+- `amount` is in event tokens
+- Can be called by anyone
+- YES and NO token amount should be equal
+- Merge rate `(1 YES + 1 NO) == 1.0 Price token`
+
+Example 1:
+
+- `amount` == 3
+- Get: 3.0 USDT
+
+Example 2:
+Tokens amount is not equal
+
+- NO  token balance: 3 NO token
+- YES token balance: 2 YES token
+- `amount` == 3
+- Get: Error
+
+#### Withdraw Tokens from Event
+
+```js
+@Callable(i)
+func withdrawTokens(eventId: Int, amount: Int)
+```
+
+- `amount` is in event tokens
+- Can be called by anyone
+- Only if event status `E_CLOSED_YES` (`1`) or `E_CLOSED_NO` (`2`)
+- Withdraw rate `1 YES/NO token == 1.0 Price token`
+
+Example 1:
+
+- `%s%s%d__event__status__{eventId}`: `1` (`E_CLOSED_YES`)
+- Give: 4 YES token
+- Get: 4.0 USDT
+
+Example 2:
+
+- `%s%s%d__event__status__{eventId}`: `2` (`E_CLOSED_NO`)
+- Give: 4 NO token
+- Get: 4.0 USDT
+
+Example 3:
+Wrong token direction
+
+- `%s%s%d__event__status__{eventId}`: `1` (`E_CLOSED_YES`)
+- Give: 4 NO token
+- Get: Error
+
+Example 4:
+Event is not closed
+
+- `%s%s%d__event__status__{eventId}`: `0` (`E_OPEN`)
+- Give: 4 NO token
+- Get: Error
+
+Example 5:
+Event is stopped without resolution
+
+- `%s%s%d__event__status__{eventId}`: `3` (`E_STOPPED`)
+- Give: 4 YES token
+- Get: Error
+
+### Set Event Status
+
+```js
+@Callable(i)
+func setEventStatus(eventId: Int, status: Int, category: String)
+```
+
+```txt
+# EVENT STATUS
+E_NOT_FOUND  = -1
+E_OPEN       = 0
+E_CLOSED_YES = 1
+E_CLOSED_NO  = 2
+E_STOPPED    = 3
+E_EXPIRED    = 4
+E_REJECTED   = 5
+```
+
+- Can be called only by event admin
+
+#### Edit group info
+
+```js
+@Callable(i)
+func editGroup(
+  groupId    : Int,
+  name       : String,
+  description: String,
+  category   : String,
+  imgSrc     : String,
+  source     : String,
+  creator    : String
+)
+```
+
+- Can be called only by event admin
+
+#### Edit event info
+
+```js
+@Callable(i)
+func editEvent(
+  eventId    : Int,
+  groupId    : Int,
+  name       : String,
+  endDatetime: Int,
+  creator    : String
+)
+```
+
+- Can be called only by event admin
