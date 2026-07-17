@@ -582,17 +582,17 @@ func newEvents(
 }
 
 @Callable(i)
-func mintTokens(eventId: Int, mintAmount: Int) = {
+func mintTokens(eventId: Int, amount: Int) = {
   let userAddress = i.caller.toString()
   let sEventId = eventId.toString()
-  let paymentAmount = amountAssetToPriceAsset(mintAmount, PREDICTION_PRICE_UNIT)
+  let paymentAmount = amountAssetToPriceAsset(amount, PREDICTION_PRICE_UNIT)
   let minMintFeeAmount = fraction(paymentAmount, eventMintFeeRate, DEC8)
 
   strict check1 = [
     !forceStop || throwErr("contract is temporary stopped"),
     this.getString(kEventName(sEventId)).valueOrElse("").size() > 0 || throwErr("eventId is not found"),
     isEventOpen(sEventId) || throwErr("invalid event status"),
-    mintAmount > 0 || throwErr("mint amount cannot be negative")
+    amount > 0 || throwErr("mint amount cannot be negative")
   ]
 
   let transferMintFeeAction = if(minMintFeeAmount > 0) 
@@ -603,7 +603,7 @@ func mintTokens(eventId: Int, mintAmount: Int) = {
     else []
 
   let oldTotalMinted = this.getInteger(kEventTokensMinted(sEventId)).valueOrElse(0)
-  let newTotalMinted = oldTotalMinted + mintAmount
+  let newTotalMinted = oldTotalMinted + amount
 
   let (_fullEventId, yesAssetId, noAssetId)  = intToEventAsset(eventId)
   
@@ -613,14 +613,14 @@ func mintTokens(eventId: Int, mintAmount: Int) = {
     ],
     [
       treasuryAddress.invoke("subBalance", [userAddress, sPredictionPriceAsset, paymentAmount], []),
-      treasuryAddress.invoke("addBalance", [userAddress, yesAssetId, mintAmount], []),
-      treasuryAddress.invoke("addBalance", [userAddress, noAssetId, mintAmount], [])
+      treasuryAddress.invoke("addBalance", [userAddress, yesAssetId, amount], []),
+      treasuryAddress.invoke("addBalance", [userAddress, noAssetId, amount], [])
     ] ++ transferMintFeeAction
   )
 }
 
 @Callable(i)
-func mergeTokens(eventId: Int, mergeAmount: Int) = {
+func mergeTokens(eventId: Int, amount: Int) = {
   let sEventId = eventId.toString()
   let userAddress = i.caller.toString()
   let (_fullEventId, yesAssetId, noAssetId) = intToEventAsset(eventId)
@@ -629,9 +629,9 @@ func mergeTokens(eventId: Int, mergeAmount: Int) = {
     !forceStop || throwErr("contract is temporary stopped")
   ]  
 
-  let sendAmount = amountAssetToPriceAsset(mergeAmount, PREDICTION_PRICE_UNIT)
+  let sendAmount = amountAssetToPriceAsset(amount, PREDICTION_PRICE_UNIT)
   let oldTotalMinted = this.getInteger(kEventTokensMinted(sEventId)).valueOrElse(0)
-  let newTotalMinted = oldTotalMinted - mergeAmount
+  let newTotalMinted = oldTotalMinted - amount
 
   (
     [
@@ -639,8 +639,8 @@ func mergeTokens(eventId: Int, mergeAmount: Int) = {
     ],
     [
       treasuryAddress.invoke("addBalance", [userAddress, predictionPriceAsset.assetIdToString(), sendAmount], []),
-      treasuryAddress.invoke("subBalance", [userAddress, yesAssetId, mergeAmount], []),
-      treasuryAddress.invoke("subBalance", [userAddress, noAssetId, mergeAmount], [])
+      treasuryAddress.invoke("subBalance", [userAddress, yesAssetId, amount], []),
+      treasuryAddress.invoke("subBalance", [userAddress, noAssetId, amount], [])
     ]
   )
 }
