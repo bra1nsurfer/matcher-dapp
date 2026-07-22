@@ -511,7 +511,9 @@ func newGroupAndEvents(
     [IntegerEntry(kLastGroupIndex, newGroupIndex)]
 
   let (groupEventIds, eTotalFee, eventsActions) = massNewEventsHelper(creator, groupId, eNames, eEndDatetimes)
-  let totalFee = groupCreationFeeAmount + eTotalFee
+  let totalFee = if (isEventAdmin(creator)) then 0 else groupCreationFeeAmount + eTotalFee
+
+  let withPayment = i.payments.size() > 0
 
   strict check = [
     !forceStop || throwErr("contract is temporary stopped"),
@@ -519,25 +521,45 @@ func newGroupAndEvents(
     gDescription.size() > 0 || throwErr("group description is required"),
     gImgSrc.size() > 0 || throwErr("group image source is required"),
     gSource.size() > 0 || throwErr("group source is required"),
-    totalFee == 0 || i.payments.size() == 1 || throwErr("payment not found"),
-    totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
-    totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
+    totalFee == 0 || !withPayment || i.payments.size() == 0 || i.payments.size() == 1 || throwErr("payment not found"),
+    totalFee == 0 || !withPayment || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
+    totalFee == 0 || !withPayment || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" "))
   ]
 
   let groupEventIdsActions = [StringEntry(kGroupEvents(groupId), groupEventIds.makeString_11C(SEP))] 
-  let transferFeeAction = if (totalFee > 0) 
-    then [ScriptTransfer(matcherAddress, totalFee, i.payments[0].assetId)]
-    else []
-  let feeExcess = i.payments[0].amount - totalFee
-  let returnExcessFeeAction = if (feeExcess > 0)
-    then [ScriptTransfer(i.caller, feeExcess, i.payments[0].assetId)]
-    else []
 
-  groupActions ++
-  groupEventIdsActions ++
-  eventsActions ++
-  transferFeeAction ++
-  returnExcessFeeAction
+  # Subtract fee amount from treasury balance or get from payment
+  let (feeActions, subFeeInvoke) = if (totalFee <= 0)
+    then ([], [])
+    else {
+      if (withPayment) then {
+        let feeExcess = if (totalFee > 0 && withPayment) then i.payments[0].amount - totalFee else 0
+        let returnExcessFeeAction = if (feeExcess > 0)
+          then [ScriptTransfer(i.caller, feeExcess, predictionPriceAsset)]
+          else []
+        ( 
+          [ ScriptTransfer(matcherAddress, totalFee, predictionPriceAsset) ] ++
+          returnExcessFeeAction,
+          []
+        )
+      } else {
+        (
+          [], 
+          [
+            treasuryAddress.invoke("subBalance", [creator, sPredictionPriceAsset, totalFee], []),
+            treasuryAddress.invoke("transferTo", [sMatcherAddress, sPredictionPriceAsset, totalFee], [])
+          ]
+        )
+      }
+    }
+
+  (
+    groupActions ++
+    groupEventIdsActions ++
+    eventsActions ++
+    feeActions,
+    subFeeInvoke
+  )
 }
 
 @Callable(i)
@@ -549,14 +571,17 @@ func newEvents(
   let sGroupId = groupId.toString()
   let creator = i.caller.toString()
 
-  let (newGroupEventIds, totalFee, eventsActions) = massNewEventsHelper(creator, sGroupId, eNames, eEndDatetimes)
+  let (newGroupEventIds, eTotalFee, eventsActions) = massNewEventsHelper(creator, sGroupId, eNames, eEndDatetimes)
+  let totalFee = if (isEventAdmin(creator)) then 0 else eTotalFee
+
+  let withPayment = i.payments.size() > 0
 
   strict check = [
     isGroupExist(sGroupId) || throwErr("groupId no found"),
     !forceStop || throwErr("contract is temporary stopped"),
-    totalFee == 0 || i.payments.size() == 1 || throwErr("payment not found"),
-    totalFee == 0 || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
-    totalFee == 0 || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" ")),
+    totalFee == 0 || !withPayment || i.payments.size() == 1 || throwErr("payment not found"),
+    totalFee == 0 || !withPayment || i.payments[0].assetId == predictionPriceAsset || throwErr("wrong creation fee asset"),
+    totalFee == 0 || !withPayment || i.payments[0].amount >= totalFee || throwErr(["not enough creation fee amount", "need:", totalFee.toString()].makeString(" ")),
     !isGroupUnlimited(sGroupId) || isEventAdmin(creator) || throwErr("permission denied (unlimited group)")
   ]
 
@@ -567,18 +592,38 @@ func newEvents(
     then [StringEntry(kGroupEvents(sGroupId), (oldGroupEventIds ++ newGroupEventIds).makeString_11C(SEP))]
     else throwErr(["max", MAX_GROUP_EVENTS.toString(), "events in group"].makeString(" "))
 
-  let transferFeeAction = if (totalFee > 0) 
-    then [ScriptTransfer(matcherAddress, totalFee, i.payments[0].assetId)]
-    else []
-  let feeExcess = i.payments[0].amount - totalFee
-  let returnExcessFeeAction = if (feeExcess > 0)
-    then [ScriptTransfer(i.caller, feeExcess, i.payments[0].assetId)]
-    else []
+  # Subtract fee amount from treasury balance or get from payment
+  let (feeActions, subFeeInvoke) = if (totalFee <= 0)
+    then ([], [])
+    else {
+      if (withPayment) then {
+        let feeExcess = if (totalFee > 0 && withPayment) then i.payments[0].amount - totalFee else 0
+        let returnExcessFeeAction = if (feeExcess > 0)
+          then [ScriptTransfer(i.caller, feeExcess, predictionPriceAsset)]
+          else []
+        ( 
+          [ ScriptTransfer(matcherAddress, totalFee, predictionPriceAsset) ] ++
+          returnExcessFeeAction,
+          []
+        )
+      } else {
+        (
+          [], 
+          [
+            treasuryAddress.invoke("subBalance", [creator, sPredictionPriceAsset, totalFee], []),
+            treasuryAddress.invoke("transferTo", [sMatcherAddress, sPredictionPriceAsset, totalFee], [])
+          ]
+        )
+      }
+    }
 
-  groupEventIdsActions ++
-  eventsActions ++
-  transferFeeAction ++
-  returnExcessFeeAction
+
+  (
+    groupEventIdsActions ++
+    eventsActions ++
+    feeActions,
+    subFeeInvoke
+  )
 }
 
 @Callable(i)
