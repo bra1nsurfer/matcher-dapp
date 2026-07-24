@@ -725,8 +725,8 @@ func matchOrders(
     then (takerOrderPriceAsset, matchAmountInPriceAsset, takerOrderAmountAsset, realMatchAmount)
     else (takerOrderAmountAsset, realMatchAmount, takerOrderPriceAsset, matchAmountInPriceAsset)
 
-  let defaultMakerData = (makerOrderSenderAddress.toString(), makerSendAmount, makerSendAmount, makerGetAsset, makerGetAmount, makerOrderFlags, makerOrderDir)
-  let defaultTakerData = (takerOrderSenderAddress.toString(), takerSendAmount, takerSendAmount, takerGetAsset, takerGetAmount, takerOrderFlags, takerOrderDir)
+  let defaultMakerData = (makerOrderSenderAddress.toString(), makerSendAsset, makerSendAmount, makerGetAsset, makerGetAmount, makerOrderFlags, makerOrderDir)
+  let defaultTakerData = (takerOrderSenderAddress.toString(), takerSendAsset, takerSendAmount, takerGetAsset, takerGetAmount, takerOrderFlags, takerOrderDir)
 
   let makerFinalEventId = [makerEventId, makerPredDir].makeString("-")
   let makerFinalPriceAmount = if (makerPredDir == P_DIR_YES)
